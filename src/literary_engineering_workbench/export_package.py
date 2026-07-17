@@ -1,0 +1,305 @@
+"""Export chapter artifacts into multiple delivery formats."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+
+from .chapter_pipeline import build_chapter_workspace
+from .scene_draft import extract_draft_body
+
+
+@dataclass(frozen=True)
+class ExportPackageResult:
+    project_root: Path
+    output_dir: Path
+    manifest_path: Path
+    novel_path: Path
+    screenplay_path: Path
+    video_prompt_path: Path
+    chapter_id: str
+    exported_scene_count: int
+    skipped_scene_count: int
+
+
+def build_export_package(
+    project_root: Path,
+    chapter_id: str = "chapter_0001",
+    include_blocked: bool = False,
+    rebuild_chapter: bool = False,
+    output_dir: Path | None = None,
+) -> ExportPackageResult:
+    root = project_root.resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"project root not found: {root}")
+
+    chapter_json = root / "plot" / "chapters" / f"{chapter_id}.json"
+    if rebuild_chapter or not chapter_json.exists():
+        build_chapter_workspace(root, chapter_id=chapter_id, build_missing=False, review_drafts=False)
+    if not chapter_json.exists():
+        raise FileNotFoundError(f"chapter JSON not found: {chapter_json}")
+
+    chapter = json.loads(chapter_json.read_text(encoding="utf-8"))
+    scenes = chapter.get("scenes", [])
+    exportable = []
+    skipped = []
+    for scene in scenes:
+        if scene.get("status") == "ready" or include_blocked:
+            exportable.append(scene)
+        else:
+            skipped.append(scene)
+
+    out_dir = (output_dir if output_dir and output_dir.is_absolute() else root / output_dir) if output_dir else root / "exports" / chapter_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    novel_path = out_dir / f"{chapter_id}_novel.md"
+    screenplay_path = out_dir / f"{chapter_id}_screenplay.md"
+    video_prompt_path = out_dir / f"{chapter_id}_video_prompt_pack.md"
+    manifest_path = out_dir / "export_manifest.json"
+
+    novel_path.write_text(_render_novel(root, chapter_id, exportable, skipped, include_blocked), encoding="utf-8")
+    screenplay_path.write_text(_render_screenplay(root, chapter_id, exportable, skipped, include_blocked), encoding="utf-8")
+    video_prompt_path.write_text(_render_video_prompt_pack(root, chapter_id, exportable, skipped, include_blocked), encoding="utf-8")
+
+    manifest = {
+        "schema": "literary-engineering-workbench/export-package/v0.1",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "chapter_id": chapter_id,
+        "include_blocked": include_blocked,
+        "source_chapter_json": _rel_str(chapter_json, root),
+        "outputs": {
+            "novel": _rel_str(novel_path, root),
+            "screenplay": _rel_str(screenplay_path, root),
+            "video_prompt_pack": _rel_str(video_prompt_path, root),
+        },
+        "exported_scenes": [_scene_manifest(root, scene) for scene in exportable],
+        "skipped_scenes": [_scene_manifest(root, scene) for scene in skipped],
+        "warnings": _warnings(exportable, skipped, include_blocked),
+    }
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return ExportPackageResult(
+        project_root=root,
+        output_dir=out_dir,
+        manifest_path=manifest_path,
+        novel_path=novel_path,
+        screenplay_path=screenplay_path,
+        video_prompt_path=video_prompt_path,
+        chapter_id=chapter_id,
+        exported_scene_count=len(exportable),
+        skipped_scene_count=len(skipped),
+    )
+
+
+def _render_novel(root: Path, chapter_id: str, scenes: list[dict], skipped: list[dict], include_blocked: bool) -> str:
+    lines = [
+        f"# {chapter_id}",
+        "",
+        f"导出时间：{datetime.now(timezone.utc).isoformat()}",
+        "",
+        "## 导出规则",
+        "",
+        "- 本文件是章节正文导出草案。",
+        "- 默认只包含审查通过的 ready 场景。",
+        "- 新 canon 写回仍以章节工作台和审查报告为准。",
+        "",
+    ]
+    if include_blocked:
+        lines.append("> 注意：本次包含未通过审查或未完成的场景，仅可用于内部预览。")
+        lines.append("")
+    if not scenes:
+        lines.append("## 无可导出场景")
+        lines.append("")
+        lines.append("- 当前章节没有 ready 场景。")
+        lines.append("")
+    for scene in scenes:
+        lines.append(f"## {scene.get('scene_id', 'scene')}")
+        lines.append("")
+        body = _draft_body(root, scene)
+        lines.append(body or "- 未读取到正文。")
+        lines.append("")
+    if skipped:
+        lines.append("## 未导出场景")
+        lines.append("")
+        for scene in skipped:
+            lines.append(f"- `{scene.get('scene_id', '')}`：{scene.get('status', 'unknown')}")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _render_screenplay(root: Path, chapter_id: str, scenes: list[dict], skipped: list[dict], include_blocked: bool) -> str:
+    lines = [
+        f"# 剧本导出草稿：{chapter_id}",
+        "",
+        "## 使用规则",
+        "",
+        "- 本文件是由场景草稿转换的剧本工作稿，不是最终拍摄剧本。",
+        "- 场景调度、对白拆分和镜头编号需要人工二次整理。",
+        "",
+    ]
+    if include_blocked:
+        lines.extend(["> 注意：包含未通过审查的场景。", ""])
+    for scene in scenes:
+        sid = scene.get("scene_id", "scene")
+        location = scene.get("location") or "未填写地点"
+        participants = "、".join(scene.get("participants") or []) or "未填写"
+        lines.extend(
+            [
+                f"## SCENE {sid}",
+                "",
+                f"**场景**：{location}",
+                f"**人物**：{participants}",
+                f"**场景目标**：{scene.get('scene_goal') or '未填写'}",
+                f"**审查状态**：{scene.get('review_conclusion') or 'missing'} / {scene.get('status') or 'unknown'}",
+                "",
+                "### 剧本文本",
+                "",
+                _screenplay_body(_draft_body(root, scene)),
+                "",
+            ]
+        )
+    if skipped:
+        lines.extend(["## 未进入剧本导出的场景", ""])
+        for scene in skipped:
+            lines.append(f"- `{scene.get('scene_id', '')}`：{scene.get('status', 'unknown')}")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _render_video_prompt_pack(root: Path, chapter_id: str, scenes: list[dict], skipped: list[dict], include_blocked: bool) -> str:
+    lines = [
+        f"# 长视频提示词包：{chapter_id}",
+        "",
+        f"生成时间：{datetime.now(timezone.utc).isoformat()}",
+        "",
+        "## 全局约束",
+        "",
+        "- 只依据已导出的场景草稿生成画面提示，不新增剧情事实。",
+        "- 视觉连续性必须服从地点、人物、时间线和 canon。",
+        "- 人物外观、服装、道具一旦确认，应写回角色或地点档案。",
+        "- 输出给视频模型前，应由人工确认镜头长度、平台比例和禁用内容。",
+        "",
+    ]
+    if include_blocked:
+        lines.extend(["> 注意：包含未通过审查的场景，视频提示词仅供内部探索。", ""])
+    if not scenes:
+        lines.extend(["## 无可生成视频提示词的场景", "", "- 当前章节没有 ready 场景。", ""])
+    for index, scene in enumerate(scenes, 1):
+        body = _draft_body(root, scene)
+        summary = _compact(body, 260)
+        participants = "、".join(scene.get("participants") or []) or "未填写"
+        location = scene.get("location") or "未填写地点"
+        lines.extend(
+            [
+                f"## {index}. {scene.get('scene_id', 'scene')}",
+                "",
+                f"- 地点：{location}",
+                f"- 人物：{participants}",
+                f"- 场景目标：{scene.get('scene_goal') or '未填写'}",
+                f"- 审查状态：{scene.get('review_conclusion') or 'missing'} / {scene.get('status') or 'unknown'}",
+                "",
+                "### 场景摘要",
+                "",
+                summary or "未读取到正文。",
+                "",
+                "### 镜头设计",
+                "",
+                "- 建立镜头：交代地点、时间、主要人物和空间关系。",
+                "- 推进镜头：跟随关键动作与信息揭示，不添加草稿之外的新事件。",
+                "- 情绪镜头：突出人物的迟疑、选择、冲突或隐瞒。",
+                "- 收束镜头：保留下一场景的状态变化或悬念。",
+                "",
+                "### 视频生成提示词",
+                "",
+                _video_prompt(scene, summary),
+                "",
+                "### 负面提示",
+                "",
+                "- 不要新增未确认角色。",
+                "- 不要改变人物关系和场景结果。",
+                "- 不要使用夸张娱乐化表演。",
+                "- 不要制造与 canon 冲突的道具、地点或时间。",
+                "",
+                "### 声音与字幕",
+                "",
+                "- 环境声应服务地点和情绪。",
+                "- 旁白只可压缩草稿信息，不可替代剧情推进。",
+                "- 字幕保留人物姓名、地点和关键信息，不扩写新事实。",
+                "",
+            ]
+        )
+    if skipped:
+        lines.extend(["## 未生成视频提示词的场景", ""])
+        for scene in skipped:
+            lines.append(f"- `{scene.get('scene_id', '')}`：{scene.get('status', 'unknown')}")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _scene_manifest(root: Path, scene: dict) -> dict:
+    return {
+        "scene_id": scene.get("scene_id", ""),
+        "status": scene.get("status", ""),
+        "review_conclusion": scene.get("review_conclusion", ""),
+        "draft_path": scene.get("draft_path", ""),
+        "draft_chars": len(_draft_body(root, scene)),
+    }
+
+
+def _warnings(exportable: list[dict], skipped: list[dict], include_blocked: bool) -> list[str]:
+    warnings = []
+    if include_blocked:
+        warnings.append("本次导出包含未通过审查或未完成的场景，仅可内部预览。")
+    if skipped:
+        warnings.append("存在未导出的场景，请回到 chapter-workspace 或 review-scene 修订。")
+    if not exportable:
+        warnings.append("没有可导出的 ready 场景。")
+    return warnings
+
+
+def _draft_body(root: Path, scene: dict) -> str:
+    rel = scene.get("draft_path") or ""
+    if not rel:
+        return ""
+    path = Path(rel)
+    draft_path = path if path.is_absolute() else root / path
+    if not draft_path.exists():
+        return ""
+    return extract_draft_body(draft_path.read_text(encoding="utf-8", errors="ignore")).strip()
+
+
+def _screenplay_body(body: str) -> str:
+    if not body:
+        return "- 未读取到正文。"
+    paragraphs = [item.strip() for item in body.splitlines() if item.strip()]
+    if not paragraphs:
+        paragraphs = [body.strip()]
+    lines = []
+    for paragraph in paragraphs:
+        lines.append(paragraph)
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+def _video_prompt(scene: dict, summary: str) -> str:
+    location = scene.get("location") or "未填写地点"
+    participants = "、".join(scene.get("participants") or []) or "未填写人物"
+    goal = scene.get("scene_goal") or "未填写场景目标"
+    return (
+        f"在{location}，围绕{participants}展开一段严肃克制、叙事清晰的长视频场景。"
+        f"核心目标是：{goal}。画面应表现以下内容：{summary or '依据场景草稿呈现人物行动与情绪变化。'}"
+        "镜头语言保持现实质感，注重空间、动作、情绪和信息揭示的连续性。"
+    )
+
+
+def _compact(text: str, limit: int) -> str:
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= limit:
+        return collapsed
+    return collapsed[:limit].rstrip() + "..."
+
+
+def _rel_str(path: Path, root: Path) -> str:
+    try:
+        return path.resolve().relative_to(root).as_posix()
+    except ValueError:
+        return str(path)

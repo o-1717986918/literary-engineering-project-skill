@@ -1,0 +1,35 @@
+# Python caches and build metadata
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Packaging outputs
+build/
+dist/
+*.egg-info/
+*.whl
+
+# Local environments and secrets
+.venv/
+venv/
+.env
+.env.*
+
+# Local generated workspaces and runtime output
+work/
+workspace/
+corpus/
+workflow/runs/
+workflow/approvals/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# Generated archives
+*.zip

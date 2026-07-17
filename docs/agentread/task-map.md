@@ -1,0 +1,57 @@
+# Agent Task Map
+
+Use this map after reading `SKILL.md`, `AGENTS.md`, and `agentread.yaml`.
+
+## Project Director
+
+Read: `references/project-director-playbook.md`, `references/artifact-contracts.md`.
+
+Use when the user gives broad direction, says continue, changes taste, asks what to do next, or wants Codex/Claude to manage the project.
+
+Output: creative summary, candidate plan, changed files, review notes, and one high-level next choice.
+
+## Work Project Initialization
+
+Read: `templates/work-project/project.yaml`, `docs/architecture/data-model.md`, `docs/implementation/phase1-initializer.md`.
+
+Output: work project skeleton, premise, project brief, first candidate pass, approval boundaries.
+
+## Style Engineering
+
+Read: `docs/modules/style-compiler.md`, `docs/implementation/phase58-author-style-projects.md`, `docs/implementation/phase59-style-skill-package.md`, `docs/implementation/phase60-style-skill-mount.md`, `docs/implementation/phase61-style-priority-enforcement.md`.
+
+Output: author style project, work subproject, style profile, LLM-facing prompt, mountable Style Skill, style risk report.
+
+## Character / World / Outline Assets
+
+Read: `docs/implementation/phase37-asset-candidate-schemas.md` through `docs/implementation/phase41-candidate-review-promotion.md`.
+
+Output: candidate JSON/Markdown, review report, promotion recommendation, user approval question.
+
+Do not write directly to confirmed canon or final character files unless the user explicitly approves.
+
+## Scene Development
+
+Read: `docs/modules/plot-scene-engine.md`, `docs/modules/character-engine.md`, `docs/implementation/phase20-branch-simulation.md`, `docs/implementation/phase22-scene-composer.md`, `docs/implementation/phase23-model-provider-prompt-pack.md`, `docs/implementation/phase24-character-state-evolution.md`, `docs/implementation/phase25-candidate-promotion-state-apply.md`.
+
+Output: context packet, branch candidates, scene composition packet, draft candidate, review report, state patch.
+
+## Review And Audit
+
+Read: `docs/modules/review-ci.md`, `docs/implementation/phase4-scene-review-loop.md`, `docs/implementation/phase19-canon-lint.md`, `docs/implementation/phase7-chapter-pipeline.md`, `docs/implementation/phase8-longform-audit.md`.
+
+Output: findings ordered by severity, revision plan, readiness status, approval gates.
+
+## Export And Release
+
+Read: `docs/implementation/phase9-export-package.md`, `docs/implementation/phase21-publish-chain.md`, `docs/implementation/phase15-approval-loop.md`.
+
+Output: export package, release manifest, release notes, rollback notes.
+
+## Optional CLI And Integration
+
+Read: `references/workflows.md` for commands and `references/orchestration.md` for LangGraph/Dify/FastAPI.
+
+Output: exact command, result summary, generated artifact paths.
+
+Reminder: the local CLI is deterministic support infrastructure. The platform agent remains the project director and creative provider.

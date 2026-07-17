@@ -1,0 +1,24 @@
+{
+  "schema_id": "scene_review.v1",
+  "schema_value": "literary-engineering-workbench/scene-review-agent/v1",
+  "required": ["schema", "scene_id", "conclusion", "summary", "blocking_issues", "warnings", "revision_actions", "character_logic", "canon_risks", "style_notes", "source_paths"],
+  "recommended": ["agent_confidence", "next_gate"],
+  "types": {
+    "schema": "str",
+    "scene_id": "str",
+    "conclusion": "str",
+    "summary": "str",
+    "blocking_issues": "list",
+    "warnings": "list",
+    "revision_actions": "list",
+    "character_logic": "list",
+    "canon_risks": "list",
+    "style_notes": "list",
+    "source_paths": "list",
+    "agent_confidence": "str",
+    "next_gate": "str"
+  },
+  "enums": {
+    "conclusion": ["pass", "pass_with_notes", "revise_required", "reject"]
+  }
+}

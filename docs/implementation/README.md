@@ -1,0 +1,63 @@
+# 实现文档
+
+本目录记录从规划到可运行工程的阶段实现。
+
+- `phase1-initializer.md`：`init`
+- `phase2-memory-context.md`：`index` / `search` / `context`
+- `phase3-style-compiler.md`：`style-profile`
+- `phase4-scene-review-loop.md`：`draft-scene` / `review-scene`
+- `phase5-roleplay-lab.md`：`simulate-scene`
+- `phase6-orchestration-blueprint.md`：`orchestration-plan`
+- `phase7-chapter-pipeline.md`：`chapter-workspace`
+- `phase8-longform-audit.md`：`longform-audit`
+- `phase9-export-package.md`：`export-package`
+- `phase10-workflow-runner.md`：`run-workflow`
+- `phase11-api-langgraph-dify.md`：`serve-api` / `run-langgraph`
+- `phase12-dify-dsl.md`：`dify-dsl`
+- `phase13-api-auth.md`：`serve-api --api-token`
+- `phase14-workflow-persistence.md`：run index / stable run id / resume link
+- `phase15-approval-loop.md`：approval index / summary / follow-up tasks
+- `phase16-generation-provider.md`：`generate-scene` / provider protocol
+- `phase17-knowledge-store.md`：`knowledge-build` / `knowledge-search`
+- `phase18-style-eval.md`：`style-eval`
+- `phase19-canon-lint.md`：`canon-lint`
+- `phase20-branch-simulation.md`：`branch-simulate`
+- `phase20-character-background-story.md`：人物 `background_story`
+- `phase21-publish-chain.md`：`publish-chapter`
+- `phase22-scene-composer.md`：`compose-scene`
+- `phase23-model-provider-prompt-pack.md`：`http-chat` / prompt pack
+- `phase24-character-state-evolution.md`：`state-evolve`
+- `phase25-candidate-promotion-state-apply.md`：`promote-candidate` / `state-apply`
+- `phase26-style-prompt-effectiveness.md`：`style-prompt` / `style-prompt-eval`
+- `phase27-agent-provider.md`：`agent-run`
+- `phase28-agent-schema-repair.md`：`agent-validate` / `agent-repair`
+- `phase29-agent-scene-review.md`：`agent-review-scene`
+- `phase30-agent-canon-review.md`：`agent-canon-review`
+- `phase31-agent-json-patch-plan.md`：`agent-build-json` / `agent-plan-patch`
+- `phase32-agent-style-prompt.md`：`agent-style-prompt`
+- `phase33-agent-review-committee.md`：`agent-committee`
+- `phase34-agent-workflow-integration.md`：`run-workflow --agent-review` / `/agent/run`
+- `phase35-demo-regression.md`：`demo-project`
+- `phase36-global-config-frontend.md`：`config-*` / `/config` / 本地前端控制台
+- `phase37-asset-candidate-schemas.md`：设定候选 schema
+- `phase38-agent-character-creation.md`：角色 / 背景故事 / 关系网候选
+- `phase39-agent-worldbuilding.md`：世界观 / 地点 / 组织候选
+- `phase40-agent-outline-creation.md`：大纲 / 章节计划 / 场景列表候选
+- `phase41-candidate-review-promotion.md`：候选审查与晋升
+- `phase42-asset-workflow-modes.md`：设定创作 workflow modes
+- `phase43-asset-api-frontend.md`：`/asset/*` 与设定工坊
+- `phase44-asset-prompt-templates.md`：设定创作提示词模板
+- `phase45-asset-demo-regression.md`：设定创作 demo 与回归
+- `phase46-creative-director-agent.md`：顶层创作总监 Agent 与 `/director/chat`
+- `phase47-frontend-api-key-config.md`：前端显式 API Key 配置
+- `phase48-agent-auto-llm-provider.md`：Agent / 模型任务默认真实 LLM provider
+- `phase54-codex-style-director.md`：Codex 式创作总监、一句话建项和隐藏工具计划
+- `phase55-director-conversation-memory.md`：创作总监多轮对话记忆与上下文注入
+- `phase56-director-tool-loop.md`：创作总监有限工具调用循环
+- `phase57-frontend-surface-refactor.md`：前端收束为创作总监、文风学习和全局配置
+- `phase58-author-style-projects.md`：作家文风项目与作品子项目
+- `phase59-style-skill-package.md`：可挂载 Style Skill 包
+- `phase60-style-skill-mount.md`：创作项目文风挂载
+- `phase61-style-priority-enforcement.md`：文风最高优先级注入
+- `phase62-style-lab-frontend-loop.md`：文风学习前端闭环
+- `phase63-style-lab-regression-package.md`：回归测试、打包与版本

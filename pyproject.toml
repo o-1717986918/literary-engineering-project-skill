@@ -1,0 +1,31 @@
+[project]
+name = "literary-engineering-project-skill"
+version = "0.1.0"
+description = "Project-type skill and optional toolkit for tool-layer agents managing long-form fictional literature projects."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+api = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "pydantic>=2",
+]
+langgraph = [
+    "langgraph>=0.2",
+]
+orchestration = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "pydantic>=2",
+    "langgraph>=0.2",
+]
+
+[project.scripts]
+lew = "literary_engineering_workbench.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

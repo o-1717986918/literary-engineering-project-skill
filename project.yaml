@@ -1,0 +1,49 @@
+project:
+  name: literary-engineering-project-skill
+  cn_name: 文学工程项目型 Skill
+  status: copied-refactor
+  version: 0.1.0
+  objective: >
+    将原文学工程工作台转化为供 Codex、Claude 等工具层 agent 使用的大型项目型 Skill。
+    工具层 agent 担任项目总监、创作总监、真实 LLM provider 和子 agent 编排者；
+    本项目提供工程规范、artifact contract、文风机制、模板、schema 和可选 CLI 工具箱。
+
+scope:
+  includes:
+    - 长篇小说、剧本、伪记录、短剧和长视频提示词项目维护规范
+    - Codex/Claude 工具层项目总监操作手册
+    - 作品项目文件结构和 artifact contract
+    - 公版/授权文学文风学习和 Style Skill 挂载机制
+    - 候选资产、审查、审批、晋升、导出和发布流程
+    - 可选 Python CLI 工具箱
+    - 可选 LangGraph / Dify / FastAPI 集成说明
+  excludes_as_core:
+    - 自研完整创作总监 agent 平台
+    - 强依赖本地 director-chat 的用户交互
+    - 将本地 http-chat provider 作为唯一创作模型入口
+    - 无人工确认的正式 canon 合并
+    - 非授权作者文本的公开极限复刻
+
+recommended_stack:
+  director: Codex / Claude / tool-layer agent
+  llm_provider: platform-native model and subagents
+  optional_toolkit: local Python package under src/literary_engineering_workbench
+  version_control: Git
+  project_state: file-backed work projects
+  style_library: local or project-managed style library with mountable Style Skills
+  orchestration_optional: LangGraph / Dify / FastAPI only when requested
+
+first_mvp:
+  target_output:
+    - root SKILL.md
+    - AGENTS.md and agentread.yaml for platform-agent onboarding
+    - project-director playbook
+    - artifact contracts and workflow references
+    - copied optional CLI toolkit
+    - installable zip package
+  success_criteria:
+    - Codex/Claude can read the skill and act as project director without relying on local director-chat
+    - task routes are clear and progressively disclosed
+    - candidate/review/promotion boundaries remain explicit
+    - Style Skill priority is preserved
+    - optional CLI still validates

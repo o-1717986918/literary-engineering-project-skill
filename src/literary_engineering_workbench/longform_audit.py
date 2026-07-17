@@ -1,0 +1,545 @@
+"""Long-form project audit and lightweight graph export."""
+
+from __future__ import annotations
+
+import csv
+import json
+import re
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+
+from .scene_draft import extract_draft_body
+
+
+RESOLVED_FORESHADOW_STATUSES = {
+    "paid",
+    "resolved",
+    "closed",
+    "done",
+    "complete",
+    "completed",
+    "回收",
+    "已回收",
+    "完成",
+    "已完成",
+}
+
+
+@dataclass(frozen=True)
+class LongformSceneRecord:
+    scene_id: str
+    chapter_id: str
+    scene_path: str
+    location: str
+    participants: tuple[str, ...]
+    scene_goal: str
+    draft_path: str
+    review_path: str
+    review_conclusion: str
+    draft_chars: int
+    status: str
+
+
+@dataclass(frozen=True)
+class LongformIssue:
+    severity: str
+    category: str
+    subject: str
+    message: str
+    recommendation: str
+
+
+@dataclass(frozen=True)
+class LongformAuditResult:
+    project_root: Path
+    markdown_path: Path
+    json_path: Path
+    graph_path: Path
+    scene_count: int
+    chapter_count: int
+    issue_count: int
+    draft_chars: int
+
+
+def build_longform_audit(
+    project_root: Path,
+    target_length: int = 100000,
+    output: Path | None = None,
+    json_output: Path | None = None,
+    graph_output: Path | None = None,
+) -> LongformAuditResult:
+    root = project_root.resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"project root not found: {root}")
+
+    scenes = _scan_scenes(root)
+    characters = _scan_characters(root)
+    foreshadowing = _scan_foreshadowing(root)
+    chapter_files = sorted((root / "plot" / "chapters").glob("*.json")) if (root / "plot" / "chapters").exists() else []
+    issues = _audit_issues(root, scenes, characters, foreshadowing, chapter_files, target_length)
+    graph = _build_graph(scenes, characters, foreshadowing)
+
+    markdown_path = _resolve_output(root, output, "reviews", "longform", "longform_audit.md")
+    json_path = _resolve_output(root, json_output, "reviews", "longform", "longform_audit.json")
+    graph_path = _resolve_output(root, graph_output, "plot", "longform_graph.json")
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    graph_path.parent.mkdir(parents=True, exist_ok=True)
+
+    summary = _summary(scenes, characters, foreshadowing, chapter_files, issues, target_length)
+    payload = {
+        "schema": "literary-engineering-workbench/longform-audit/v0.1",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "project_root": str(root),
+        "summary": summary,
+        "scenes": [asdict(scene) for scene in scenes],
+        "characters": characters,
+        "foreshadowing": foreshadowing,
+        "issues": [asdict(issue) for issue in issues],
+        "graph_path": _rel_str(graph_path, root),
+    }
+
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    graph_path.write_text(json.dumps(graph, ensure_ascii=False, indent=2), encoding="utf-8")
+    markdown_path.write_text(_render_markdown(root, payload, graph_path), encoding="utf-8")
+
+    return LongformAuditResult(
+        project_root=root,
+        markdown_path=markdown_path,
+        json_path=json_path,
+        graph_path=graph_path,
+        scene_count=len(scenes),
+        chapter_count=summary["chapter_count"],
+        issue_count=len(issues),
+        draft_chars=summary["draft_chars"],
+    )
+
+
+def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
+    scene_dir = root / "scenes"
+    if not scene_dir.exists():
+        return []
+    records = []
+    for scene_path in sorted(scene_dir.glob("*.yaml")):
+        if scene_path.name.startswith("_"):
+            continue
+        text = _read(scene_path)
+        scene_id = _scalar(text, "scene_id") or scene_path.stem
+        draft_path = root / "drafts" / "scenes" / f"{scene_id}.md"
+        review_path = root / "reviews" / f"{scene_id}-review.md"
+        draft_text = _read(draft_path)
+        body = extract_draft_body(draft_text) if draft_text else ""
+        review_text = _read(review_path)
+        conclusion = _review_conclusion(review_text)
+        records.append(
+            LongformSceneRecord(
+                scene_id=scene_id,
+                chapter_id=_scalar(text, "chapter_id") or "unassigned",
+                scene_path=_rel_str(scene_path, root),
+                location=_scalar(text, "location"),
+                participants=tuple(_list_after(text, "participants")),
+                scene_goal=_scalar(text, "scene_goal"),
+                draft_path=_existing_rel(draft_path, root),
+                review_path=_existing_rel(review_path, root),
+                review_conclusion=conclusion,
+                draft_chars=len(body),
+                status=_scene_status(draft_path, review_path, body, conclusion),
+            )
+        )
+    return records
+
+
+def _scan_characters(root: Path) -> list[dict[str, str]]:
+    char_dir = root / "characters"
+    if not char_dir.exists():
+        return []
+    characters = []
+    for path in sorted(char_dir.glob("*.yaml")):
+        if path.name.startswith("_"):
+            continue
+        text = _read(path)
+        characters.append(
+            {
+                "character_id": _scalar(text, "character_id") or path.stem,
+                "name": _scalar(text, "name") or path.stem,
+                "role": _scalar(text, "role"),
+                "path": _rel_str(path, root),
+            }
+        )
+    return characters
+
+
+def _scan_foreshadowing(root: Path) -> list[dict[str, str]]:
+    path = root / "plot" / "foreshadowing.csv"
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    clean_rows = []
+    for row in rows:
+        clean_rows.append({str(key or "").strip(): str(value or "").strip() for key, value in row.items()})
+    return clean_rows
+
+
+def _audit_issues(
+    root: Path,
+    scenes: list[LongformSceneRecord],
+    characters: list[dict[str, str]],
+    foreshadowing: list[dict[str, str]],
+    chapter_files: list[Path],
+    target_length: int,
+) -> list[LongformIssue]:
+    issues: list[LongformIssue] = []
+    if not scenes:
+        return [
+            LongformIssue(
+                "high",
+                "scene_inventory",
+                "scenes/",
+                "未发现任何场景文件，无法进行长篇连续性审计。",
+                "先用场景模板建立至少一个 scenes/{scene_id}.yaml。",
+            )
+        ]
+
+    scene_ids = [scene.scene_id for scene in scenes]
+    duplicates = sorted({scene_id for scene_id in scene_ids if scene_ids.count(scene_id) > 1})
+    for scene_id in duplicates:
+        issues.append(
+            LongformIssue(
+                "high",
+                "scene_identity",
+                scene_id,
+                "发现重复 scene_id，后续草稿、审查和图谱节点会互相覆盖。",
+                "为每个场景分配唯一 scene_id。",
+            )
+        )
+
+    known_names = {item["character_id"] for item in characters} | {item["name"] for item in characters if item["name"]}
+    for scene in scenes:
+        if scene.chapter_id == "unassigned":
+            issues.append(
+                LongformIssue("medium", "chapter_structure", scene.scene_id, "场景缺少 chapter_id。", "补齐 chapter_id，避免章节装配时误分组。")
+            )
+        if not scene.location:
+            issues.append(LongformIssue("medium", "scene_schema", scene.scene_id, "场景缺少 location。", "补齐地点以支持连续性和图谱审计。"))
+        if not scene.participants:
+            issues.append(LongformIssue("medium", "scene_schema", scene.scene_id, "场景缺少 participants。", "补齐参与人物以支持人物弧审计。"))
+        if not scene.scene_goal:
+            issues.append(LongformIssue("medium", "scene_schema", scene.scene_id, "场景缺少 scene_goal。", "补齐场景目标，避免章节节奏失焦。"))
+        for participant in scene.participants:
+            if known_names and participant not in known_names:
+                issues.append(
+                    LongformIssue(
+                        "medium",
+                        "character_inventory",
+                        scene.scene_id,
+                        f"参与者 `{participant}` 没有匹配的人物档案。",
+                        "在 characters/ 中创建人物档案，或统一 participant 名称。",
+                    )
+                )
+        if scene.status == "needs_draft":
+            issues.append(LongformIssue("high", "draft_readiness", scene.scene_id, "场景缺少可审计正文草稿。", "运行 draft-scene 并补全正文草稿。"))
+        elif scene.status == "needs_review":
+            issues.append(LongformIssue("high", "review_readiness", scene.scene_id, "场景有正文但缺少审查报告。", "运行 review-scene。"))
+        elif scene.status == "blocked":
+            issues.append(
+                LongformIssue(
+                    "high",
+                    "review_readiness",
+                    scene.scene_id,
+                    f"场景审查未通过：{scene.review_conclusion or 'unknown'}。",
+                    "根据审查报告修订后重新 review-scene。",
+                )
+            )
+
+        context_path = root / "memory" / "context_packets" / f"{scene.scene_id}.md"
+        if not context_path.exists():
+            issues.append(LongformIssue("medium", "memory_context", scene.scene_id, "缺少场景上下文包。", "运行 context 或 draft-scene --rebuild-context。"))
+
+    chapter_ids = sorted({scene.chapter_id for scene in scenes if scene.chapter_id != "unassigned"})
+    available_chapters = {path.stem for path in chapter_files}
+    for chapter_id in chapter_ids:
+        if chapter_id not in available_chapters:
+            issues.append(
+                LongformIssue(
+                    "low",
+                    "chapter_workspace",
+                    chapter_id,
+                    "缺少章节工作台 JSON。",
+                    "运行 chapter-workspace 生成章节级状态对象。",
+                )
+            )
+
+    draft_chars = sum(scene.draft_chars for scene in scenes)
+    if target_length > 0 and draft_chars < target_length * 0.2:
+        issues.append(
+            LongformIssue(
+                "low",
+                "scale_progress",
+                "drafts",
+                f"当前正文约 {draft_chars} 字，距离目标 {target_length} 字仍处于早期阶段。",
+                "优先补齐场景草稿、章节工作台和连续性审查，再扩大生成规模。",
+            )
+        )
+
+    for row in foreshadowing:
+        status = _foreshadow_status(row)
+        if status and status.lower() in RESOLVED_FORESHADOW_STATUSES:
+            continue
+        fid = row.get("foreshadow_id") or row.get("id") or "unknown"
+        expected = row.get("expected_payoff") or row.get("expected_payoff_range") or ""
+        actual = row.get("actual_payoff_scene") or row.get("payoff_scene") or ""
+        if not expected and not actual:
+            issues.append(
+                LongformIssue(
+                    "medium",
+                    "foreshadowing_debt",
+                    fid,
+                    "伏笔缺少预期回收范围或实际回收场景。",
+                    "补齐 expected_payoff_range 或 actual_payoff_scene，避免伏笔债务失控。",
+                )
+            )
+
+    return issues
+
+
+def _build_graph(
+    scenes: list[LongformSceneRecord],
+    characters: list[dict[str, str]],
+    foreshadowing: list[dict[str, str]],
+) -> dict:
+    nodes = []
+    edges = []
+    seen_nodes = set()
+
+    def add_node(node_id: str, node_type: str, **attrs) -> None:
+        if node_id in seen_nodes:
+            return
+        seen_nodes.add(node_id)
+        nodes.append({"id": node_id, "type": node_type, **attrs})
+
+    def add_edge(source: str, target: str, relation: str, **attrs) -> None:
+        edges.append({"source": source, "target": target, "relation": relation, **attrs})
+
+    character_lookup = {}
+    for character in characters:
+        cid = "character:" + (character["character_id"] or character["name"])
+        add_node(cid, "character", name=character["name"], role=character["role"], path=character["path"])
+        if character["character_id"]:
+            character_lookup[character["character_id"]] = cid
+        if character["name"]:
+            character_lookup[character["name"]] = cid
+
+    for scene in scenes:
+        scene_node = "scene:" + scene.scene_id
+        add_node(scene_node, "scene", chapter_id=scene.chapter_id, status=scene.status, path=scene.scene_path)
+        if scene.location:
+            location_node = "location:" + scene.location
+            add_node(location_node, "location", name=scene.location)
+            add_edge(scene_node, location_node, "located_at")
+        for participant in scene.participants:
+            character_node = character_lookup.get(participant, "character:" + participant)
+            if participant not in character_lookup:
+                add_node(character_node, "character_ref", name=participant)
+            add_edge(character_node, scene_node, "appears_in")
+
+    for prev, current in zip(scenes, scenes[1:]):
+        add_edge("scene:" + prev.scene_id, "scene:" + current.scene_id, "next_scene")
+
+    for row in foreshadowing:
+        fid = row.get("foreshadow_id") or row.get("id") or ""
+        if not fid:
+            continue
+        node = "foreshadow:" + fid
+        add_node(node, "foreshadowing", status=_foreshadow_status(row), visibility=row.get("visibility", ""))
+        setup = row.get("setup_scene") or ""
+        payoff = row.get("actual_payoff_scene") or row.get("payoff_scene") or ""
+        if setup:
+            add_edge("scene:" + setup, node, "sets_up")
+        if payoff:
+            add_edge(node, "scene:" + payoff, "pays_off_at")
+
+    return {
+        "schema": "literary-engineering-workbench/longform-graph/v0.1",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "nodes": nodes,
+        "edges": edges,
+    }
+
+
+def _render_markdown(root: Path, payload: dict, graph_path: Path) -> str:
+    summary = payload["summary"]
+    issues = payload["issues"]
+    scenes = payload["scenes"]
+    foreshadowing = payload["foreshadowing"]
+    lines = [
+        "# 长篇项目审计报告",
+        "",
+        f"生成时间：{payload['generated_at']}",
+        f"图谱文件：`{_rel_str(graph_path, root)}`",
+        "",
+        "## 总览",
+        "",
+        f"- 章节数：{summary['chapter_count']}",
+        f"- 场景数：{summary['scene_count']}",
+        f"- 人物档案数：{summary['character_count']}",
+        f"- 地点数：{summary['location_count']}",
+        f"- 正文字符数：{summary['draft_chars']} / 目标 {summary['target_length']}",
+        f"- 可装配场景：{summary['ready_scene_count']}",
+        f"- 阻塞场景：{summary['blocked_scene_count']}",
+        f"- 问题数：{summary['issue_count']}",
+        "",
+        "## 场景状态矩阵",
+        "",
+        "| 章节 | 场景 | 地点 | 参与者 | 正文字符 | 审查 | 状态 |",
+        "| --- | --- | --- | --- | ---: | --- | --- |",
+    ]
+    for scene in scenes:
+        lines.append(
+            "| {chapter} | {scene} | {location} | {participants} | {chars} | {review} | {status} |".format(
+                chapter=scene["chapter_id"],
+                scene=scene["scene_id"],
+                location=scene["location"] or "未填写",
+                participants="、".join(scene["participants"]) or "未填写",
+                chars=scene["draft_chars"],
+                review=scene["review_conclusion"] or "missing",
+                status=scene["status"],
+            )
+        )
+
+    lines.extend(["", "## 风险清单", ""])
+    if issues:
+        lines.extend(["| 级别 | 类别 | 对象 | 问题 | 建议 |", "| --- | --- | --- | --- | --- |"])
+        for issue in issues:
+            lines.append(
+                f"| {issue['severity']} | {issue['category']} | `{issue['subject']}` | {issue['message']} | {issue['recommendation']} |"
+            )
+    else:
+        lines.append("- 未发现阻塞性风险。")
+
+    lines.extend(["", "## 伏笔债务", ""])
+    if foreshadowing:
+        lines.extend(["| 伏笔 | 设置场景 | 预期回收 | 实际回收 | 状态 |", "| --- | --- | --- | --- | --- |"])
+        for row in foreshadowing:
+            lines.append(
+                "| {fid} | {setup} | {expected} | {actual} | {status} |".format(
+                    fid=row.get("foreshadow_id") or row.get("id") or "unknown",
+                    setup=row.get("setup_scene") or "",
+                    expected=row.get("expected_payoff") or row.get("expected_payoff_range") or "",
+                    actual=row.get("actual_payoff_scene") or row.get("payoff_scene") or "",
+                    status=_foreshadow_status(row) or "",
+                )
+            )
+    else:
+        lines.append("- 未登记伏笔。")
+
+    lines.extend([
+        "",
+        "## 图谱导出",
+        "",
+        f"- 图谱 JSON：`{_rel_str(graph_path, root)}`",
+        "- 当前是轻量 JSON 图谱，可后续导入 Neo4j 或由 LlamaIndex 图检索层消费。",
+        "",
+        "## 下一步",
+        "",
+        "- 先处理 `high` 风险，再扩大章节生成规模。",
+        "- 每章运行 `chapter-workspace`，再运行本审计。",
+        "- 对开放伏笔补齐预期回收范围。",
+        "- 人物档案缺失时，先补人物 BDI，再继续正文扩写。",
+    ])
+    return "\n".join(lines) + "\n"
+
+
+def _summary(
+    scenes: list[LongformSceneRecord],
+    characters: list[dict[str, str]],
+    foreshadowing: list[dict[str, str]],
+    chapter_files: list[Path],
+    issues: list[LongformIssue],
+    target_length: int,
+) -> dict[str, int]:
+    chapter_ids = {scene.chapter_id for scene in scenes if scene.chapter_id != "unassigned"}
+    locations = {scene.location for scene in scenes if scene.location}
+    return {
+        "chapter_count": max(len(chapter_ids), len(chapter_files)),
+        "scene_count": len(scenes),
+        "character_count": len(characters),
+        "location_count": len(locations),
+        "foreshadowing_count": len(foreshadowing),
+        "draft_chars": sum(scene.draft_chars for scene in scenes),
+        "target_length": target_length,
+        "ready_scene_count": sum(1 for scene in scenes if scene.status == "ready"),
+        "blocked_scene_count": sum(1 for scene in scenes if scene.status != "ready"),
+        "issue_count": len(issues),
+    }
+
+
+def _scene_status(draft_path: Path, review_path: Path, body: str, conclusion: str) -> str:
+    if not draft_path.exists() or not body:
+        return "needs_draft"
+    if not review_path.exists() or not conclusion:
+        return "needs_review"
+    if conclusion in {"pass", "pass_with_notes"}:
+        return "ready"
+    return "blocked"
+
+
+def _review_conclusion(text: str) -> str:
+    match = re.search(r"(?m)^-\s*结论：\s*(\S+)\s*$", text)
+    return match.group(1).strip() if match else ""
+
+
+def _foreshadow_status(row: dict[str, str]) -> str:
+    return row.get("status") or row.get("状态") or ""
+
+
+def _scalar(text: str, key: str) -> str:
+    match = re.search(rf"(?m)^[ \t]*{re.escape(key)}:[ \t]*(.*?)[ \t]*$", text)
+    if not match:
+        return ""
+    return match.group(1).strip().strip("\"'")
+
+
+def _list_after(text: str, key: str) -> list[str]:
+    match = re.search(rf"(?m)^[ \t]*{re.escape(key)}:[ \t]*(.*?)[ \t]*$", text)
+    if not match:
+        return []
+    inline = match.group(1).strip()
+    if inline.startswith("[") and inline.endswith("]"):
+        return [item.strip().strip("\"'") for item in inline.strip("[]").split(",") if item.strip()]
+    lines = text[match.end() :].splitlines()
+    values = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("-"):
+            values.append(stripped.strip("- ").strip("\"'"))
+            continue
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*:", stripped):
+            break
+    return values
+
+
+def _read(path: Path) -> str:
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8", errors="ignore").strip()
+
+
+def _resolve_output(root: Path, output: Path | None, *default_parts: str) -> Path:
+    if output is None:
+        return root.joinpath(*default_parts)
+    return output if output.is_absolute() else root / output
+
+
+def _rel_str(path: Path, root: Path) -> str:
+    try:
+        return path.resolve().relative_to(root).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _existing_rel(path: Path, root: Path) -> str:
+    return _rel_str(path, root) if path.exists() else ""

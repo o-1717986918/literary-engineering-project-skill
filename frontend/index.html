@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Literary Engineering Workbench Console</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">LEW</div>
+          <div>
+            <h1>文学工程控制台</h1>
+            <p>创作总监、文风学习、全局配置</p>
+          </div>
+        </div>
+        <nav class="nav">
+          <button data-view="chat" class="active">创作总监</button>
+          <button data-view="style">文风学习</button>
+          <button data-view="config">全局配置</button>
+        </nav>
+        <div class="status-block">
+          <span id="healthDot" class="dot"></span>
+          <span id="healthText">连接中</span>
+        </div>
+        <label class="token-box">API Token<input id="apiToken" type="password" placeholder="可选" /></label>
+      </aside>
+
+      <main class="workspace">
+        <section id="view-chat" class="view active">
+          <header class="view-header">
+            <div>
+              <h2>创作总监</h2>
+              <p class="muted">你只决定创作大方向；设定、审查、工具循环和写作推进由总监处理。</p>
+            </div>
+            <div class="toolbar">
+              <button id="sendChat" class="primary">发送</button>
+            </div>
+          </header>
+          <div class="chat-layout">
+            <div id="chatLog" class="chat-log"></div>
+            <form id="chatForm" class="chat-box">
+              <textarea name="message" rows="4" placeholder="告诉创作总监你的创作方向、人物关系、题材气质、剧情推进目标，或直接说继续。"></textarea>
+              <details class="advanced-settings">
+                <summary>高级设置</summary>
+                <div class="advanced-grid">
+                  <label>当前项目<input name="project_root" placeholder="留空可从一句话新建项目" /></label>
+                  <label>模型通道<select name="provider"><option value="auto">auto</option><option value="http-chat">http-chat</option><option value="dry-run">dry-run</option></select></label>
+                  <label class="inline-check"><input name="auto_execute" type="checkbox" checked /> 允许总监自动执行内部工具循环</label>
+                </div>
+              </details>
+            </form>
+          </div>
+        </section>
+
+        <section id="view-style" class="view">
+          <header class="view-header">
+            <div>
+              <h2>文风学习</h2>
+              <p class="muted">以作家为项目、作品为子项目，学习后输出可挂载到创作项目的 Style Skill。</p>
+            </div>
+            <div class="toolbar">
+              <button id="loadStyleLibrary">刷新</button>
+            </div>
+          </header>
+
+          <div class="grid two">
+            <form id="styleForm" class="panel">
+              <label>Style Library Root<input name="style_library_root" placeholder="留空使用全局默认文风库" /></label>
+              <label>Author ID<input name="author_id" placeholder="例如 luxun" /></label>
+              <label>作家名称<input name="author_name" placeholder="例如 鲁迅" /></label>
+              <label>来源模式<select name="mode"><option value="public_domain_or_authorized">公版或已授权</option><option value="abstracted_craft_only">仅抽象技法</option></select></label>
+              <label>来源说明<textarea name="source_note" rows="2" placeholder="说明语料来源、授权或公版依据"></textarea></label>
+              <div class="toolbar compact">
+                <button id="createAuthor" type="button" class="primary">创建作家项目</button>
+              </div>
+
+              <hr />
+
+              <label>Work ID<input name="work_id" placeholder="例如 kuangrenriji" /></label>
+              <label>作品标题<input name="work_title" placeholder="例如 狂人日记" /></label>
+              <label>作品年份<input name="year" placeholder="可选" /></label>
+              <label>作品备注<textarea name="work_notes" rows="2" placeholder="版本、来源、整理说明"></textarea></label>
+              <div class="toolbar compact">
+                <button id="createWork" type="button">创建作品子项目</button>
+              </div>
+
+              <label>导入文件名<input name="filename" placeholder="例如 source-001.txt" /></label>
+              <label>作品文本<textarea name="source_text" rows="7" placeholder="粘贴作家作品文本。系统会保存 raw、normalized 与 chunks。"></textarea></label>
+              <div class="toolbar compact">
+                <button id="importSource" type="button">导入作品文本</button>
+              </div>
+
+              <hr />
+
+              <label>Profile ID<input name="profile_id" value="default" /></label>
+              <label>Style ID<input name="style_id" placeholder="留空使用 author-profile" /></label>
+              <label>Provider<select name="provider"><option value="auto">auto</option><option value="http-chat">http-chat</option><option value="dry-run">dry-run</option></select></label>
+              <label>挂载到创作项目<input name="project_root" placeholder="C:\path\to\work" /></label>
+              <div class="toolbar compact wrap">
+                <button id="compileStyle" type="button">学习并生成提示词</button>
+                <button id="buildStyleSkill" type="button">构建 Style Skill</button>
+                <button id="mountStyleSkill" type="button" class="primary">挂载到项目</button>
+              </div>
+
+              <details class="advanced-settings">
+                <summary>提示词有效性评测</summary>
+                <label>Reference Text<textarea name="reference_text" rows="4" placeholder="参考原文片段"></textarea></label>
+                <label>Task Input<textarea name="task_input_text" rows="4" placeholder="英文回译输入、大纲或盲评任务输入"></textarea></label>
+                <label>Eval Mode<select name="eval_mode"><option value="back-translation">back-translation</option><option value="outline-expansion">outline-expansion</option><option value="blind-review">blind-review</option></select></label>
+                <div class="toolbar compact"><button id="evaluateStyle" type="button">运行评测</button></div>
+              </details>
+            </form>
+
+            <div class="panel">
+              <h3>文风库状态</h3>
+              <pre id="styleLibraryPreview"></pre>
+              <h3>操作结果</h3>
+              <pre id="styleResult"></pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-config" class="view">
+          <header class="view-header">
+            <h2>全局模型配置</h2>
+            <div class="toolbar">
+              <button id="loadConfig">刷新</button>
+              <button id="saveConfig" class="primary">保存</button>
+            </div>
+          </header>
+          <div class="grid two">
+            <form id="configForm" class="panel">
+              <label>Active Profile<input name="active_profile" value="deepseek" /></label>
+              <label>API Base<input name="api_base" value="https://api.deepseek.com" /></label>
+              <label>Model<input name="model" value="deepseek-v4-flash" /></label>
+              <label>API Key Env<input name="api_key_env" value="DEEPSEEK_API_KEY" /></label>
+              <label>API Key<input name="api_key" type="password" autocomplete="off" placeholder="留空则保留已保存密钥" /></label>
+              <label>Temperature<input name="temperature" type="number" step="0.1" value="0.4" /></label>
+              <label>Max Tokens<input name="max_tokens" type="number" value="4000" /></label>
+              <label>Timeout<input name="timeout" type="number" value="120" /></label>
+              <label>Default Project Root<input name="project_root" placeholder="C:\path\to\work" /></label>
+              <label>Style Library Root<input name="style_library_root" placeholder="C:\path\to\style-library" /></label>
+            </form>
+            <div class="panel">
+              <h3>有效配置</h3>
+              <pre id="configPreview"></pre>
+              <h3>密钥设置</h3>
+              <p class="muted">API Key 可显式保存到本机全局配置文件，也可继续使用环境变量。配置预览不会回显明文。</p>
+              <pre id="envPreview"></pre>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/ui/app.js"></script>
+  </body>
+</html>

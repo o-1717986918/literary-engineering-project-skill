@@ -1,0 +1,180 @@
+schema: agentread/v0.2
+project_name: literary-engineering-project-skill
+language: zh-CN
+purpose: >
+  给 Codex、Claude 等工具层 agent 使用的大型项目型 Skill。
+  平台 agent 担任项目总监、创作总监、LLM provider 和子 agent 编排者；
+  本项目提供文学工程文件结构、artifact contract、文风机制、审查流程和可选 CLI 工具。
+
+read_first:
+  - SKILL.md
+  - AGENTS.md
+  - references/project-director-playbook.md
+
+core_references:
+  project_director: references/project-director-playbook.md
+  artifact_contracts: references/artifact-contracts.md
+  workflows: references/workflows.md
+  orchestration: references/orchestration.md
+  project_type_skill_architecture: docs/architecture/project-type-skill.md
+
+core_project_files:
+  skill_entry: SKILL.md
+  agent_entry: AGENTS.md
+  project_router: agentread.yaml
+  optional_toolkit: src/literary_engineering_workbench/
+  templates: templates/
+  schemas: schemas/
+  docs: docs/
+
+task_routes:
+  project_director:
+    when:
+      - 用户给大方向、继续、修改创作口味、决定下一步
+      - 需要 Codex/Claude 接管项目管理而非调用内部 director-chat
+    read:
+      - references/project-director-playbook.md
+      - references/artifact-contracts.md
+      - project.yaml
+    inspect_if_present:
+      - canon/
+      - characters/
+      - plot/
+      - style/
+      - scenes/
+      - drafts/
+      - reviews/
+      - memory/
+      - workflow/
+      - director/
+    output:
+      - user-facing creative summary
+      - candidate plan or candidate files
+      - review/audit notes
+      - next high-level creative choice
+
+  work_project_initialization:
+    when:
+      - 新建小说、剧本、伪记录、短剧或长视频提示词项目
+    read:
+      - references/project-director-playbook.md
+      - references/artifact-contracts.md
+      - templates/work-project/project.yaml
+      - docs/architecture/data-model.md
+      - docs/implementation/phase1-initializer.md
+    output:
+      - work project skeleton
+      - initial premise and project brief
+      - first candidate-generation plan
+      - approval boundaries
+
+  style_engineering:
+    when:
+      - 文风学习、作家风格项目、Style Skill、文风挂载、回译/扩写评测
+    read:
+      - references/project-director-playbook.md
+      - references/artifact-contracts.md
+      - references/workflows.md
+      - docs/modules/style-compiler.md
+      - docs/implementation/phase58-author-style-projects.md
+      - docs/implementation/phase59-style-skill-package.md
+      - docs/implementation/phase60-style-skill-mount.md
+      - docs/implementation/phase61-style-priority-enforcement.md
+    output:
+      - author style project
+      - work subproject
+      - style profile
+      - LLM-facing style prompt
+      - mountable Style Skill
+      - style risk/effectiveness review
+
+  character_and_world_assets:
+    when:
+      - 创建或修改人物、背景故事、关系、世界观、地点、组织、主线大纲
+    read:
+      - references/project-director-playbook.md
+      - references/artifact-contracts.md
+      - docs/implementation/phase37-asset-candidate-schemas.md
+      - docs/implementation/phase38-agent-character-creation.md
+      - docs/implementation/phase39-agent-worldbuilding.md
+      - docs/implementation/phase40-agent-outline-creation.md
+      - docs/implementation/phase41-candidate-review-promotion.md
+    output:
+      - candidate assets
+      - candidate review
+      - promotion recommendation
+      - user approval question
+
+  scene_development:
+    when:
+      - 场景推进、剧情分支、正文候选、人物状态演化
+    read:
+      - references/project-director-playbook.md
+      - references/artifact-contracts.md
+      - docs/modules/plot-scene-engine.md
+      - docs/modules/character-engine.md
+      - docs/implementation/phase20-branch-simulation.md
+      - docs/implementation/phase22-scene-composer.md
+      - docs/implementation/phase23-model-provider-prompt-pack.md
+      - docs/implementation/phase24-character-state-evolution.md
+      - docs/implementation/phase25-candidate-promotion-state-apply.md
+      - templates/scene.yaml
+      - templates/prompts/scene_generation_system.md
+      - templates/prompts/scene_generation_user.md
+    output:
+      - context packet
+      - branch candidates
+      - scene composition packet
+      - draft candidate
+      - review report
+      - character state patch
+
+  review_and_audit:
+    when:
+      - 审查、canon 检查、长篇连续性、章节 ready、发布前检查
+    read:
+      - references/artifact-contracts.md
+      - docs/modules/review-ci.md
+      - docs/implementation/phase4-scene-review-loop.md
+      - docs/implementation/phase19-canon-lint.md
+      - docs/implementation/phase7-chapter-pipeline.md
+      - docs/implementation/phase8-longform-audit.md
+    output:
+      - blocking/warning/info findings
+      - revision plan
+      - approval gates
+
+  export_and_release:
+    when:
+      - 导出小说、剧本、长视频提示词、发布章节、回滚说明
+    read:
+      - references/artifact-contracts.md
+      - docs/implementation/phase9-export-package.md
+      - docs/implementation/phase21-publish-chain.md
+      - docs/implementation/phase15-approval-loop.md
+    output:
+      - export package
+      - release manifest
+      - release notes
+      - rollback notes
+
+  optional_cli:
+    when:
+      - 需要确定性命令、回归测试、Dify/LangGraph、本地前端或批处理
+    read:
+      - references/workflows.md
+      - references/orchestration.md
+      - pyproject.toml
+      - src/literary_engineering_workbench/cli.py
+    output:
+      - exact command
+      - command result summary
+      - generated artifact paths
+
+do_not_assume:
+  - local director-chat is the required top-level interface
+  - model output is canon
+  - retrieval is canon
+  - style similarity is originality safety
+  - candidates may be promoted without review and approval
+  - API keys may be written into work projects

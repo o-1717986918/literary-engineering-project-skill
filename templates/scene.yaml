@@ -1,0 +1,38 @@
+scene_id: ""
+chapter_id: ""
+status: planned
+
+time:
+  story_time: ""
+  timeline_order: null
+
+location: ""
+participants: []
+
+input_state:
+  canon_refs: []
+  character_states: []
+  active_foreshadowing: []
+
+scene_goal: ""
+conflict:
+  external: ""
+  internal: ""
+
+actions: []
+revealed_info: []
+emotional_curve: []
+style_constraints: []
+
+output_state:
+  new_facts: []
+  character_changes: []
+  relationship_changes: []
+  foreshadowing_changes: []
+  next_hooks: []
+
+review:
+  canon_test: pending
+  character_test: pending
+  plot_test: pending
+  style_test: pending
