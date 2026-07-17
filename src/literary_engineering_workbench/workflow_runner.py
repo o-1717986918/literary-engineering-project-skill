@@ -15,6 +15,7 @@ from .character_state_evolver import build_character_state_patch
 from .chapter_pipeline import build_chapter_workspace
 from .context_packet import build_context_packet
 from .export_package import build_export_package
+from .flow_gates import FlowGateError, branch_selection_status
 from .longform_audit import build_longform_audit
 from .memory_index import build_memory_index
 from .platform_agent_tasks import (
@@ -133,6 +134,19 @@ def run_workflow(
             _run_scene_loop(root, scene_path, state, overwrite_draft, generate_candidate, promote_candidate, agent_review, agent_tasks, provider)
         if mode in {"chapter-publish", "full-cycle"}:
             _run_chapter_publish(root, chapter_id, target_length, include_blocked, agent_review, provider, state)
+    except FlowGateError as exc:
+        state.status = "blocked"
+        state.human_approval_required = True
+        state.warnings.append(f"workflow blocked: {exc}")
+        state.events.append(
+            WorkflowEvent(
+                node_id="workflow_gate",
+                status="blocked",
+                started_at=_now(),
+                ended_at=_now(),
+                message=str(exc),
+            )
+        )
     except Exception as exc:
         state.status = "failed"
         state.warnings.append(f"workflow failed: {exc}")
@@ -191,6 +205,7 @@ def _run_scene_loop(
     if scene_path is None:
         raise FileNotFoundError("scene is required for scene-loop")
     scene_id = scene_path.stem
+    draft_path = root / "drafts" / "scenes" / f"{scene_id}.md"
 
     def node(node_id: str, func):
         _run_node(state, node_id, func)
@@ -208,15 +223,40 @@ def _run_scene_loop(
         "branch_simulation",
         lambda: _branch_artifact(root, scene_path, agent_tasks),
     )
-    node(
-        "scene_composition",
-        lambda: _composition_artifact(root, scene_path, agent_tasks),
-    )
-    if generate_candidate:
+    branch_selection = state.artifacts.get("branch_selection", "")
+    selection_path = root / branch_selection if branch_selection else root / "branches" / scene_id / "branch_selection.md"
+    selection_status = branch_selection_status(selection_path)
+    composition_ready = False
+    if selection_status["status"] == "selected":
         node(
-            "generate_candidate",
-            lambda: _generation_artifact(root, scene_path, provider, agent_tasks),
+            "scene_composition",
+            lambda: _composition_artifact(root, scene_path, agent_tasks),
         )
+        composition_ready = state.events[-1].status == "completed" and bool(state.artifacts.get("scene_composition"))
+    else:
+        artifacts = {"branch_selection": branch_selection} if branch_selection else {}
+        message = (
+            "formal branch selection pending; fill branch_selection.md with decision: selected and selected_branch "
+            "before scene_composition or generate_candidate"
+        )
+        if generate_candidate:
+            _block_node(state, "scene_composition", artifacts, message)
+        else:
+            _skip_node(state, "scene_composition", artifacts, message)
+            state.human_approval_required = True
+    if generate_candidate:
+        if not composition_ready:
+            _block_node(
+                state,
+                "generate_candidate",
+                {"branch_selection": branch_selection} if branch_selection else {},
+                "scene composition is missing or not formally selected; generation task blocked",
+            )
+        else:
+            node(
+                "generate_candidate",
+                lambda: _generation_artifact(root, scene_path, provider, agent_tasks),
+            )
     if promote_candidate:
         promotion_candidate = state.artifacts.get("candidate", "") or state.artifacts.get("expected_candidate", "")
         if promotion_candidate and not _artifact_exists(root, promotion_candidate):
@@ -233,7 +273,6 @@ def _run_scene_loop(
                 lambda: _promotion_artifact(root, scene_path, promotion_candidate, overwrite_draft),
             )
 
-    draft_path = root / "drafts" / "scenes" / f"{scene_id}.md"
     if draft_path.exists() and not overwrite_draft:
         _skip_node(
             state,
@@ -323,6 +362,11 @@ def _run_node(state: WorkflowState, node_id: str, func) -> None:
     try:
         artifacts, message = func()
         status = "completed"
+    except FlowGateError as exc:
+        artifacts = {}
+        message = str(exc)
+        status = "blocked"
+        state.human_approval_required = True
     except Exception as exc:
         artifacts = {}
         message = str(exc)
@@ -336,6 +380,13 @@ def _run_node(state: WorkflowState, node_id: str, func) -> None:
 def _skip_node(state: WorkflowState, node_id: str, artifacts: dict[str, str], message: str) -> None:
     now = _now()
     state.events.append(WorkflowEvent(node_id=node_id, status="skipped", started_at=now, ended_at=now, artifacts=artifacts, message=message))
+    state.artifacts.update(artifacts)
+
+
+def _block_node(state: WorkflowState, node_id: str, artifacts: dict[str, str], message: str) -> None:
+    now = _now()
+    state.human_approval_required = True
+    state.events.append(WorkflowEvent(node_id=node_id, status="blocked", started_at=now, ended_at=now, artifacts=artifacts, message=message))
     state.artifacts.update(artifacts)
 
 
@@ -515,6 +566,9 @@ def _export_artifact(root: Path, chapter_id: str, include_blocked: bool) -> tupl
 def _final_status(state: WorkflowState) -> str:
     if any(event.status == "failed" for event in state.events):
         return "failed"
+    if any(event.status == "blocked" for event in state.events):
+        state.human_approval_required = True
+        return "blocked"
     review_conclusion = state.artifacts.get("review_conclusion", "")
     if review_conclusion in {"reject", "revise_required"}:
         state.human_approval_required = True

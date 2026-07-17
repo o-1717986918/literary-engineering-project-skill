@@ -4,6 +4,8 @@ from pathlib import Path
 
 from literary_engineering_workbench.character_state_evolver import build_character_state_patch
 from literary_engineering_workbench.cli import build_parser, main
+from literary_engineering_workbench.flow_gates import FlowGateError
+from literary_engineering_workbench.scene_composer import build_scene_composition
 
 from helpers import TempProjectMixin, add_character, make_passing_scene
 
@@ -43,6 +45,19 @@ class CharacterStateEvolverTests(TempProjectMixin, unittest.TestCase):
         result = build_character_state_patch(project, scene=Path("scenes/scene_0001.yaml"))
 
         self.assertEqual(result.source_path, project / "drafts" / "scenes" / "scene_0001.md")
+
+    def test_state_patch_blocks_unselected_composition_source(self):
+        project = self.make_project()
+        add_character(project)
+        composition = build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"))
+
+        with self.assertRaises(FlowGateError) as raised:
+            build_character_state_patch(
+                project,
+                scene=Path("scenes/scene_0001.yaml"),
+                source=composition.json_path,
+            )
+        self.assertIn("formal branch selection required", str(raised.exception))
 
     def test_agent_tasks_sidecar_does_not_pollute_state_patch_json(self):
         project = self.make_project()

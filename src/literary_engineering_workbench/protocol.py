@@ -217,6 +217,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "python -m literary_engineering_workbench context <project> --scene scenes/scene_0001.yaml",
             "python -m literary_engineering_workbench simulate-scene <project> --scene scenes/scene_0001.yaml --agent",
             "python -m literary_engineering_workbench branch-simulate <project> --scene scenes/scene_0001.yaml --agent",
+            "Fill branches/scene_0001/branch_selection.md with decision: selected and selected_branch.",
             "python -m literary_engineering_workbench compose-scene <project> --scene scenes/scene_0001.yaml --agent-tasks",
             "python -m literary_engineering_workbench generate-scene <project> --scene scenes/scene_0001.yaml",
             "python -m literary_engineering_workbench review-scene <project> --scene scenes/scene_0001.yaml",

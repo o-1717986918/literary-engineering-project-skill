@@ -6,7 +6,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest import mock
 from pathlib import Path
 
+from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.cli import build_parser
+from literary_engineering_workbench.flow_gates import FlowGateError
 from literary_engineering_workbench.generation_provider import generate_scene_candidate
 from literary_engineering_workbench.scene_composer import build_scene_composition
 from literary_engineering_workbench.style_compiler import StyleCompileOptions, compile_style_profile
@@ -66,6 +68,8 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
     def test_prompt_pack_uses_scene_composition_when_available(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        _select_branch(branch.selection_path, branch.recommended_branch)
         build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
 
         result = generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), provider="dry-run")
@@ -73,6 +77,23 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(prompt_manifest["composition"], "drafts/compositions/scene_0001_composition.md")
         self.assertIn("场景创作编排", prompt_manifest["messages"][1]["content"])
+
+    def test_generation_blocks_unselected_composition_by_default(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+        build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+
+        with self.assertRaises(FlowGateError) as raised:
+            generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), provider="dry-run")
+        self.assertIn("formal branch selection required", str(raised.exception))
+
+        result = generate_scene_candidate(
+            project,
+            scene=Path("scenes/scene_0001.yaml"),
+            provider="dry-run",
+            allow_unselected_composition=True,
+        )
+        self.assertTrue(result.prompt_manifest_path.exists())
 
     def test_prompt_pack_prefers_style_prompt_over_profile_report(self):
         project = self.make_project()
@@ -157,6 +178,21 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _select_branch(path: Path, branch_id: str):
+    path.write_text(
+        f"""# Branch Selection：scene_0001
+
+## 人工决定
+
+- decision: selected
+- selected_branch: {branch_id}
+- reviewer: platform-agent-test
+- selected_at: 2026-01-01T00:00:00Z
+""",
+        encoding="utf-8",
+    )
 
 
 class _FakeChatServer:

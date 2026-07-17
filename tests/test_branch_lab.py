@@ -35,7 +35,31 @@ class BranchLabTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(manifest["characters"][0]["background_story"]["reveal_policy"], "implicit_only")
         self.assertIn("不得直接讲述", "\n".join(manifest["branches"][0]["character_tests"]))
         self.assertIn("分支不是 canon", "\n".join(manifest["guardrails"]))
+        self.assertIn("- decision: pending", result.selection_path.read_text(encoding="utf-8"))
         self.assertIsNone(result.agent_tasks_path)
+
+    def test_branch_simulation_preserves_formal_selection_record(self):
+        project = self.make_project()
+        add_character(project)
+        _write_scene(project)
+
+        first = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        first.selection_path.write_text(
+            f"""# Branch Selection：scene_0001
+
+## 人工决定
+
+- decision: selected
+- selected_branch: {first.recommended_branch}
+- reviewer: platform-agent-test
+- selected_at: 2026-01-01T00:00:00Z
+""",
+            encoding="utf-8",
+        )
+        second = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+
+        self.assertEqual(second.selection_path, first.selection_path)
+        self.assertIn(f"selected_branch: {first.recommended_branch}", second.selection_path.read_text(encoding="utf-8"))
 
     def test_agent_tasks_sidecar_does_not_pollute_manifest(self):
         project = self.make_project()

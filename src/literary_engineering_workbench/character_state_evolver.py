@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_tasks import default_agent_tasks_path, write_agent_tasks
+from .flow_gates import ensure_composition_ready_for_generation
 from .roleplay_lab import CharacterCard, _list_after, _load_characters, _nested_list, _nested_scalar, _read, _scalar
 
 
@@ -46,6 +47,8 @@ def build_character_state_patch(
     scene_id = _scalar(scene_text, "scene_id") or scene_path.stem or "scene"
     participants = _list_value(scene_text, "participants")
     source_path = _resolve_source(root, scene_id, source)
+    if _is_composition_source(source_path):
+        ensure_composition_ready_for_generation(root, source_path)
     source_text = _read(source_path)
     if not source_text:
         raise FileNotFoundError(f"source artifact not found or empty: {source_path}")
@@ -290,6 +293,11 @@ def _resolve_source(root: Path, scene_id: str, source: Path | None) -> Path:
     if composition.exists():
         return composition
     raise FileNotFoundError(f"no source artifact found for scene: {scene_id}")
+
+
+def _is_composition_source(path: Path) -> bool:
+    name = path.name.lower()
+    return "_composition." in name and "drafts" in path.as_posix().lower()
 
 
 def _extract_bullets(text: str, heading: str) -> list[str]:

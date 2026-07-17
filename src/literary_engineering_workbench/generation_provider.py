@@ -137,6 +137,7 @@ def generate_scene_candidate(
     provider: str = "auto",
     output: Path | None = None,
     agent_tasks: bool = False,
+    allow_unselected_composition: bool = False,
 ) -> GenerationResult:
     root = project_root.resolve()
     if not root.is_dir():
@@ -157,7 +158,13 @@ def generate_scene_candidate(
     context_text = context_path.read_text(encoding="utf-8", errors="ignore").strip()
     if not context_text:
         raise FileNotFoundError(f"context packet not found or empty: {context_path}")
-    prompt_pack = build_scene_prompt_pack(root, scene_path, context_path, composition=composition)
+    prompt_pack = build_scene_prompt_pack(
+        root,
+        scene_path,
+        context_path,
+        composition=composition,
+        allow_unselected_composition=allow_unselected_composition,
+    )
 
     provider_impl = _provider_for(resolved_provider)
     request = GenerationRequest(

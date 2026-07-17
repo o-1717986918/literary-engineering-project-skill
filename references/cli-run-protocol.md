@@ -89,13 +89,14 @@ python -m literary_engineering_workbench protocol scene-development
 python -m literary_engineering_workbench context <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench simulate-scene <project> --scene scenes/scene_0001.yaml --agent
 python -m literary_engineering_workbench branch-simulate <project> --scene scenes/scene_0001.yaml --agent
+# Platform agent fills branches/scene_0001/branch_selection.md with decision: selected and selected_branch.
 python -m literary_engineering_workbench compose-scene <project> --scene scenes/scene_0001.yaml --agent-tasks
 python -m literary_engineering_workbench generate-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench review-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench state-evolve <project> --scene scenes/scene_0001.yaml --agent-tasks
 ```
 
-The platform agent must handle every task sidecar, draft prose candidate, review character causality and punctuation, then decide whether to revise or request promotion approval.
+The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review character causality and punctuation, then decide whether to revise or request promotion approval.
 
 ### Review And Audit
 

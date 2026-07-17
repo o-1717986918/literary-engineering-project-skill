@@ -15,6 +15,7 @@ from typing import Any
 
 from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .context_packet import build_context_packet
+from .flow_gates import FlowGateError, branch_selection_status, selected_branch_from
 from .roleplay_lab import CharacterCard, _load_characters, _read
 
 
@@ -57,6 +58,7 @@ def build_scene_composition(
     output: Path | None = None,
     json_output: Path | None = None,
     agent_tasks: bool = False,
+    allow_recommended_branch: bool = False,
 ) -> SceneCompositionResult:
     """Build a scene composition packet and JSON manifest."""
 
@@ -81,7 +83,7 @@ def build_scene_composition(
 
     all_cards = _load_characters(root)
     active_cards = _active_cards(all_cards, facts.participants)
-    branch = _load_branch_choice(root, facts.scene_id, branch_manifest, branch_selection)
+    branch = _load_branch_choice(root, facts.scene_id, branch_manifest, branch_selection, allow_recommended_branch)
     beats = _build_beats(facts, active_cards, branch)
     subtext_map = _build_subtext_map(facts, active_cards or all_cards)
     dialogue_intents = _build_dialogue_intents(facts, active_cards or all_cards)
@@ -108,6 +110,7 @@ def build_scene_composition(
         "branch_selection": _rel(branch["selection_path"], root) if branch.get("selection_path") else "",
         "selected_branch": branch["branch_id"],
         "selection_source": branch["source"],
+        "flow_gate": _flow_gate(branch),
         "scene_facts": asdict(facts),
         "characters": [_character_payload(card, root) for card in active_cards or all_cards],
         "branch": branch_payload,
@@ -166,7 +169,7 @@ def _write_composition_agent_tasks(
         tasks=[
             (
                 "审查场景编排",
-                """读取 composition.md 与 composition.json，检查 selected_branch、beats、subtext_map、dialogue_intents、sensory_palette 和 prose_seed 是否互相一致。若缺少 branch_manifest 或分支选择来源不可靠，说明是否需要先重跑 branch-simulate。""",
+                """读取 composition.md 与 composition.json，检查 selected_branch、selection_source、flow_gate、beats、subtext_map、dialogue_intents、sensory_palette 和 prose_seed 是否互相一致。selection_source 必须是 selection 才能进入 generate-scene；否则先补 branch_selection.md 或重跑 branch-simulate。""",
             ),
             (
                 "检查人物隐性动因",
@@ -206,10 +209,12 @@ def _load_branch_choice(
     scene_id: str,
     manifest: Path | None,
     selection: Path | None,
+    allow_recommended_branch: bool,
 ) -> dict[str, Any]:
     manifest_path = _resolve(root, manifest, root / "branches" / scene_id / "branch_manifest.json")
     selection_path = _resolve(root, selection, root / "branches" / scene_id / "branch_selection.md")
-    selected = _selected_branch_from(selection_path)
+    selection_gate = branch_selection_status(selection_path)
+    selected = selected_branch_from(selection_path)
     if not manifest_path.exists():
         return {
             "branch_id": "",
@@ -222,14 +227,27 @@ def _load_branch_choice(
             "source": "fallback",
             "manifest_path": manifest_path,
             "selection_path": selection_path if selection_path.exists() else None,
+            "selection_gate": selection_gate,
             "risks": ["缺少 branch_manifest.json，剧情方向未经过多分支评分。"],
             "writeback_candidates": _fallback_writeback_by_id(scene_id),
         }
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     branches = data.get("branches", [])
     recommended = str(data.get("recommended_branch") or "")
+    if not selected and not allow_recommended_branch:
+        raise FlowGateError(
+            "formal branch selection required before compose-scene: "
+            f"fill {_rel(selection_path, root)} with decision: selected and selected_branch. "
+            f"recommended_branch={recommended or 'n/a'} is only a scoring hint."
+        )
     target_id = selected or recommended
-    chosen = _find_branch(branches, target_id) or (branches[0] if branches else {})
+    chosen = _find_branch(branches, target_id)
+    if target_id and chosen is None:
+        raise FlowGateError(
+            f"selected branch {target_id} is not present in {_rel(manifest_path, root)}; "
+            "rerun branch-simulate or correct branch_selection.md."
+        )
+    chosen = chosen or {}
     if not chosen:
         return {
             "branch_id": target_id,
@@ -242,6 +260,7 @@ def _load_branch_choice(
             "source": "manifest_empty",
             "manifest_path": manifest_path,
             "selection_path": selection_path if selection_path.exists() else None,
+            "selection_gate": selection_gate,
             "risks": ["branch_manifest.json 无分支。"],
             "writeback_candidates": data.get("writeback_candidates", _fallback_writeback_by_id(scene_id)),
         }
@@ -249,19 +268,9 @@ def _load_branch_choice(
     result["source"] = "selection" if selected else "recommended"
     result["manifest_path"] = manifest_path
     result["selection_path"] = selection_path if selection_path.exists() else None
+    result["selection_gate"] = selection_gate
     result["recommended_branch"] = recommended
     return result
-
-
-def _selected_branch_from(path: Path) -> str:
-    if not path.exists():
-        return ""
-    text = _read(path)
-    match = re.search(r"(?mi)^\s*-?\s*selected_branch:\s*`?([A-Za-z0-9_\-]+)?`?\s*$", text)
-    if not match:
-        return ""
-    value = (match.group(1) or "").strip().strip("`")
-    return "" if value.lower() in {"", "none", "n/a", "pending"} else value
 
 
 def _find_branch(branches: list[Any], branch_id: str) -> dict[str, Any] | None:
@@ -428,6 +437,8 @@ def _revision_targets(facts: SceneFacts, cards: list[CharacterCard], branch: dic
         targets.append("participants 没有匹配正式人物档案，先补人物卡或修正 scene.yaml。")
     if branch.get("status") == "no_manifest":
         targets.append("建议先运行 branch-simulate，再基于评分分支重建 compose-scene。")
+    if branch.get("source") != "selection":
+        targets.append("当前分支未经过正式 branch_selection，不能直接进入 generate-scene。")
     if not facts.canon_refs:
         targets.append("scene.yaml 缺少 canon_refs，正稿前应补硬约束引用。")
     return targets
@@ -440,7 +451,19 @@ def _guardrails() -> list[str]:
         "不得改变人物、地点、时间线或规则的适用范围。",
         "不得把角色 background_story 直接写成说明段落。",
         "不得让分支推荐绕过人工选择、审查和发布门禁。",
+        "只有 selection_source=selection 的 composition 才能进入 generate-scene；内部实验必须显式放行。",
     ]
+
+
+def _flow_gate(branch: dict[str, Any]) -> dict[str, Any]:
+    source = str(branch.get("source") or "")
+    return {
+        "branch_selection_required": True,
+        "ready_for_generation": source == "selection",
+        "selection_source": source,
+        "selection_gate": branch.get("selection_gate", {}),
+        "blocking_reason": "" if source == "selection" else "branch_selection.md has not recorded a formal selected branch",
+    }
 
 
 def _character_payload(card: CharacterCard, root: Path) -> dict[str, Any]:

@@ -360,6 +360,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
     generate.add_argument("--out", default="", help="Output candidate markdown path.")
     generate.add_argument("--agent-tasks", action="store_true", help="Legacy compatibility only; formal command always writes a platform-agent task.")
+    generate.add_argument("--allow-unselected-composition", action="store_true", help="Internal experiments only: allow generation task from composition without formal branch_selection.")
 
     promote = sub.add_parser("promote-candidate", help="Promote a generated scene candidate into the draft review lane.")
     promote.add_argument("project", help="Work project directory.")
@@ -419,6 +420,7 @@ def build_parser() -> argparse.ArgumentParser:
     compose.add_argument("--out", default="", help="Output composition markdown path.")
     compose.add_argument("--json-out", default="", help="Output composition JSON path.")
     compose.add_argument("--agent-tasks", action="store_true", help="Write a platform-agent task sidecar without polluting composition artifacts.")
+    compose.add_argument("--allow-recommended-branch", action="store_true", help="Internal experiments only: allow recommended_branch when branch_selection is still pending.")
 
     orchestration = sub.add_parser("orchestration-plan", help="Create an agent workflow platform blueprint.")
     orchestration.add_argument("project", help="Work project directory.")
@@ -1169,7 +1171,13 @@ def main(argv=None) -> int:
                 context_path = build_context_packet(root, scene=scene_path, query=args.query, rebuild_index=True, output=context_path).output_path
             composition = _cli_path(root, args.composition) if args.composition else None
             candidate = _cli_path(root, args.out) if args.out else root / "drafts" / "candidates" / f"{scene_id}-platform-agent.md"
-            prompt_pack = build_scene_prompt_pack(root, scene_path, context_path, composition=composition)
+            prompt_pack = build_scene_prompt_pack(
+                root,
+                scene_path,
+                context_path,
+                composition=composition,
+                allow_unselected_composition=args.allow_unselected_composition,
+            )
             prompt_manifest = candidate.with_suffix(".prompt.json")
             write_prompt_manifest(prompt_pack, prompt_manifest, provider="platform-agent", model="tool-layer-agent")
             result = write_platform_scene_generation_task(
@@ -1312,18 +1320,22 @@ def main(argv=None) -> int:
         selection = Path(args.branch_selection) if args.branch_selection else None
         out = Path(args.out) if args.out else None
         json_out = Path(args.json_out) if args.json_out else None
-        result = build_scene_composition(
-            Path(args.project),
-            scene=Path(args.scene),
-            context=context,
-            query=args.query,
-            rebuild_context=args.rebuild_context,
-            branch_manifest=manifest,
-            branch_selection=selection,
-            output=out,
-            json_output=json_out,
-            agent_tasks=args.agent_tasks,
-        )
+        try:
+            result = build_scene_composition(
+                Path(args.project),
+                scene=Path(args.scene),
+                context=context,
+                query=args.query,
+                rebuild_context=args.rebuild_context,
+                branch_manifest=manifest,
+                branch_selection=selection,
+                output=out,
+                json_output=json_out,
+                agent_tasks=args.agent_tasks,
+                allow_recommended_branch=args.allow_recommended_branch,
+            )
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
         print(f"composition: {result.output_path}")
         print(f"json: {result.json_path}")
         if result.agent_tasks_path:

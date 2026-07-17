@@ -35,6 +35,8 @@ python -m literary_engineering_workbench compose-scene work/demo-work --scene sc
 
 如果缺少分支 manifest，`compose-scene` 会退回保守模式：仍生成节拍、潜台词、对白意图和正文种子，但会提示先运行 `branch-simulate`。
 
+如果已经存在 `branch_manifest.json`，正式流程必须先由平台 agent 或用户在 `branch_selection.md` 中写入 `decision: selected` 和 `selected_branch`。默认不会再把 `recommended_branch` 自动带入 composition；`--allow-recommended-branch` 只用于内部实验，生成的 composition 会标记为 `selection_source: recommended`，不能直接进入 `generate-scene`。
+
 ## 输出
 
 - `drafts/compositions/{scene_id}_composition.md`

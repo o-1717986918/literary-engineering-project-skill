@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .context_packet import build_context_packet
+from .flow_gates import selected_branch_from
 from .roleplay_lab import CharacterCard, _load_characters, _read
 
 
@@ -136,7 +137,8 @@ def build_branch_simulation(
     }
     manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     output_path.write_text(_render_markdown(root, scene_path, context_path, payload), encoding="utf-8")
-    selection_path.write_text(_render_selection(scene_facts, payload), encoding="utf-8")
+    if not selected_branch_from(selection_path):
+        selection_path.write_text(_render_selection(scene_facts, payload), encoding="utf-8")
     agent_tasks_path = None
     if agent_tasks:
         agent_tasks_path = _write_branch_agent_tasks(root, scene_path, context_path, output_path, manifest_path, selection_path, payload)

@@ -152,8 +152,10 @@ class DirectorAgentTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue(result.decision["agent_tasks"])
         self.assertTrue(result.workflow_state_path.exists())
         state = json.loads(result.workflow_state_path.read_text(encoding="utf-8"))
+        self.assertEqual(state["status"], "blocked")
         self.assertIn("simulation_agent_tasks", state["artifacts"])
-        self.assertIn("candidate_task", state["artifacts"])
+        self.assertIn("branch_agent_tasks", state["artifacts"])
+        self.assertNotIn("candidate_task", state["artifacts"])
 
 
 def _director_payload_with_aliases():

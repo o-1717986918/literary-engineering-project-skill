@@ -371,7 +371,7 @@ Files:
 - `branch_selection.md`
 - `branch_manifest.agent_tasks.md` when `--agent` / `--agent-tasks` is enabled
 
-Branches are scored candidates, not canon. The recommended branch is a heuristic suggestion until the platform agent evaluates it and a human or approved tool-layer decision records the actual decision.
+Branches are scored candidates, not canon. The recommended branch is a heuristic suggestion until the platform agent evaluates it and a human or approved tool-layer decision records the actual decision. Formal scene composition requires `branch_selection.md` to contain a formal decision such as `decision: selected` plus a valid `selected_branch`.
 
 ## Scene Composition
 

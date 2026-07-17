@@ -4,6 +4,7 @@ from pathlib import Path
 
 from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.cli import build_parser, main
+from literary_engineering_workbench.flow_gates import FlowGateError
 from literary_engineering_workbench.scene_composer import build_scene_composition
 
 from helpers import TempProjectMixin, add_character
@@ -20,6 +21,7 @@ class SceneComposerTests(TempProjectMixin, unittest.TestCase):
             rebuild_context=True,
             branch_count=3,
         )
+        _select_branch(branch.selection_path, branch.recommended_branch)
 
         result = build_scene_composition(
             project,
@@ -36,6 +38,8 @@ class SceneComposerTests(TempProjectMixin, unittest.TestCase):
 
         payload = json.loads(result.json_path.read_text(encoding="utf-8"))
         self.assertEqual(payload["selected_branch"], branch.recommended_branch)
+        self.assertEqual(payload["selection_source"], "selection")
+        self.assertTrue(payload["flow_gate"]["ready_for_generation"])
         self.assertEqual(payload["characters"][0]["background_story"]["reveal_policy"], "implicit_only")
         self.assertIn("prose_seed", payload)
         self.assertEqual(len(payload["beats"]), 5)
@@ -58,12 +62,45 @@ class SceneComposerTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(payload["selection_source"], "fallback")
         self.assertEqual(payload["branch"]["status"], "no_manifest")
         self.assertIn("建议先运行 branch-simulate", "\n".join(payload["revision_targets"]))
+        self.assertFalse(payload["flow_gate"]["ready_for_generation"])
+
+    def test_build_scene_composition_requires_formal_branch_selection(self):
+        project = self.make_project()
+        add_character(project)
+        _write_scene(project)
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+
+        with self.assertRaises(FlowGateError) as raised:
+            build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"))
+        self.assertIn("formal branch selection required", str(raised.exception))
+
+        result = build_scene_composition(
+            project,
+            scene=Path("scenes/scene_0001.yaml"),
+            allow_recommended_branch=True,
+        )
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["selected_branch"], branch.recommended_branch)
+        self.assertEqual(payload["selection_source"], "recommended")
+        self.assertFalse(payload["flow_gate"]["ready_for_generation"])
+
+    def test_build_scene_composition_rejects_invalid_selected_branch(self):
+        project = self.make_project()
+        add_character(project)
+        _write_scene(project)
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        _select_branch(branch.selection_path, "missing_branch")
+
+        with self.assertRaises(FlowGateError) as raised:
+            build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"))
+        self.assertIn("not present", str(raised.exception))
 
     def test_agent_tasks_sidecar_keeps_composition_artifacts_clean(self):
         project = self.make_project()
         add_character(project)
         _write_scene(project)
-        build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        _select_branch(branch.selection_path, branch.recommended_branch)
 
         result = build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), agent_tasks=True)
 
@@ -121,6 +158,25 @@ output_state:
         encoding="utf-8",
     )
     return path
+
+
+def _select_branch(path: Path, branch_id: str):
+    path.write_text(
+        f"""# Branch Selection：scene_0001
+
+## 人工决定
+
+- decision: selected
+- selected_branch: {branch_id}
+- reviewer: platform-agent-test
+- selected_at: 2026-01-01T00:00:00Z
+
+## 选择理由
+
+- 测试中确认该分支可以进入 composition。
+""",
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":

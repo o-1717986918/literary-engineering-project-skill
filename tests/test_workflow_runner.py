@@ -2,6 +2,7 @@ import unittest
 import json
 from pathlib import Path
 
+from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.workflow_runner import load_workflow_state, run_workflow
 
 from helpers import TempProjectMixin, make_reviewed_passing_scene
@@ -37,8 +38,10 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
         state = load_workflow_state(project, "demo-run")
         self.assertEqual(state["run_id"], "demo-run")
         self.assertIn("branch_manifest", state["artifacts"])
-        self.assertIn("scene_composition", state["artifacts"])
+        self.assertNotIn("scene_composition", state["artifacts"])
         self.assertIn("state_patch", state["artifacts"])
+        composition_events = [event for event in state["events"] if event["node_id"] == "scene_composition"]
+        self.assertEqual(composition_events[-1]["status"], "skipped")
 
         with self.assertRaises(FileExistsError):
             run_workflow(project, mode="scene-loop", scene=Path("scenes/scene_0001.yaml"), run_id="demo-run")
@@ -61,6 +64,7 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
     def test_scene_loop_can_generate_candidate_after_composition(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_branch_selection(project)
         result = run_workflow(
             project,
             mode="scene-loop",
@@ -77,9 +81,28 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("prompt_manifest", state["artifacts"])
         self.assertIn("[AGENT_TASK:", (project / state["artifacts"]["candidate_task"]).read_text(encoding="utf-8"))
 
+    def test_scene_loop_blocks_generation_until_branch_selection(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+        result = run_workflow(
+            project,
+            mode="scene-loop",
+            scene=Path("scenes/scene_0001.yaml"),
+            run_id="blocked-generate-run",
+            generate_candidate=True,
+            provider="dry-run",
+        )
+
+        self.assertEqual(result.status, "blocked")
+        state = load_workflow_state(project, "blocked-generate-run")
+        blocked_events = [event for event in state["events"] if event["status"] == "blocked"]
+        self.assertTrue(blocked_events)
+        self.assertNotIn("candidate_task", state["artifacts"])
+
     def test_scene_loop_records_agent_task_sidecars(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_branch_selection(project)
         result = run_workflow(
             project,
             mode="scene-loop",
@@ -108,6 +131,7 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
 
     def test_scene_loop_can_promote_generated_candidate(self):
         project = self.make_project()
+        _prepare_branch_selection(project)
         result = run_workflow(
             project,
             mode="scene-loop",
@@ -127,3 +151,19 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _prepare_branch_selection(project: Path):
+    result = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+    result.selection_path.write_text(
+        f"""# Branch Selection：scene_0001
+
+## 人工决定
+
+- decision: selected
+- selected_branch: {result.recommended_branch}
+- reviewer: platform-agent-test
+- selected_at: 2026-01-01T00:00:00Z
+""",
+        encoding="utf-8",
+    )

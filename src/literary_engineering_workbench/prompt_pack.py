@@ -10,6 +10,7 @@ from string import Formatter
 from typing import Any
 
 from .anti_ai_style import ANTI_AI_STYLE_PROMPT
+from .flow_gates import ensure_composition_ready_for_generation
 from .punctuation_standard import render_punctuation_standard_for_prompt
 
 
@@ -67,6 +68,7 @@ def build_scene_prompt_pack(
     scene_path: Path,
     context_path: Path,
     composition: Path | None = None,
+    allow_unselected_composition: bool = False,
 ) -> PromptPack:
     """Render system/user prompts for a scene generation provider."""
 
@@ -78,6 +80,11 @@ def build_scene_prompt_pack(
     composition_path = _resolve(root, composition) if composition else default_composition
     if not composition_path.exists():
         composition_path = None
+    ensure_composition_ready_for_generation(
+        root,
+        composition_path,
+        allow_unselected_composition=allow_unselected_composition,
+    )
     style_profile_path = _find_style_asset(root)
 
     values = {

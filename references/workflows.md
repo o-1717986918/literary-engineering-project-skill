@@ -293,13 +293,13 @@ Branches are not canon. The recommended branch is only a scoring hint; the platf
 
 Use `branch-simulate --agent` / `--agent-tasks` to write `branch_manifest.agent_tasks.md`. This sidecar tells the platform agent how to review branch scores and choose or revise a branch without polluting `branch_manifest.json`.
 
-`compose-scene` turns the selected or recommended branch into a creation packet under `drafts/compositions/{scene_id}_composition.md` and `.json`, including scene beats, subtext, dialogue intents, sensory palette, prose seed, revision targets, and writeback candidates. It is a pre-draft planning artifact, not final prose. The platform agent must inspect generated JSON before using it as a prompt pack or writeback source.
+`compose-scene` turns the formally selected branch into a creation packet under `drafts/compositions/{scene_id}_composition.md` and `.json`, including scene beats, subtext, dialogue intents, sensory palette, prose seed, revision targets, and writeback candidates. If `branch_manifest.json` exists but `branch_selection.md` still lacks `decision: selected` plus `selected_branch`, formal composition is blocked. The recommended branch is never used by default; `--allow-recommended-branch` is only for internal experiments and writes `selection_source: recommended`, which is not ready for generation.
 
 Use `compose-scene --agent-tasks` to write `drafts/compositions/{scene_id}_composition.agent_tasks.md`. Keep `[AGENT_TASK: ...]` out of the composition Markdown because it may be read into `generate-scene` prompt packs.
 
 When character `background_story` is present, scene and branch work should convert it into choices, hesitation, avoidance, misreadings, tone, and relationship pressure. Do not turn it into an explanatory background paragraph unless the selected scene explicitly reveals the past.
 
-`generate-scene` writes a prompt manifest and `drafts/candidates/{scene_id}-platform-agent.agent_tasks.md`. It does not call a local provider, does not overwrite `drafts/scenes/`, and does not write canon. The platform agent reads the prompt manifest, writes the expected candidate Markdown and manifest JSON, then reviews the candidate before promotion.
+`generate-scene` writes a prompt manifest and `drafts/candidates/{scene_id}-platform-agent.agent_tasks.md`. It does not call a local provider, does not overwrite `drafts/scenes/`, and does not write canon. If a composition packet exists, `generate-scene` requires `selection_source: selection`; unselected or recommended-only composition packets are blocked unless `--allow-unselected-composition` is explicitly passed for internal preview. The platform agent reads the prompt manifest, writes the expected candidate Markdown and manifest JSON, then reviews the candidate before promotion.
 
 Generated candidates and promoted drafts should pass the standard Chinese punctuation gate. `review-scene` reports punctuation issues under `Punctuation Standard Test`; fix those before chapter readiness or export unless the user explicitly approves a recorded exception.
 
@@ -316,7 +316,7 @@ Review conclusions:
 - `revise_required`: not exportable.
 - `reject`: not exportable.
 
-`state-evolve` builds a reviewable character-state patch under `characters/state_patches/` from a scene draft, generated candidate, or composition artifact. It does not modify `characters/*.yaml`; the platform agent must inspect the patch for hidden-background causality, canon risk, and unintended relationship drift. Major character state changes still require human confirmation before any later writeback.
+`state-evolve` builds a reviewable character-state patch under `characters/state_patches/` from a scene draft, generated candidate, or composition artifact. If the source is a composition packet, it must have passed the same formal branch-selection gate as `generate-scene`; unselected or recommended-only composition packets are blocked. It does not modify `characters/*.yaml`; the platform agent must inspect the patch for hidden-background causality, canon risk, and unintended relationship drift. Major character state changes still require human confirmation before any later writeback.
 
 Use `state-evolve --agent-tasks` to write `characters/state_patches/{scene_id}_state_patch.agent_tasks.md` for platform-agent review while keeping the JSON patch clean.
 

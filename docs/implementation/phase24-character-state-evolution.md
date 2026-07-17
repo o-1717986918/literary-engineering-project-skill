@@ -36,6 +36,8 @@ python -m literary_engineering_workbench state-evolve work/demo-work `
 - `drafts/compositions/{scene_id}_composition.md`
 - `drafts/compositions/{scene_id}_composition.json`
 
+当 source 是 composition artifact 时，`state-evolve` 会检查 composition 是否来自正式 `branch_selection.md`。`selection_source: recommended` 或 fallback composition 只能作为内部讨论材料，不能直接推导人物状态 patch。
+
 未指定时，优先使用场景草稿；若无草稿，则尝试最新候选正文；再尝试场景编排 JSON。
 
 ## 输出
