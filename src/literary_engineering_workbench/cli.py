@@ -204,6 +204,7 @@ def build_parser() -> argparse.ArgumentParser:
     style_lab_mount.add_argument("project", help="Work project directory.")
     style_lab_mount.add_argument("--library", default="", help="Style library root. Defaults to global config.")
     style_lab_mount.add_argument("--style-id", required=True)
+    style_lab_mount.add_argument("--allow-unreviewed", action="store_true", help="Allow an internal experimental mount without completed style prompt/evaluation readiness gates.")
 
     agent_run = sub.add_parser("agent-run", help="Run a generic auditable agent task.")
     agent_run.add_argument("project", help="Work project directory.")
@@ -840,6 +841,7 @@ def main(argv=None) -> int:
             Path(args.project),
             library_root=Path(args.library) if args.library else None,
             style_id=args.style_id,
+            allow_unreviewed=args.allow_unreviewed,
         )
         print(f"style_id: {result.style_id}")
         print(f"mount_dir: {result.mount_dir}")

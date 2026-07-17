@@ -254,7 +254,29 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 },
             )
             self.assertEqual(compiled.status_code, 200)
-            self.assertTrue((library / compiled.json()["style_prompt"]).exists())
+            compiled_payload = compiled.json()
+            self.assertEqual(compiled_payload["receiver"], "platform-agent")
+            self.assertTrue((library / compiled_payload["style_prompt_task"]).exists())
+            expected_prompt = library / compiled_payload["expected_style_prompt"]
+            expected_json = library / compiled_payload["expected_json"]
+            expected_prompt.write_text("# LLM 文风约束提示词\n\n## 核心风格机制\n\n- 测试约束。\n", encoding="utf-8")
+            expected_json.write_text(
+                json.dumps(
+                    {
+                        "schema": "literary-engineering-workbench/style-prompt-agent/v1",
+                        "prompt_markdown": "style_prompt.md",
+                        "constraints": ["测试约束"],
+                        "avoid": [],
+                        "source_paths": ["style-profile.md", "style_metrics.json"],
+                        "evaluation_plan": ["back-translation"],
+                        "risk_notes": [],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
 
             evaluated = client.post(
                 "/style-lab/evaluate",
@@ -269,7 +291,25 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 },
             )
             self.assertEqual(evaluated.status_code, 200)
-            self.assertIn("overall_score", evaluated.json())
+            evaluated_payload = evaluated.json()
+            self.assertEqual(evaluated_payload["receiver"], "platform-agent")
+            self.assertTrue((library / evaluated_payload["style_prompt_eval_task"]).exists())
+            eval_dir = expected_prompt.parent / "evaluation_results" / "back-translation"
+            eval_dir.mkdir(parents=True, exist_ok=True)
+            (eval_dir / "style_eval_ready.json").write_text(
+                json.dumps(
+                    {
+                        "schema": "literary-engineering-workbench/style-eval/v0.1",
+                        "mode": "back-translation",
+                        "overall_score": 72.0,
+                        "risk_level": "normal",
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
 
             skill = client.post(
                 "/style-lab/build-skill",
@@ -291,6 +331,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
             )
             self.assertEqual(mounted.status_code, 200)
             self.assertEqual(mounted.json()["active_style_skill"]["priority"], "highest")
+            self.assertTrue(mounted.json()["active_style_skill"]["readiness"]["ready"])
 
             status = client.get("/style-lab/mounts", params={"project_root": str(project)})
             self.assertEqual(status.status_code, 200)

@@ -154,6 +154,12 @@ python -m literary_engineering_workbench style-lab-build-skill --author-id "<aut
 python -m literary_engineering_workbench style-lab-mount "<work-dir>" --style-id "<style-id>"
 ```
 
+`style-lab-compile` and the front-end `/style-lab/compile` endpoint compile deterministic profile/metrics, then write a platform-agent task sidecar for `style_prompt.md` and `style_prompt.agent.json`. They do not call a local provider for the LLM-facing prompt. The platform agent must read the task, write both expected artifacts, and inspect them before building a Style Skill.
+
+`style-prompt-eval` and `/style-lab/evaluate` likewise write a platform-agent task for the back-translation / outline-expansion candidate. After the platform agent writes the expected candidate and manifest, run deterministic `style-eval` or provide an equivalent `style_eval_*.json` review before mounting.
+
+`style-lab-mount` requires readiness evidence by default: `prompt.md`, `style_prompt.agent.json`, and at least one accepted `evaluation_results/*/style_eval_*.json`. Use `--allow-unreviewed` only for internal experiments, and record that the mounted style is not ready for release-grade writing.
+
 Mounted style skills are stored in the creative project under `style/mounted/{style_id}/` with `style/active_style_skill.json` as the active pointer. During generation, the mounted `prompt.md` is the highest-priority expression constraint, while canon, character facts, plot causality, safety boundaries, and explicit user constraints still take precedence.
 
 `references/punctuation-standard.md` is the baseline expression hygiene layer below every Style Skill. A style prompt may specify punctuation rhythm, density, and pauses, but it should not cause English punctuation to leak into Chinese prose, replace `……` with `...`, or use nonstandard dashes unless the project records a deliberate exception.

@@ -218,6 +218,7 @@ async function mountStyleSkill() {
       project_root: data.project_root,
       style_library_root: data.style_library_root,
       style_id: data.style_id,
+      allow_unreviewed: Boolean(data.allow_unreviewed),
     }),
   });
   $("#styleResult").textContent = pretty(result);

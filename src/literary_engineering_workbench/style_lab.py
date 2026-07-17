@@ -409,10 +409,13 @@ def build_style_skill(
         raise FileNotFoundError(f"style prompt not found: {profile / 'style_prompt.md'}")
     resolved_style_id = _slug(style_id or f"{author_id}-{resolved_profile}")
     skill_dir = author_dir / "style_skills" / resolved_style_id
+    if skill_dir.exists():
+        shutil.rmtree(skill_dir)
     skill_dir.mkdir(parents=True, exist_ok=True)
     copies = {
         "style-profile.md": profile / "style-profile.md",
         "style_metrics.json": profile / "style_metrics.json",
+        "style_prompt.agent.json": profile / "style_prompt.agent.json",
         "style_prompt.prompt.json": profile / "style_prompt.prompt.json",
         "corpus_manifest.yaml": profile / "corpus_manifest.yaml",
     }
@@ -421,8 +424,15 @@ def build_style_skill(
             shutil.copyfile(source, skill_dir / name)
     prompt_path = skill_dir / "prompt.md"
     prompt_path.write_text((profile / "style_prompt.md").read_text(encoding="utf-8"), encoding="utf-8")
+    source_eval_dir = profile / "evaluation_results"
+    target_eval_dir = skill_dir / "evaluation_results"
+    if target_eval_dir.exists():
+        shutil.rmtree(target_eval_dir)
+    if source_eval_dir.exists():
+        shutil.copytree(source_eval_dir, target_eval_dir)
     style_markdown_path = skill_dir / "STYLE.md"
     style_markdown_path.write_text(_render_style_skill_markdown(author, resolved_style_id, resolved_profile), encoding="utf-8")
+    readiness = _style_skill_readiness(skill_dir)
     manifest = {
         "schema": STYLE_SKILL_SCHEMA,
         "style_id": resolved_style_id,
@@ -435,6 +445,7 @@ def build_style_skill(
         "profile": "style-profile.md",
         "metrics": "style_metrics.json",
         "style_markdown": "STYLE.md",
+        "readiness": readiness,
         "created_at": _now(),
         "guardrails": [
             "文风约束优先影响表达、叙述距离、句法节奏、意象系统和心理呈现。",
@@ -454,6 +465,7 @@ def mount_style_skill(
     *,
     library_root: Path | None,
     style_id: str,
+    allow_unreviewed: bool = False,
 ) -> StyleMountResult:
     project = project_root.resolve()
     if not project.is_dir():
@@ -461,6 +473,16 @@ def mount_style_skill(
     library = ensure_style_library(library_root)
     source = _find_style_skill_dir(library, style_id)
     payload = json.loads((source / "style_skill.json").read_text(encoding="utf-8"))
+    readiness = _payload_readiness(payload, source)
+    if not readiness.get("ready") and not allow_unreviewed:
+        missing = ", ".join(str(item) for item in readiness.get("missing", [])) or "unknown readiness gate"
+        blocking = ", ".join(str(item) for item in readiness.get("blocking_risks", []))
+        suffix = f"; blocking risks: {blocking}" if blocking else ""
+        raise ValueError(
+            "style skill is not ready to mount. "
+            "Complete platform-agent style prompt generation and effectiveness/risk review first, "
+            f"or pass allow_unreviewed for an internal experiment. Missing: {missing}{suffix}"
+        )
     mount_dir = project / "style" / "mounted" / str(payload.get("style_id") or style_id)
     if mount_dir.exists():
         shutil.rmtree(mount_dir)
@@ -478,6 +500,8 @@ def mount_style_skill(
         "style_skill": _rel(mount_dir / "style_skill.json", project),
         "library_source": _rel(source, library),
         "mounted_at": _now(),
+        "allow_unreviewed": allow_unreviewed,
+        "readiness": readiness,
         "enforcement": {
             "director": "required",
             "generation": "required",
@@ -516,6 +540,73 @@ def _write_profile_manifest(profile: Path, author: dict[str, Any], author_id: st
         "updated_at": _now(),
     }
     (profile / "profile.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _payload_readiness(payload: dict[str, Any], skill_dir: Path) -> dict[str, Any]:
+    readiness = payload.get("readiness")
+    if isinstance(readiness, dict):
+        fresh = _style_skill_readiness(skill_dir)
+        if fresh.get("ready") != readiness.get("ready"):
+            return fresh
+        return readiness
+    return _style_skill_readiness(skill_dir)
+
+
+def _style_skill_readiness(skill_dir: Path) -> dict[str, Any]:
+    missing: list[str] = []
+    blocking_risks: list[str] = []
+
+    prompt_exists = (skill_dir / "prompt.md").is_file()
+    agent_json_exists = (skill_dir / "style_prompt.agent.json").is_file()
+    eval_jsons = sorted((skill_dir / "evaluation_results").glob("*/style_eval_*.json"))
+    accepted_evals: list[dict[str, Any]] = []
+
+    if not prompt_exists:
+        missing.append("prompt.md")
+    if not agent_json_exists:
+        missing.append("style_prompt.agent.json")
+    if not eval_jsons:
+        missing.append("evaluation_results/*/style_eval_*.json")
+
+    for path in eval_jsons:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            blocking_risks.append(f"{_rel(path, skill_dir)}: invalid_json")
+            continue
+        risk = str(payload.get("risk_level") or "")
+        score = float(payload.get("overall_score") or 0)
+        item = {
+            "path": _rel(path, skill_dir),
+            "mode": payload.get("mode", ""),
+            "overall_score": score,
+            "risk_level": risk,
+        }
+        if risk in {"high_copy_risk", "low_similarity"}:
+            blocking_risks.append(f"{item['path']}: {risk}")
+            continue
+        if score < 45:
+            blocking_risks.append(f"{item['path']}: score_below_45")
+            continue
+        accepted_evals.append(item)
+
+    if eval_jsons and not accepted_evals:
+        missing.append("accepted style evaluation")
+
+    return {
+        "ready": prompt_exists and agent_json_exists and bool(accepted_evals) and not blocking_risks,
+        "prompt_exists": prompt_exists,
+        "platform_agent_prompt_json": "style_prompt.agent.json" if agent_json_exists else "",
+        "accepted_evaluations": accepted_evals,
+        "evaluation_count": len(eval_jsons),
+        "missing": missing,
+        "blocking_risks": blocking_risks,
+        "rules": [
+            "style prompt must be written by the platform agent into style_prompt.md",
+            "style_prompt.agent.json must record the platform-agent prompt contract",
+            "at least one deterministic style_eval JSON must pass copy-risk and similarity gates",
+        ],
+    }
 
 
 def _render_style_skill_markdown(author: dict[str, Any], style_id: str, profile_id: str) -> str:

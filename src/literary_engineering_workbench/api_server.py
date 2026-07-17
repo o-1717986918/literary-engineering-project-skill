@@ -30,9 +30,9 @@ from .style_lab import (
     list_author_projects,
     list_style_skills,
     mount_style_skill,
-    run_author_style_learning,
+    run_author_style_learning_platform_task,
 )
-from .style_prompt_eval import run_style_prompt_eval
+from .platform_agent_tasks import write_platform_style_prompt_eval_task
 from .workflow_runner import run_workflow
 
 try:
@@ -199,6 +199,7 @@ class StyleMountRequest(BaseModel):
     project_root: str
     style_library_root: str = ""
     style_id: str
+    allow_unreviewed: bool = False
 
 
 def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = ""):
@@ -345,24 +346,27 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
     def style_lab_compile(payload: StyleCompileRequest, http_request: Request):
         _require_api_token(http_request, token)
         try:
-            result = run_author_style_learning(
+            result = run_author_style_learning_platform_task(
                 _style_library_path(payload.style_library_root),
                 author_id=payload.author_id,
                 profile_id=payload.profile_id,
-                provider=payload.provider,
             )
         except (FileNotFoundError, RuntimeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {
             "ok": True,
+            "status": "pending_platform_agent",
+            "receiver": "platform-agent",
             "style_library_root": str(result.library_root),
             "author_id": result.author_id,
             "profile_id": result.profile_id,
             "profile_dir": _rel_str(result.profile_dir, result.library_root),
             "profile": _rel_str(result.profile_path, result.library_root),
             "metrics": _rel_str(result.metrics_path, result.library_root),
-            "style_prompt": _rel_str(result.style_prompt_path, result.library_root),
-            "prompt_manifest": _rel_str(result.prompt_manifest_path, result.library_root),
+            "style_prompt_task": _rel_str(result.style_prompt_task_path, result.library_root),
+            "expected_style_prompt": _rel_str(result.expected_style_prompt_path, result.library_root),
+            "expected_json": _rel_str(result.expected_json_path, result.library_root),
+            "style_prompt": _rel_str(result.expected_style_prompt_path, result.library_root),
             "source_count": result.source_count,
         }
 
@@ -405,26 +409,25 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
             task_input = input_dir / f"{stamp}-input.txt"
             reference.write_text(payload.reference_text.strip() + "\n", encoding="utf-8")
             task_input.write_text(payload.task_input_text.strip() + "\n", encoding="utf-8")
-            result = run_style_prompt_eval(
+            result = write_platform_style_prompt_eval_task(
                 profile_dir,
                 reference=reference,
                 task_input=task_input,
                 mode=payload.mode,
-                provider=payload.provider,
             )
         except (FileNotFoundError, RuntimeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {
             "ok": True,
+            "status": "pending_platform_agent",
+            "receiver": "platform-agent",
             "style_library_root": str(library),
-            "candidate": _rel_str(result.candidate_path, library),
-            "prompt_manifest": _rel_str(result.prompt_manifest_path, library),
-            "report": _rel_str(result.report_path, library),
-            "metrics": _rel_str(result.metrics_path, library),
-            "mode": result.mode,
-            "provider": result.provider,
-            "overall_score": result.overall_score,
-            "risk_level": result.risk_level,
+            "style_prompt_eval_task": _rel_str(result.task_path, library),
+            "expected_candidate": _rel_str(result.expected_report_path, library),
+            "expected_prompt_manifest": _rel_str(result.expected_json_path, library),
+            "reference": _rel_str(reference, library),
+            "task_input": _rel_str(task_input, library),
+            "mode": payload.mode,
         }
 
     @app.post("/style-lab/mount")
@@ -436,6 +439,7 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
                 root,
                 library_root=_style_library_path(payload.style_library_root),
                 style_id=payload.style_id,
+                allow_unreviewed=payload.allow_unreviewed,
             )
         except (FileNotFoundError, RuntimeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

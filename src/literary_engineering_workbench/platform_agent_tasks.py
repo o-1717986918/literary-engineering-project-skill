@@ -7,6 +7,7 @@ skill, then downstream gates validate the artifacts that platform agent writes.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,15 +37,10 @@ def write_platform_scene_review_task(
     report = report_path or root / "reviews" / "agent" / f"{scene_id}_scene_review.md"
     json_output = json_path or root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
     context_path = root / "memory" / "context_packets" / f"{scene_id}.md"
-    style_candidates = [
-        root / "style" / "style_prompt.md",
-        root / "style" / "demo-author" / "style_prompt.md",
-        root / "style" / "style-profile.md",
-    ]
     source_paths = [scene_path, draft_path]
     if context_path.exists():
         source_paths.append(context_path)
-    source_paths.extend(path for path in style_candidates if path.exists())
+    _extend_unique(source_paths, _style_source_paths(root))
     task_path = json_output.with_suffix(".agent_tasks.md")
     write_agent_tasks(
         task_path,
@@ -111,6 +107,7 @@ def write_platform_scene_generation_task(
         source_paths.append(composition_path)
     if prompt_manifest_path and prompt_manifest_path.exists():
         source_paths.append(prompt_manifest_path)
+    _extend_unique(source_paths, _style_source_paths(root))
     task_path = candidate.with_suffix(".agent_tasks.md")
     write_agent_tasks(
         task_path,
@@ -515,6 +512,50 @@ def _rel(path: Path, root: Path) -> str:
         return path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
         return str(path)
+
+
+def _extend_unique(target: list[Path], paths: list[Path]) -> None:
+    seen = {path.resolve() for path in target if path.exists()}
+    for path in paths:
+        if not path.exists():
+            continue
+        resolved = path.resolve()
+        if resolved in seen:
+            continue
+        target.append(path)
+        seen.add(resolved)
+
+
+def _style_source_paths(root: Path) -> list[Path]:
+    paths: list[Path] = []
+    active = root / "style" / "active_style_skill.json"
+    if active.exists():
+        paths.append(active)
+        try:
+            payload = json.loads(active.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            payload = {}
+        for key in ("prompt", "style_skill", "mount_path"):
+            value = str(payload.get(key) or "").strip()
+            if not value:
+                continue
+            candidate = root / value
+            if candidate.is_dir():
+                for name in ("prompt.md", "style_skill.json", "style-profile.md", "style_metrics.json"):
+                    child = candidate / name
+                    if child.exists():
+                        paths.append(child)
+            elif candidate.exists():
+                paths.append(candidate)
+    fallback_candidates = [
+        root / "style" / "style_prompt.md",
+        root / "style" / "demo-author" / "style_prompt.md",
+        root / "style" / "style-profile.md",
+    ]
+    paths.extend(path for path in fallback_candidates if path.exists())
+    unique: list[Path] = []
+    _extend_unique(unique, paths)
+    return unique
 
 
 def _normalize_asset_type(value: str) -> str:

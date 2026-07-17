@@ -97,8 +97,9 @@
 
               <label>Profile ID<input name="profile_id" value="default" /></label>
               <label>Style ID<input name="style_id" placeholder="留空使用 author-profile" /></label>
-              <label>Provider<select name="provider"><option value="auto">auto</option><option value="http-chat">http-chat</option><option value="dry-run">dry-run</option></select></label>
+              <label>Provider<select name="provider"><option value="platform-agent">platform-agent</option><option value="auto">auto</option><option value="http-chat">http-chat</option><option value="dry-run">dry-run</option></select></label>
               <label>挂载到创作项目<input name="project_root" placeholder="C:\path\to\work" /></label>
+              <label class="inline-check"><input name="allow_unreviewed" type="checkbox" /> 内部实验：允许未完成评测门禁时挂载</label>
               <div class="toolbar compact wrap">
                 <button id="compileStyle" type="button">学习并生成提示词</button>
                 <button id="buildStyleSkill" type="button">构建 Style Skill</button>
