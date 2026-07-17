@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 
+from literary_engineering_workbench.punctuation_standard import lint_punctuation
 from literary_engineering_workbench.review_ci import review_scene_draft
 from literary_engineering_workbench.scene_draft import build_scene_draft
 
@@ -37,6 +38,20 @@ class SceneReviewTests(TempProjectMixin, unittest.TestCase):
         report = review.report_path.read_text(encoding="utf-8")
         self.assertIn("Punctuation Standard Test", report)
         self.assertIn("中文句子中混入英文标点", report)
+
+    def test_punctuation_lint_flags_literary_rhythm_problems(self):
+        text = (
+            "林舟停下。雨声贴着窗。灯影落在墙上。门缝慢慢打开。风从楼道灌进来。"
+            "信纸滑到地上。没人说话。电流声又响。钥匙在掌心发冷。脚步停在门外。"
+            "但是，他没有立刻回头。然而，灯先灭了。于是，他把信塞进口袋。然后，他听见门锁轻响。"
+            "她说——这不是第一次——也不会是最后一次——你最好现在就走——别问原因。"
+        )
+
+        rules = {issue.rule for issue in lint_punctuation(text)}
+
+        self.assertIn("staccato-period-overuse", rules)
+        self.assertIn("mechanical-transition-overuse", rules)
+        self.assertIn("dash-overuse", rules)
 
 
 if __name__ == "__main__":
