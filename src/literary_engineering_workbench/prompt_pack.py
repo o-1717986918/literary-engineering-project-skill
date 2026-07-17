@@ -9,6 +9,8 @@ from pathlib import Path
 from string import Formatter
 from typing import Any
 
+from .punctuation_standard import render_punctuation_standard_for_prompt
+
 
 DEFAULT_CONTEXT_LIMIT = 18000
 DEFAULT_COMPOSITION_LIMIT = 14000
@@ -19,6 +21,7 @@ OUTPUT_CONTRACT = """模型输出必须使用以下 Markdown 结构：
 ## 正文候选
 
 写入场景正文候选。正文必须遵守 canon、人物 BDI、背景故事隐性动因、场景编排包和文风 profile。
+正文还必须遵守标准中文标点约束：中文句子使用全角标点，省略号用“……”，破折号用“——”，避免英文标点混入中文正文和连续感叹/疑问符。
 
 ## 状态变化候选
 
@@ -80,6 +83,7 @@ def build_scene_prompt_pack(
         "context_text": _limit(_read(context_path), DEFAULT_CONTEXT_LIMIT),
         "composition_text": _limit(_read(composition_path), DEFAULT_COMPOSITION_LIMIT) if composition_path else "未找到场景创作编排包。若需要更稳的正文候选，请先运行 compose-scene。",
         "style_profile": _render_style_constraint(root, style_profile_path),
+        "punctuation_standard": render_punctuation_standard_for_prompt(),
         "output_contract": OUTPUT_CONTRACT.strip(),
         "generated_at": _now(),
     }
@@ -153,6 +157,9 @@ def _sources(
         paths.append(composition_path)
     if style_profile_path:
         paths.append(style_profile_path)
+    punctuation_ref = _bundle_root() / "references" / "punctuation-standard.md"
+    if punctuation_ref.exists():
+        paths.append(punctuation_ref)
     return [
         {
             "path": _rel(path, root),

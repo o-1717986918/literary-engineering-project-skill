@@ -414,7 +414,7 @@ drafts/candidates/{scene_id}-platform-agent.prompt.json
 drafts/candidates/{scene_id}-platform-agent.agent_tasks.md
 ```
 
-The prompt manifest records rendered messages and source files for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. Generated prose candidates require platform-agent review before promotion; use the sidecar task file for that review.
+The prompt manifest records rendered messages and source files for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. Generated prose candidates require platform-agent review before promotion; use the sidecar task file for that review. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
 
 ## Candidate Promotion
 
@@ -452,6 +452,8 @@ Required draft sections:
 - `### 人物状态变化`
 - `### 伏笔变化`
 - `### 需要人工确认`
+
+The draft body is subject to `Punctuation Standard Test` in `review-scene`. Fix accidental English punctuation in Chinese sentences, wrong ellipses, wrong dashes, repeated exclamation/question marks, and Chinese punctuation spacing before chapter readiness.
 
 ## Character State Patches
 
@@ -573,7 +575,7 @@ Files:
 - optional `{chapter_id}_screenplay.docx`
 - optional `{chapter_id}_video_prompt_pack.docx`
 
-DOCX outputs are delivery files generated from the Markdown exports. Do not treat exported files as canon. Writebacks still require approval.
+DOCX outputs are delivery files generated from the Markdown exports. Do not treat exported files as canon. Writebacks still require approval. Final Chinese prose exports should preserve the standard punctuation gate result or record an explicit exception.
 
 ## Publish Releases
 

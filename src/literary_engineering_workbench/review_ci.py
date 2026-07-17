@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import re
 
+from .punctuation_standard import lint_punctuation
 from .scene_draft import extract_draft_body
 
 
@@ -100,6 +101,12 @@ def review_scene_draft(project_root: Path, draft: Path, output: Path | None = No
     if "style-profile" not in text and "风格" not in text:
         issues.append(ReviewIssue("Style Test", "low", "未发现风格约束引用。"))
 
+    for punctuation_issue in lint_punctuation(body):
+        message = punctuation_issue.message
+        if punctuation_issue.sample:
+            message += f" 示例：{punctuation_issue.sample}"
+        issues.append(ReviewIssue("Punctuation Standard Test", punctuation_issue.severity, message))
+
     high_count = sum(1 for issue in issues if issue.severity == "high")
     medium_count = sum(1 for issue in issues if issue.severity == "medium")
     if high_count:
@@ -147,6 +154,7 @@ def _review_report(draft_path: Path, conclusion: str, issues: list[ReviewIssue],
         "Plot Test",
         "Foreshadow Test",
         "Style Test",
+        "Punctuation Standard Test",
         "Anti-Cliche Test",
         "Originality Test",
         "Structure Test",

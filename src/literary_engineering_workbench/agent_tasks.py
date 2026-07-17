@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
+
 
 AGENT_TASK_MARKER = "[AGENT_TASK:"
 
@@ -29,11 +31,15 @@ def write_agent_tasks(
     notes: list[str] | None = None,
 ) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    expanded_sources = list(source_paths)
+    punctuation_ref = _punctuation_reference()
+    if punctuation_ref and punctuation_ref not in expanded_sources:
+        expanded_sources.append(punctuation_ref)
     output_path.write_text(
         render_agent_tasks_document(
             title=title,
             root=root,
-            source_paths=source_paths,
+            source_paths=expanded_sources,
             tasks=tasks,
             notes=notes or [],
         ),
@@ -73,6 +79,7 @@ def render_agent_tasks_document(
             "- 任何新增事实、人物状态变化、分支选择和发布判断都保持候选状态。",
             "- 不要把本文件中的任务标记写入 JSON、prompt manifest、正稿、canon 或发布包。",
             "- 如发现任务与 canon、角色事实、文风挂载或用户约束冲突，先记录冲突并请求确认。",
+            f"- {PUNCTUATION_STANDARD_SHORT_RULE}",
         ]
     )
     if notes:
@@ -96,3 +103,8 @@ def _rel(path: Path, root: Path) -> str:
         return path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
         return str(path)
+
+
+def _punctuation_reference() -> Path | None:
+    path = Path(__file__).resolve().parents[2] / "references" / "punctuation-standard.md"
+    return path if path.exists() else None

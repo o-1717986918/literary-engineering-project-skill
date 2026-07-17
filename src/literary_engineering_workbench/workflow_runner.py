@@ -396,8 +396,10 @@ def _generation_artifact(root: Path, scene_path: Path, provider: str, agent_task
         prompt_manifest_path=prompt_manifest_path,
         candidate_path=candidate_path,
     )
+    candidate_task = _rel_str(result.task_path, root)
     artifacts = {
-        "candidate_task": _rel_str(result.task_path, root),
+        "candidate_task": candidate_task,
+        "candidate_agent_tasks": candidate_task,
         "expected_candidate": _rel_str(result.expected_report_path, root),
         "expected_candidate_manifest": _rel_str(result.expected_json_path, root),
         "prompt_manifest": _rel_str(prompt_manifest_path, root),

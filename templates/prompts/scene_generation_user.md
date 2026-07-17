@@ -20,6 +20,10 @@
 
 {style_profile}
 
+## 标点规范约束
+
+{punctuation_standard}
+
 ## 输出契约
 
 {output_contract}

@@ -45,6 +45,7 @@ Never let generated JSON, simulation output, local-director output, model scores
    - `references/artifact-contracts.md` before changing file layouts or writing project artifacts.
    - `references/workflows.md` for CLI command recipes.
    - `references/orchestration.md` for LangGraph, Dify, subagents, or external workflow design.
+   - `references/punctuation-standard.md` before generating, reviewing, revising, or exporting Chinese prose.
    - `references/file-format-export.md` before exporting final work artifacts to DOCX or other concrete delivery formats.
 
 ## Operating Rules
@@ -57,6 +58,7 @@ Never let generated JSON, simulation output, local-director output, model scores
 - Promote candidates only after review and explicit user approval unless the user clearly asks for an internal experimental branch.
 - Preserve `background_story` as hidden behavioral causality. It should shape choices, avoidance, speech, misreadings, and relationship pressure; do not dump it as exposition unless the scene intentionally reveals it.
 - Mounted Style Skills have highest priority for expression-level choices: narrative distance, syntax rhythm, imagery, sensory balance, dialogue density, and psychological presentation. They never override canon, character facts, plot causality, safety/legal boundaries, or explicit user constraints.
+- Standard Chinese punctuation is a baseline expression constraint under every Style Skill: Chinese prose should use full-width punctuation, `……` for ellipsis, `——` for dashes, Chinese quotation marks, and no unexplained English punctuation mixed into Chinese sentences.
 - Exact author-style imitation is appropriate only for public-domain or authorized corpora. For other authors, abstract higher-level craft features.
 - Never store API keys or provider secrets in a work project. If local tools need keys, use the platform secret mechanism, environment variables, or local global config.
 - Keep changes auditable: explain what files changed, what remains candidate-only, what needs user approval, and what tests/checks ran.

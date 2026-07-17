@@ -137,6 +137,8 @@ python -m literary_engineering_workbench style-lab-mount "<work-dir>" --style-id
 
 Mounted style skills are stored in the creative project under `style/mounted/{style_id}/` with `style/active_style_skill.json` as the active pointer. During generation, the mounted `prompt.md` is the highest-priority expression constraint, while canon, character facts, plot causality, safety boundaries, and explicit user constraints still take precedence.
 
+`references/punctuation-standard.md` is the baseline expression hygiene layer below every Style Skill. A style prompt may specify punctuation rhythm, density, and pauses, but it should not cause English punctuation to leak into Chinese prose, replace `……` with `...`, or use nonstandard dashes unless the project records a deliberate exception.
+
 ## Generic Agent Run
 
 Use `agent-run` only for legacy/debug local provider regression. For formal JSON, patch, style, asset, scene, canon, or committee work, use the specialized platform-task commands.
@@ -271,6 +273,8 @@ Use `compose-scene --agent-tasks` to write `drafts/compositions/{scene_id}_compo
 When character `background_story` is present, scene and branch work should convert it into choices, hesitation, avoidance, misreadings, tone, and relationship pressure. Do not turn it into an explanatory background paragraph unless the selected scene explicitly reveals the past.
 
 `generate-scene` writes a prompt manifest and `drafts/candidates/{scene_id}-platform-agent.agent_tasks.md`. It does not call a local provider, does not overwrite `drafts/scenes/`, and does not write canon. The platform agent reads the prompt manifest, writes the expected candidate Markdown and manifest JSON, then reviews the candidate before promotion.
+
+Generated candidates and promoted drafts should pass the standard Chinese punctuation gate. `review-scene` reports punctuation issues under `Punctuation Standard Test`; fix those before chapter readiness or export unless the user explicitly approves a recorded exception.
 
 `promote-candidate` turns a selected model candidate into `drafts/scenes/{scene_id}.md` and writes `drafts/promotions/{scene_id}_promotion.md` / `.json`. It does not confirm canon and does not write characters.
 

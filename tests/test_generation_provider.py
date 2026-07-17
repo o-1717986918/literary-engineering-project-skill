@@ -38,6 +38,7 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         prompt_manifest = json.loads(result.prompt_manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(prompt_manifest["messages"][0]["role"], "system")
         self.assertIn("输出契约", prompt_manifest["messages"][1]["content"])
+        self.assertIn("标准中文标点约束", prompt_manifest["messages"][1]["content"])
         self.assertIsNone(result.agent_tasks_path)
 
     def test_agent_tasks_sidecar_reviews_prompt_manifest_without_pollution(self):
@@ -57,6 +58,8 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         tasks = result.agent_tasks_path.read_text(encoding="utf-8")
         self.assertIn("[AGENT_TASK:", tasks)
         self.assertIn("审查 prompt manifest", tasks)
+        self.assertIn("punctuation-standard.md", tasks)
+        self.assertIn("标准中文标点", tasks)
         self.assertNotIn("[AGENT_TASK:", result.prompt_manifest_path.read_text(encoding="utf-8"))
         self.assertNotIn("[AGENT_TASK:", result.manifest_path.read_text(encoding="utf-8"))
 

@@ -14,6 +14,7 @@ import re
 
 from .agent_tasks import write_agent_tasks
 from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, ASSET_TYPES
+from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,7 @@ def write_platform_scene_review_task(
             ),
             (
                 "进行语义审查",
-                """以平台 agent 的文学判断审查人物行为逻辑、背景故事隐性因果、canon 风险、剧情推进、文风执行、套路化/同质化风险和需要修订的动作。""",
+                f"""以平台 agent 的文学判断审查人物行为逻辑、背景故事隐性因果、canon 风险、剧情推进、文风执行、套路化/同质化风险、标点规范和需要修订的动作。标点审查规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
             ),
             (
                 "写入正式 JSON",
@@ -125,11 +126,11 @@ def write_platform_scene_generation_task(
         tasks=[
             (
                 "读取创作材料",
-                """读取 scene.yaml、context packet、composition packet、style prompt/profile 和相关 canon/character 文件。确认人物 BDI、hidden background_story、scene goal、output_state 和用户约束。""",
+                f"""读取 scene.yaml、context packet、composition packet、style prompt/profile、标点规范和相关 canon/character 文件。确认人物 BDI、hidden background_story、scene goal、output_state、用户约束和标点边界。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
             ),
             (
                 "生成候选正文",
-                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选` 和 `## 状态变化候选`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。""",
+                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选` 和 `## 状态变化候选`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。中文正文必须通过标准标点自检。""",
             ),
             (
                 "生成候选 manifest",
@@ -453,7 +454,7 @@ def write_platform_style_prompt_task(
             ),
             (
                 "写入文风提示词",
-                f"""创建或覆盖 `{_rel(prompt, profile)}`。必须包含使用身份、核心风格机制、句法与节奏、叙述距离与心理呈现、意象和感官调度、对白与动作、禁止倾向、输出自检。""",
+                f"""创建或覆盖 `{_rel(prompt, profile)}`。必须包含使用身份、核心风格机制、句法与节奏、标点节奏与标准标点边界、叙述距离与心理呈现、意象和感官调度、对白与动作、禁止倾向、输出自检。标点边界必须保留：{PUNCTUATION_STANDARD_SHORT_RULE}""",
             ),
             (
                 "写入 schema JSON",
@@ -494,7 +495,7 @@ def write_platform_style_prompt_eval_task(
         tasks=[
             (
                 "读取评测材料",
-                """读取 style_prompt.md、reference、input 和 profile/metrics。确认本次模式是回译、扩写或盲评，不要把参考原文直接复制到候选。""",
+                f"""读取 style_prompt.md、reference、input、profile/metrics 和标点规范。确认本次模式是回译、扩写或盲评，不要把参考原文直接复制到候选。候选必须遵守标准中文标点，除非评测目的明确要求保留原始异常标点。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
             ),
             (
                 "生成评测候选",

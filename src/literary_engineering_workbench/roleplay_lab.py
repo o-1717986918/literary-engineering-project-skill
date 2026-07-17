@@ -7,6 +7,7 @@ import re
 
 from .agent_tasks import render_agent_task_block
 from .context_packet import build_context_packet
+from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
 
 
 @dataclass(frozen=True)
@@ -146,6 +147,7 @@ def _character_prompt(card: CharacterCard, root: Path, *, agent_mode: bool = Fal
 4. 我为什么不会采取另一个更方便剧情的行动？（基于 moral_line + background_story 的行为影响）
 5. 我的行动会给下一场景留下什么代价？
 6. 我的 background_story 如何通过选择、回避、误判或语气间接影响行动，而不是被直接说明？
+7. 我的中文回答是否遵守标准中文标点约束？
 将答案以 "- " 列表形式填入下方。"""
             )
             + "\n\n"
@@ -219,7 +221,10 @@ def _agent_task_if(enabled: bool, instruction: str) -> str:
 def _agent_mode_usage_rule(enabled: bool) -> str:
     if not enabled:
         return ""
-    return "- `[AGENT_TASK: ...]` 是给装载本 Skill 的平台 agent 执行的任务说明，不是外部 LLM prompt；补全后可删除或替换为正式推演记录。\n"
+    return (
+        "- `[AGENT_TASK: ...]` 是给装载本 Skill 的平台 agent 执行的任务说明，不是外部 LLM prompt；补全后可删除或替换为正式推演记录。\n"
+        f"- 平台 agent 补全文档时必须执行标点规范：{PUNCTUATION_STANDARD_SHORT_RULE}\n"
+    )
 
 
 def _world_agent_task() -> str:
@@ -227,7 +232,7 @@ def _world_agent_task() -> str:
 1. 这些行动在当前场景（时间、地点、参与者）中会产生什么直接后果？
 2. 哪些行动与 canon 约束冲突？（对照 canon/world_rules.yaml 和 canon/forbidden_changes.yaml，如文件不存在则说明缺失）
 3. 这些行动会如何影响下一场景（next_hooks）？
-将答案填入下方"后果记录"列表。"""
+将答案填入下方"后果记录"列表，并遵守标准中文标点。"""
 
 
 def _branch_agent_task() -> str:
@@ -235,7 +240,7 @@ def _branch_agent_task() -> str:
 1. Branch A 优先人物最合理，不追求便利剧情。
 2. Branch B 优先戏剧冲突最强，但不能突破 canon 和人物道德边界。
 3. Branch C 优先文学余味最强，强调选择后的关系余波和主题回声。
-每个分支都要填写行动链、代价、新事实候选和后续钩子。"""
+每个分支都要填写行动链、代价、新事实候选和后续钩子，并遵守标准中文标点。"""
 
 
 def _director_agent_task() -> str:

@@ -45,9 +45,10 @@ Use this hierarchy:
 
 1. Confirmed canon and approved character facts.
 2. Mounted Style Skill expression constraints.
-3. Current chapter/scene goals and selected branch decisions.
-4. Candidate assets, simulations, retrieval, and model output.
-5. User taste notes and project direction memory.
+3. Standard Chinese punctuation and file-format hygiene.
+4. Current chapter/scene goals and selected branch decisions.
+5. Candidate assets, simulations, retrieval, and model output.
+6. User taste notes and project direction memory.
 
 Never let a lower layer override a higher layer.
 
@@ -81,6 +82,7 @@ When the platform supports subagents, delegate independent passes:
 - World agent: rules, institutions, resources, constraints, unintended loopholes.
 - Plot agent: scene function, conflict escalation, reversals, setup/payoff.
 - Style agent: style prompt compliance, narrative distance, rhythm, imagery, dialogue density.
+- Punctuation editor: standard Chinese punctuation, dialogue punctuation, ellipsis/dash usage, and export readability.
 - Canon auditor: contradiction, timeline, confirmed fact boundaries, writeback risks.
 - Editor: prose clarity, compression, tension, emotional continuity.
 
@@ -122,6 +124,7 @@ Before treating any prose as ready:
 - Does each character act from known facts, goals, pressure, and background?
 - Does the scene change state or reveal information?
 - Does it preserve or intentionally bend the mounted style?
+- Does it comply with standard Chinese punctuation, unless a deliberate exception is recorded?
 - Are new facts marked as candidates?
 - Are unresolved questions visible?
 - Is there a clear next action for the user?

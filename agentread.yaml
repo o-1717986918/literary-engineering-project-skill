@@ -17,6 +17,7 @@ core_references:
   artifact_contracts: references/artifact-contracts.md
   workflows: references/workflows.md
   orchestration: references/orchestration.md
+  punctuation_standard: references/punctuation-standard.md
   project_type_skill_architecture: docs/architecture/project-type-skill.md
 
 core_project_files:
@@ -149,6 +150,7 @@ task_routes:
       - templates/scene.yaml
       - templates/prompts/scene_generation_system.md
       - templates/prompts/scene_generation_user.md
+      - references/punctuation-standard.md
     output:
       - context packet
       - branch candidates
@@ -162,6 +164,7 @@ task_routes:
       - 审查、canon 检查、长篇连续性、章节 ready、发布前检查
     read:
       - references/artifact-contracts.md
+      - references/punctuation-standard.md
       - docs/modules/review-ci.md
       - docs/implementation/phase4-scene-review-loop.md
       - docs/implementation/phase19-canon-lint.md
@@ -178,6 +181,7 @@ task_routes:
     read:
       - references/artifact-contracts.md
       - references/file-format-export.md
+      - references/punctuation-standard.md
       - docs/implementation/phase9-export-package.md
       - docs/implementation/phase21-publish-chain.md
       - docs/implementation/phase15-approval-loop.md

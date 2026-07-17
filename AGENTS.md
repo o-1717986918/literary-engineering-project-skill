@@ -9,7 +9,8 @@ This repository is now a project-type skill for tool-layer agents such as Codex 
 3. `references/project-director-playbook.md`
 4. `references/artifact-contracts.md` when writing or moving project artifacts
 5. `references/workflows.md` when using the optional CLI
-6. `references/orchestration.md` only for LangGraph, Dify, subagents, or external workflow design
+6. `references/punctuation-standard.md` when generating, reviewing, revising, or exporting Chinese prose
+7. `references/orchestration.md` only for LangGraph, Dify, subagents, or external workflow design
 
 Do not read the entire repository by default. Follow the route map in `agentread.yaml`.
 
@@ -34,6 +35,7 @@ Do not read the entire repository by default. Follow the route map in `agentread
 - Promote candidates only after review and explicit user approval unless the user clearly asks for an internal experiment.
 - Character `background_story` is hidden behavioral causality. It should affect action, omission, speech, hesitation, misreading, and pressure, not appear as direct exposition unless the scene is designed to reveal it.
 - Mounted Style Skills have highest priority for expression-level writing choices, but never override canon, character facts, plot causality, safety/legal constraints, or explicit user instructions.
+- Standard Chinese punctuation is a baseline expression constraint beneath every Style Skill. Do not let generated prose or reviews mix English punctuation into Chinese sentences unless the project explicitly records a format reason.
 - Do not store API keys or provider secrets inside work projects.
 - Keep outputs auditable: say what changed, where candidates were written, what remains unapproved, and what validation ran.
 

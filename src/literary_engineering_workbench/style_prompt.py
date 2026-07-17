@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib import error, request
 
 from .model_config import MODEL_PROVIDER_CHOICES, get_model_settings, resolve_model_provider
+from .punctuation_standard import PUNCTUATION_STANDARD_PROMPT
 
 
 STYLE_PROMPT_PROVIDERS = MODEL_PROVIDER_CHOICES
@@ -66,6 +67,7 @@ def build_style_prompt(
         "messages": messages,
         "guardrails": [
             "本文件是供 LLM 使用的文风约束提示词，不是原文摘抄。",
+            "文风标点节奏必须建立在标准中文标点约束之上。",
             "精确模仿仅限公版或授权语料；其他语料只抽象叙事机制。",
             "后续回译、扩写和盲评应审查本提示词是否让 LLM 稳定复现目标风格机制。",
         ],
@@ -92,6 +94,7 @@ def _messages(profile_path: Path, metrics_path: Path, manifest_path: Path) -> li
 
 - 把 profile 和 metrics 转译成可执行的写作约束。
 - 约束必须覆盖叙述距离、句法节奏、标点、感官意象、心理描写、对白比例、禁忌倾向和自检规则。
+- 标点部分必须区分“风格节奏”和“基础规范”：可以学习密度、停顿和句式，但不得输出中英标点混用、错误省略号、错误破折号或过度连续感叹/疑问符。
 - 不摘抄原文，不制造不可验证的作者论断。
 - 精确复现只适用于公版或授权语料；否则写成高层技法约束。
 - 输出 Markdown，只输出提示词正文，不解释生成过程。
@@ -106,8 +109,13 @@ def _messages(profile_path: Path, metrics_path: Path, manifest_path: Path) -> li
 ## 叙述距离与心理呈现
 ## 意象和感官调度
 ## 对白与动作约束
+## 标点规范边界
 ## 禁止倾向
 ## 输出自检
+
+### 标准中文标点约束
+
+{PUNCTUATION_STANDARD_PROMPT}
 
 ### style-profile.md
 
@@ -152,6 +160,7 @@ def _dry_run_prompt(messages: list[dict[str, str]]) -> str:
 ## 句法与节奏约束
 
 - 句长、段长和标点节奏应向 style_metrics 中的分布靠拢。
+- 标点节奏必须建立在标准中文标点之上：中文正文使用全角标点，省略号用“……”，破折号用“——”，不要混用英文标点或连续堆叠感叹/疑问符。
 - 长短句交替必须配合人物注意力变化、场景压迫和情绪拐点。
 - 不要为了模仿而堆叠复杂句；节奏必须让事件推进更清晰。
 
@@ -185,6 +194,7 @@ def _dry_run_prompt(messages: list[dict[str, str]]) -> str:
 - 句法节奏是否接近 profile，而不是只换词。
 - 感官通道是否稳定服务场景目标。
 - 心理描写和对白密度是否与 profile 相容。
+- 标点是否符合标准中文标点约束，同时保留了 profile 所需的节奏。
 - 是否避免复制原文连续表达。
 - 是否保留了所有需要人工确认的 canon、人物和伏笔变化。
 

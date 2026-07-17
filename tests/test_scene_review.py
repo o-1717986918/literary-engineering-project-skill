@@ -24,6 +24,20 @@ class SceneReviewTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(review.conclusion, "reject")
         self.assertGreater(review.issue_count, 0)
 
+    def test_punctuation_standard_gate_flags_mixed_punctuation(self):
+        project = self.make_project()
+        draft = make_passing_scene(project)
+        text = draft.read_text(encoding="utf-8")
+        text = text.replace("林舟站在旧楼门口，听见楼道深处的电流声断断续续。", "林舟站在旧楼门口,听见楼道深处的电流声断断续续...")
+        draft.write_text(text, encoding="utf-8")
+
+        review = review_scene_draft(project, draft)
+
+        self.assertEqual(review.conclusion, "revise_required")
+        report = review.report_path.read_text(encoding="utf-8")
+        self.assertIn("Punctuation Standard Test", report)
+        self.assertIn("中文句子中混入英文标点", report)
+
 
 if __name__ == "__main__":
     unittest.main()

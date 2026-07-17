@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib import error, request
 
 from .model_config import get_model_settings, resolve_model_provider
+from .punctuation_standard import PUNCTUATION_STANDARD_PROMPT
 from .style_evaluator import STYLE_EVAL_MODES, StyleEvalOptions, evaluate_style
 from .style_prompt import STYLE_PROMPT_PROVIDERS
 
@@ -110,6 +111,10 @@ def _messages(style_prompt_path: Path, input_path: Path, mode: str) -> list[dict
 你现在进入文风提示词有效性测试。必须只输出候选正文，不输出分析过程。"""
     user = f"""{task}
 
+## 标准中文标点约束
+
+{PUNCTUATION_STANDARD_PROMPT}
+
 ## 输入
 
 {task_input}
@@ -117,6 +122,7 @@ def _messages(style_prompt_path: Path, input_path: Path, mode: str) -> list[dict
 ## 输出要求
 
 - 只输出中文候选正文。
+- 候选正文必须遵守标准中文标点约束，除非输入明确要求保留原始异常标点。
 - 不确认 canon，不写审查报告。
 - 不摘抄参考文本或原文连续片段。
 """

@@ -8,6 +8,7 @@ Use this reference when the user asks for final work delivery in `.docx` or anot
 - Use `export-docx <source.md>` when the user has a final Markdown/text artifact and wants a single Word document.
 - Keep Markdown exports as auditable source artifacts. DOCX files are delivery artifacts, not canon.
 - Do not write API keys, prompt manifests, `[AGENT_TASK: ...]`, draft review notes, or unapproved candidate metadata into final DOCX files unless the user explicitly requests an internal working copy.
+- Before exporting final Chinese prose, check `references/punctuation-standard.md`; DOCX output should not preserve accidental English punctuation in Chinese sentences, wrong ellipses, wrong dashes, or repeated exclamation/question marks.
 
 ## Migrated Office DOCX Rules
 
@@ -51,5 +52,6 @@ Before delivering a DOCX:
 
 - confirm the source Markdown or export manifest exists;
 - confirm `inspect_docx` passes without missing required package parts;
+- confirm the exported Chinese prose has passed the standard punctuation review or has a recorded exception;
 - ensure final DOCX is not used as canon writeback evidence by itself;
 - report the source file, DOCX path, and unresolved formatting limitations.
