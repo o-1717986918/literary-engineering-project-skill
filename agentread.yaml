@@ -39,9 +39,12 @@ governance:
     - roleplay, branch, scene, consequence, and state simulations
     - review findings, committee reports, and patch plans
     - promotion recommendations, release choices, and free project decisions
-  local_model_commands_are: draft_or_evidence_producers
+  formal_nondeterministic_commands_are: platform_agent_task_sidecars
+  local_model_commands_are: legacy_debug_only
   required_platform_agent_actions:
     - choose task, prompt, context packet, and guardrails
+    - read generated .agent_tasks.md files
+    - write expected JSON/Markdown/prose artifacts when a task requires platform judgment
     - inspect raw and parsed outputs
     - run or perform schema, canon, character, style, and safety review
     - decide revise, keep as candidate, ask user, approve internally, or promote after approval

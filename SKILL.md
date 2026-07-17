@@ -17,7 +17,7 @@ Use this skill to let Codex, Claude, or another capable tool-layer agent manage 
 
 ## Tool-Layer Participation Gate
 
-The tool-layer agent that loaded this skill must lead every non-deterministic creative step. Local model-backed commands and HTTP providers are auditable draft generators, not independent creative authorities.
+The tool-layer agent that loaded this skill must lead every non-deterministic creative step. Formal workflow commands write platform-agent task sidecars and expected artifact paths; the platform agent fills those artifacts. Local model-backed commands and HTTP providers are legacy/debug helpers, not formal creative authorities.
 
 Require tool-layer planning, prompting, inspection, and acceptance for:
 
@@ -26,7 +26,9 @@ Require tool-layer planning, prompting, inspection, and acceptance for:
 - roleplay, branch, scene, consequence, and character-state simulations;
 - free routing decisions, project-director decisions, candidate promotion recommendations, release choices, and any user-facing creative judgment.
 
-When using local commands such as `agent-run`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-repair`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, `run-workflow`, or `director-chat`, the platform agent must choose the task and context, inspect raw and parsed outputs, apply schema/canon/style review, then decide whether to revise, keep as candidate, ask the user, or promote after approval.
+When using formal local commands such as `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, or `run-workflow`, expect `.agent_tasks.md` files plus expected JSON/Markdown paths. The platform agent should read the task, perform the creative or review judgment, write the expected artifacts, then decide whether to revise, keep as candidate, ask the user, or promote after approval.
+
+Use `agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, or `director-chat` only for explicit legacy regression, local demos, or debugging. Do not route formal creative generation, JSON creation, scene/canon review, style-prompt creation, or second-level project decisions through local dry-run, HTTP chat, or an external agent service.
 
 Never let generated JSON, simulation output, local-director output, model scores, or a CLI recommendation become canon, selected plot direction, approved style policy, final prose, or release authority by itself.
 
@@ -97,7 +99,7 @@ $env:PYTHONPATH = "<skill-root>\\scripts"
 python -m literary_engineering_workbench --help
 ```
 
-Use `--provider dry-run` only for offline deterministic checks. In normal Codex/Claude use, the platform's own model and subagents should do creative reasoning and generation unless the user explicitly wants the local provider path.
+Provider flags on formal commands are compatibility fields. In normal Codex/Claude use, the platform's own model and subagents should do creative reasoning, generation, JSON drafting, review, and second-level decisions. Use local provider paths only when the user explicitly asks for legacy/debug behavior.
 
 ## Validation
 

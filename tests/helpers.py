@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 
@@ -84,4 +85,43 @@ def make_passing_scene(project_root: Path) -> Path:
 def make_reviewed_passing_scene(project_root: Path) -> Path:
     draft = make_passing_scene(project_root)
     review_scene_draft(project_root, draft)
+    write_platform_scene_review(project_root)
     return draft
+
+
+def make_static_reviewed_passing_scene(project_root: Path) -> Path:
+    draft = make_passing_scene(project_root)
+    review_scene_draft(project_root, draft)
+    return draft
+
+
+def write_platform_scene_review(project_root: Path, scene_id: str = "scene_0001", conclusion: str = "pass") -> Path:
+    review_dir = project_root / "reviews" / "agent"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    json_path = review_dir / f"{scene_id}_scene_review.json"
+    report_path = review_dir / f"{scene_id}_scene_review.md"
+    payload = {
+        "schema": "literary-engineering-workbench/scene-review-agent/v1",
+        "scene_id": scene_id,
+        "conclusion": conclusion,
+        "summary": "平台 agent 审查通过测试场景，未发现阻塞风险。",
+        "blocking_issues": [],
+        "warnings": [],
+        "revision_actions": ["保持写回候选，不直接写入 canon。"],
+        "character_logic": [{"character": "linzhou", "assessment": "行动符合 BDI 与背景故事隐性影响。"}],
+        "canon_risks": [],
+        "style_notes": ["风格约束可继续细化。"],
+        "source_paths": [
+            f"scenes/{scene_id}.yaml",
+            f"drafts/scenes/{scene_id}.md",
+            f"memory/context_packets/{scene_id}.md",
+        ],
+        "agent_confidence": "platform-test",
+        "next_gate": "chapter_workspace",
+    }
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    report_path.write_text(
+        f"# 平台 Agent 场景审查：{scene_id}\n\n- 结论：`{conclusion}`\n- 测试报告：已通过正式门禁样例。\n",
+        encoding="utf-8",
+    )
+    return json_path

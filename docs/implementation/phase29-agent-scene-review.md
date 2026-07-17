@@ -2,6 +2,8 @@
 
 ## 目标
 
+> Current project-type skill override: `agent-review-scene` writes a platform-agent task sidecar and expected review paths. It does not call local `dry-run`, `http-chat`, or external agent services.
+
 把单场景审查扩展为 LLM/Agent 语义审查。Agent 会读取 scene YAML、草稿、上下文包和文风提示词，输出符合 `scene_review.v1` 的结构化审查结果。
 
 ## 新增能力
@@ -15,7 +17,7 @@
 
 ```powershell
 $env:PYTHONPATH="src"
-python -m literary_engineering_workbench agent-review-scene work/demo --scene scenes/scene_0001.yaml --provider dry-run
+python -m literary_engineering_workbench agent-review-scene work/demo --scene scenes/scene_0001.yaml
 ```
 
 ## 审查维度

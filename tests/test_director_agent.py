@@ -20,7 +20,7 @@ class DirectorAgentTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue(result.report_path.exists())
         self.assertTrue(result.workflow_state_path.exists())
         self.assertEqual(result.decision["chosen_workflow"], "project-seeding")
-        self.assertGreaterEqual(len(list((project / "canon" / "candidates").rglob("*.json"))), 1)
+        self.assertGreaterEqual(len(list((project / "canon" / "candidates").rglob("*.agent_tasks.md"))), 1)
         self.assertIn("创作总监", result.reply)
 
     def test_director_can_plan_without_execution(self):
@@ -153,7 +153,7 @@ class DirectorAgentTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue(result.workflow_state_path.exists())
         state = json.loads(result.workflow_state_path.read_text(encoding="utf-8"))
         self.assertIn("simulation_agent_tasks", state["artifacts"])
-        self.assertIn("candidate_agent_tasks", state["artifacts"])
+        self.assertIn("candidate_task", state["artifacts"])
 
 
 def _director_payload_with_aliases():

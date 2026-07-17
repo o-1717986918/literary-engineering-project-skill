@@ -12,7 +12,7 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
         project = self.make_project()
         make_reviewed_passing_scene(project)
         result = run_workflow(project, mode="full-cycle", scene=Path("scenes/scene_0001.yaml"))
-        self.assertIn(result.status, {"completed", "completed_with_skips"})
+        self.assertIn(result.status, {"completed", "completed_with_skips", "blocked"})
         self.assertTrue(result.state_path.exists())
         self.assertTrue(result.log_path.exists())
         self.assertFalse(result.blocked)
@@ -69,11 +69,13 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
             generate_candidate=True,
             provider="dry-run",
         )
-        self.assertIn(result.status, {"completed", "completed_with_skips"})
+        self.assertIn(result.status, {"completed", "completed_with_skips", "blocked"})
         state = load_workflow_state(project, "generate-run")
-        self.assertIn("candidate", state["artifacts"])
-        self.assertIn("candidate_manifest", state["artifacts"])
+        self.assertIn("candidate_task", state["artifacts"])
+        self.assertIn("expected_candidate", state["artifacts"])
+        self.assertIn("expected_candidate_manifest", state["artifacts"])
         self.assertIn("prompt_manifest", state["artifacts"])
+        self.assertIn("[AGENT_TASK:", (project / state["artifacts"]["candidate_task"]).read_text(encoding="utf-8"))
 
     def test_scene_loop_records_agent_task_sidecars(self):
         project = self.make_project()
@@ -94,12 +96,12 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("simulation_agent_tasks", artifacts)
         self.assertIn("branch_agent_tasks", artifacts)
         self.assertIn("scene_composition_agent_tasks", artifacts)
-        self.assertIn("candidate_agent_tasks", artifacts)
+        self.assertIn("candidate_task", artifacts)
         self.assertIn("state_patch_agent_tasks", artifacts)
         for key in [
             "branch_agent_tasks",
             "scene_composition_agent_tasks",
-            "candidate_agent_tasks",
+            "candidate_task",
             "state_patch_agent_tasks",
         ]:
             self.assertIn("[AGENT_TASK:", (project / artifacts[key]).read_text(encoding="utf-8"))
@@ -115,15 +117,12 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
             promote_candidate=True,
             provider="dry-run",
         )
-        self.assertIn(result.status, {"completed", "completed_with_skips"})
+        self.assertIn(result.status, {"completed", "completed_with_skips", "blocked"})
         state = load_workflow_state(project, "promote-run")
-        self.assertIn("candidate", state["artifacts"])
-        self.assertIn("promoted_draft", state["artifacts"])
-        self.assertIn("promotion_manifest", state["artifacts"])
-        self.assertIn("review", state["artifacts"])
+        self.assertIn("expected_candidate", state["artifacts"])
+        self.assertNotIn("promoted_draft", state["artifacts"])
+        self.assertIn("platform-agent candidate not written yet", "\n".join(event["message"] for event in state["events"]))
         self.assertIn("state_patch", state["artifacts"])
-        draft = project / state["artifacts"]["promoted_draft"]
-        self.assertIn("来源候选", draft.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

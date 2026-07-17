@@ -13,4 +13,4 @@
 
 选定或采用推荐分支后，使用 `compose-scene` 生成场景创作编排包。该产物把场景目标、人物 BDI、背景故事隐性动因、分支行动链和风格约束整理为节拍、潜台词、对白意图、感官意象和正文种子。`compose-scene` 不是正稿生成器，输出仍需进入 `generate-scene`、人工扩写、`review-scene` 和 canon 审查链路。
 
-`generate-scene` 使用 prompt pack 调用 provider，默认 `auto`，配置完整时连接真实 `http-chat` 模型；离线调试时显式使用 `--provider dry-run`。模型候选只进入 `drafts/candidates/`，并同步写入 `.prompt.json` 记录输入提示词和来源。
+`generate-scene` 使用 prompt pack 写入平台 Agent 任务 sidecar，不调用本地 provider、`dry-run`、`http-chat` 或外部 agent。平台 Agent 读取 `.prompt.json`、场景、context packet 和 composition 后，写入 `drafts/candidates/{scene_id}-platform-agent.md` 与对应 manifest。候选进入正稿前仍需 `review-scene`、平台 Agent 场景审查、canon 审查和审批链路。

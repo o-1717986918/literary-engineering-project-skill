@@ -74,8 +74,9 @@ class AgenticWorkflowTests(TempProjectMixin, unittest.TestCase):
 
         self.assertIn(result.status, {"completed", "completed_with_skips"})
         state = load_workflow_state(project, "agent-review-run")
-        self.assertIn("agent_scene_review", state["artifacts"])
-        self.assertIn("agent_committee", state["artifacts"])
+        self.assertIn("agent_scene_review_task", state["artifacts"])
+        self.assertIn("agent_committee_task", state["artifacts"])
+        self.assertIn("[AGENT_TASK:", (project / state["artifacts"]["agent_scene_review_task"]).read_text(encoding="utf-8"))
 
     def test_demo_project_builds_full_agent_walkthrough(self):
         tmp = tempfile.TemporaryDirectory()
@@ -113,7 +114,7 @@ class AgenticWorkflowTests(TempProjectMixin, unittest.TestCase):
         code = main(["agent-plan-patch", str(project), "--target", "characters/linzhou.yaml", "--source", str(draft), "--provider", "dry-run"])
 
         self.assertEqual(code, 0)
-        self.assertTrue((project / "agents" / "patch_plans" / "characters-linzhou.yaml_patch_plan.json").exists())
+        self.assertTrue((project / "agents" / "patch_plans" / "characters-linzhou.yaml_patch_plan.agent_tasks.md").exists())
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@
 
 命令：`run-workflow`
 
+> Current project-type skill override: formal workflow generation/review/asset nodes write platform-agent task sidecars and expected output paths. They do not invoke local `dry-run`, `http-chat`, or external agent services. Provider flags are compatibility fields for legacy/debug paths.
+
 模式：
 
 - `scene-loop`
@@ -30,7 +32,7 @@ Runner 保留已有草稿，默认不覆盖人工写作成果。
 
 其中 `branch_simulation` 产出 `branch_manifest.json` / `branch_selection.md`，`scene_composition` 产出 `drafts/compositions/{scene_id}_composition.md` / `.json`，用于把剧情分支和人物隐性动因整理为正文生成前的创作编排包。
 
-`v0.23.0` 起，可通过 `--generate-candidate --provider auto|dry-run|http-chat` 在 `scene_composition` 后追加 `generate_candidate` 节点。`v0.48.0` 起 provider 默认 `auto`，配置完整时连接真实 LLM；离线调试需显式使用 `--provider dry-run`。
+当前版本通过 `--generate-candidate` 在 `scene_composition` 后追加平台 Agent 正文生成任务，记录 `candidate_task`、`expected_candidate`、`expected_candidate_manifest` 和 `prompt_manifest`。候选正文必须由平台 Agent 回填，不能由 workflow 本地调用 provider。
 
 `v0.24.0` 起，若草稿存在，`review_ci` 后会追加 `state_evolution_patch` 节点，输出 `characters/state_patches/{scene_id}_state_patch.md` / `.json`。该节点只生成候选 patch，不写回人物档案。
 
@@ -41,7 +43,7 @@ Runner 保留已有草稿，默认不覆盖人工写作成果。
 - `simulation_agent_tasks`
 - `branch_agent_tasks`
 - `scene_composition_agent_tasks`
-- `candidate_agent_tasks`（存在候选生成时）
+- `candidate_task`（存在候选生成时）
 - `state_patch_agent_tasks`
 
 这些任务说明可包含 `[AGENT_TASK: ...]`，但 JSON、prompt manifest、正稿和发布产物不得包含该标记。

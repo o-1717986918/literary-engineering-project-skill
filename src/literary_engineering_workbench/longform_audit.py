@@ -9,8 +9,11 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_schema import validate_payload
 from .scene_draft import extract_draft_body
 
+
+PASSING_REVIEW_CONCLUSIONS = {"pass", "pass_with_notes"}
 
 RESOLVED_FORESHADOW_STATUSES = {
     "paid",
@@ -37,6 +40,10 @@ class LongformSceneRecord:
     draft_path: str
     review_path: str
     review_conclusion: str
+    agent_review_path: str
+    agent_review_json: str
+    agent_review_conclusion: str
+    agent_review_schema_status: str
     draft_chars: int
     status: str
 
@@ -128,10 +135,13 @@ def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
         scene_id = _scalar(text, "scene_id") or scene_path.stem
         draft_path = root / "drafts" / "scenes" / f"{scene_id}.md"
         review_path = root / "reviews" / f"{scene_id}-review.md"
+        agent_review_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.md"
+        agent_review_json_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
         draft_text = _read(draft_path)
         body = extract_draft_body(draft_text) if draft_text else ""
         review_text = _read(review_path)
         conclusion = _review_conclusion(review_text)
+        agent_conclusion, agent_schema_status = _agent_review_state(agent_review_json_path)
         records.append(
             LongformSceneRecord(
                 scene_id=scene_id,
@@ -143,8 +153,12 @@ def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
                 draft_path=_existing_rel(draft_path, root),
                 review_path=_existing_rel(review_path, root),
                 review_conclusion=conclusion,
+                agent_review_path=_existing_rel(agent_review_path, root),
+                agent_review_json=_existing_rel(agent_review_json_path, root),
+                agent_review_conclusion=agent_conclusion,
+                agent_review_schema_status=agent_schema_status,
                 draft_chars=len(body),
-                status=_scene_status(draft_path, review_path, body, conclusion),
+                status=_scene_status(draft_path, review_path, agent_review_json_path, body, conclusion, agent_conclusion, agent_schema_status),
             )
         )
     return records
@@ -242,6 +256,16 @@ def _audit_issues(
             issues.append(LongformIssue("high", "draft_readiness", scene.scene_id, "场景缺少可审计正文草稿。", "运行 draft-scene 并补全正文草稿。"))
         elif scene.status == "needs_review":
             issues.append(LongformIssue("high", "review_readiness", scene.scene_id, "场景有正文但缺少审查报告。", "运行 review-scene。"))
+        elif scene.status == "needs_agent_review":
+            issues.append(
+                LongformIssue(
+                    "high",
+                    "review_readiness",
+                    scene.scene_id,
+                    "场景缺少平台 Agent 正式审查 JSON，不能进入 ready。",
+                    "运行 agent-review-scene 生成任务，由平台 agent 填写 scene_review.v1 JSON 和 Markdown 报告。",
+                )
+            )
         elif scene.status == "blocked":
             issues.append(
                 LongformIssue(
@@ -392,18 +416,19 @@ def _render_markdown(root: Path, payload: dict, graph_path: Path) -> str:
         "",
         "## 场景状态矩阵",
         "",
-        "| 章节 | 场景 | 地点 | 参与者 | 正文字符 | 审查 | 状态 |",
-        "| --- | --- | --- | --- | ---: | --- | --- |",
+        "| 章节 | 场景 | 地点 | 参与者 | 正文字符 | 静态审查 | Agent审查 | 状态 |",
+        "| --- | --- | --- | --- | ---: | --- | --- | --- |",
     ]
     for scene in scenes:
         lines.append(
-            "| {chapter} | {scene} | {location} | {participants} | {chars} | {review} | {status} |".format(
+            "| {chapter} | {scene} | {location} | {participants} | {chars} | {review} | {agent_review} | {status} |".format(
                 chapter=scene["chapter_id"],
                 scene=scene["scene_id"],
                 location=scene["location"] or "未填写",
                 participants="、".join(scene["participants"]) or "未填写",
                 chars=scene["draft_chars"],
                 review=scene["review_conclusion"] or "missing",
+                agent_review=f"{scene.get('agent_review_conclusion') or 'missing'}/{scene.get('agent_review_schema_status') or 'missing'}",
                 status=scene["status"],
             )
         )
@@ -475,12 +500,26 @@ def _summary(
     }
 
 
-def _scene_status(draft_path: Path, review_path: Path, body: str, conclusion: str) -> str:
+def _scene_status(
+    draft_path: Path,
+    review_path: Path,
+    agent_review_json_path: Path,
+    body: str,
+    conclusion: str,
+    agent_conclusion: str,
+    agent_schema_status: str,
+) -> str:
     if not draft_path.exists() or not body:
         return "needs_draft"
     if not review_path.exists() or not conclusion:
         return "needs_review"
-    if conclusion in {"pass", "pass_with_notes"}:
+    if conclusion not in PASSING_REVIEW_CONCLUSIONS:
+        return "blocked"
+    if not agent_review_json_path.exists() or not agent_conclusion or not agent_schema_status:
+        return "needs_agent_review"
+    if agent_schema_status != "pass":
+        return "blocked"
+    if agent_conclusion in PASSING_REVIEW_CONCLUSIONS:
         return "ready"
     return "blocked"
 
@@ -488,6 +527,17 @@ def _scene_status(draft_path: Path, review_path: Path, body: str, conclusion: st
 def _review_conclusion(text: str) -> str:
     match = re.search(r"(?m)^-\s*结论：\s*(\S+)\s*$", text)
     return match.group(1).strip() if match else ""
+
+
+def _agent_review_state(json_path: Path) -> tuple[str, str]:
+    if not json_path.exists():
+        return "", ""
+    try:
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return "", "failed"
+    errors, _warnings = validate_payload(payload, "scene_review.v1")
+    return str(payload.get("conclusion", "")).strip(), "pass" if not errors else "failed"
 
 
 def _foreshadow_status(row: dict[str, str]) -> str:

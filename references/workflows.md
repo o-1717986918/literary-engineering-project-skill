@@ -6,11 +6,13 @@ Use the CLI when repeatability matters: scaffolding, indexing, context packets, 
 
 ## Tool-Layer Supervision Rule
 
-Any command that calls a model, writes creative material, drafts JSON, repairs schema output, simulates characters, scores branches, composes scenes, or chooses workflow steps is supervised by the tool-layer agent that loaded this skill. The command may create draft artifacts; it must not become the project director by itself.
+Any command that writes creative material, drafts JSON, repairs schema output, simulates characters, scores branches, composes scenes, or chooses workflow steps is supervised by the tool-layer agent that loaded this skill. Formal commands write `.agent_tasks.md` sidecars and expected artifact paths; the platform agent fills those artifacts. The command must not become the project director by itself.
 
-Before running such a command, the platform agent should choose the task, prompt/context packet, constraints, and approval boundary. After running it, the platform agent must inspect raw and parsed artifacts, validate schema where relevant, check canon/character/style constraints, and decide whether to revise, keep as candidate, ask the user, or promote after approval.
+Before running such a command, the platform agent should choose the task, prompt/context packet, constraints, and approval boundary. After running it, the platform agent must read the task sidecar, write or inspect the expected artifacts, validate schema where relevant, check canon/character/style constraints, and decide whether to revise, keep as candidate, ask the user, or promote after approval.
 
-This rule covers `agent-run`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-repair`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, `run-workflow`, and `director-chat`.
+This rule covers `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, and `run-workflow`.
+
+`agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, and `director-chat` are legacy/debug paths. Use them only when the user explicitly asks to test local provider behavior.
 
 Use the bundled CLI through:
 
@@ -45,7 +47,7 @@ python -m literary_engineering_workbench config-set-profile `
 
 The config file can store provider settings and, for local use, a saved profile `api_key`. Config endpoints and previews redact the key. `LEW_MODEL_*` variables still work as temporary overrides.
 
-Agent and model-backed commands default to `provider=auto`, which resolves to the configured real `http-chat` model. Use `--provider dry-run` only when you intentionally want an offline deterministic check.
+Formal creative/review commands ignore provider routing and target the platform agent through task sidecars. Global provider settings remain only for legacy/debug commands and local API experiments.
 
 ## Initialize A Work Project
 
@@ -78,7 +80,7 @@ Character files include `background_story`. Use it as an internal cause of behav
 python -m literary_engineering_workbench demo-project "<demo-work-dir>" --title "文学工程 Demo"
 ```
 
-The demo uses original sample text and dry-run agents. It writes `reviews/agent/demo_walkthrough.md`, Agent scene/canon review artifacts, a committee review, and a workflow state.
+The demo uses original sample text and writes platform-agent task sidecars for asset creation, scene/canon review, committee review, and workflow continuation. It does not call local dry-run or HTTP providers for formal artifacts.
 
 ## Build Memory And Context
 
@@ -104,7 +106,7 @@ Use exact imitation only for public-domain or authorized corpora. For other auth
 python -m literary_engineering_workbench style-prompt "<work-dir>\\style\\demo-author"
 ```
 
-Use `--provider dry-run` only for an offline style-prompt contract sample.
+This writes `style_prompt.agent_tasks.md` plus expected `style_prompt.md` and `style_prompt.agent.json` paths. The platform agent reads the task and writes the actual LLM-facing style constraint prompt.
 
 Evaluate a back-translated or outline-expanded candidate:
 
@@ -114,7 +116,7 @@ python -m literary_engineering_workbench style-eval "<work-dir>\\style\\demo-aut
 
 Outputs JSON metrics and a markdown report under `evaluation_results/{mode}/`, including style similarity and copy-risk indicators.
 
-Generate a back-translation / outline-expansion candidate through `style_prompt.md`, then evaluate prompt effectiveness:
+Ask the platform agent to generate a back-translation / outline-expansion candidate through `style_prompt.md`, then evaluate prompt effectiveness:
 
 ```powershell
 python -m literary_engineering_workbench style-prompt-eval "<work-dir>\\style\\demo-author" --reference "<reference.txt>" --input "<english-or-outline.txt>" --mode back-translation
@@ -128,7 +130,7 @@ The local frontend exposes this as `文风学习`. Treat each author as a style 
 python -m literary_engineering_workbench style-lab-author --name "作者名" --source-note "公版或授权语料"
 python -m literary_engineering_workbench style-lab-work --author-id "<author-id>" --title "作品名"
 python -m literary_engineering_workbench style-lab-import --author-id "<author-id>" --work-id "<work-id>" --file "<source.txt>"
-python -m literary_engineering_workbench style-lab-compile --author-id "<author-id>" --provider dry-run
+python -m literary_engineering_workbench style-lab-compile --author-id "<author-id>"
 python -m literary_engineering_workbench style-lab-build-skill --author-id "<author-id>"
 python -m literary_engineering_workbench style-lab-mount "<work-dir>" --style-id "<style-id>"
 ```
@@ -137,7 +139,7 @@ Mounted style skills are stored in the creative project under `style/mounted/{st
 
 ## Generic Agent Run
 
-Use `agent-run` when the task is an LLM-backed review, prompt generation, JSON draft, or future repair pass that needs auditable input/output but does not yet have a specialized command.
+Use `agent-run` only for legacy/debug local provider regression. For formal JSON, patch, style, asset, scene, canon, or committee work, use the specialized platform-task commands.
 
 ```powershell
 python -m literary_engineering_workbench agent-run "<work-dir>" `
@@ -190,7 +192,7 @@ For the project-type skill route, prefer the platform agent's own planning and s
 
 ## Agent Asset Workshop
 
-Generate project-seeding candidates:
+Write platform-agent tasks for project-seeding candidates:
 
 ```powershell
 python -m literary_engineering_workbench agent-create-character "<work-dir>" --brief "谨慎的调查者" --target-id linzhou
@@ -199,7 +201,7 @@ python -m literary_engineering_workbench agent-create-outline "<work-dir>" --bri
 python -m literary_engineering_workbench list-candidate-assets "<work-dir>"
 ```
 
-Review and promote candidates:
+Write platform-agent review tasks and then promote only after the expected candidate/review artifacts exist and approval has been recorded:
 
 ```powershell
 python -m literary_engineering_workbench review-candidate-asset "<work-dir>" "<candidate-id-or-path>"
@@ -268,21 +270,11 @@ Use `compose-scene --agent-tasks` to write `drafts/compositions/{scene_id}_compo
 
 When character `background_story` is present, scene and branch work should convert it into choices, hesitation, avoidance, misreadings, tone, and relationship pressure. Do not turn it into an explanatory background paragraph unless the selected scene explicitly reveals the past.
 
-`generate-scene` writes model candidates under `drafts/candidates/`; it does not overwrite `drafts/scenes/` and does not write canon. The platform agent reviews the candidate prose, prompt manifest, and constraints before promotion.
+`generate-scene` writes a prompt manifest and `drafts/candidates/{scene_id}-platform-agent.agent_tasks.md`. It does not call a local provider, does not overwrite `drafts/scenes/`, and does not write canon. The platform agent reads the prompt manifest, writes the expected candidate Markdown and manifest JSON, then reviews the candidate before promotion.
 
 `promote-candidate` turns a selected model candidate into `drafts/scenes/{scene_id}.md` and writes `drafts/promotions/{scene_id}_promotion.md` / `.json`. It does not confirm canon and does not write characters.
 
-For a real HTTP model endpoint:
-
-```powershell
-$env:DEEPSEEK_API_KEY = "your-api-key"
-python -m literary_engineering_workbench config-show
-python -m literary_engineering_workbench generate-scene "<work-dir>" --scene scenes/scene_0001.yaml --provider http-chat --rebuild-context
-```
-
-Each generation writes a prompt manifest next to the candidate: `drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json`. It records system/user messages and source files, but not API keys.
-
-Use `generate-scene --agent-tasks` to write `drafts/candidates/{scene_id}-{provider}-{timestamp}.agent_tasks.md`. The platform agent should read both the candidate and `.prompt.json`; the prompt manifest itself must remain pure audit data and must not contain `[AGENT_TASK: ...]`.
+The prompt manifest records system/user messages and source files for the platform agent. It must remain pure audit data and must not contain `[AGENT_TASK: ...]`.
 
 Review conclusions:
 
@@ -311,9 +303,10 @@ python -m literary_engineering_workbench chapter-workspace "<work-dir>" --chapte
 
 Scene states:
 
-- `ready`: draft exists and review passed.
+- `ready`: draft exists, static review passed, platform Agent scene review JSON exists, schema passes, and conclusion is `pass` or `pass_with_notes`.
 - `needs_draft`: no usable body.
 - `needs_review`: body exists but review missing.
+- `needs_agent_review`: static review exists but formal platform Agent scene review JSON is missing.
 - `blocked`: review failed.
 
 ## Longform Audit
@@ -401,10 +394,10 @@ The runner preserves existing drafts by default. Use `--overwrite-draft` only wh
 Add candidate generation to the scene loop:
 
 ```powershell
-python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-loop --generate-candidate --provider dry-run
+python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-loop --generate-candidate
 ```
 
-Use `--provider http-chat` only when the global provider profile is configured and an API key is available from `LEW_MODEL_API_KEY`, the configured `api_key_env`, or saved profile `api_key`. The resulting candidate remains under the same platform-agent review and approval gates.
+This writes `candidate_task`, `expected_candidate`, `expected_candidate_manifest`, and `prompt_manifest` in workflow state. The platform agent must write the expected candidate before promotion can proceed.
 
 Add schema-gated agent review nodes:
 
@@ -415,16 +408,18 @@ python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-
 Generate platform-agent task sidecars throughout the scene loop:
 
 ```powershell
-python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-loop --agent-tasks --generate-candidate --provider dry-run
+python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-loop --agent-tasks --generate-candidate
 ```
 
-This records `simulation_agent_tasks`, `branch_agent_tasks`, `scene_composition_agent_tasks`, `candidate_agent_tasks`, and `state_patch_agent_tasks` in `workflow_state.json` when the corresponding artifacts exist.
+This records `simulation_agent_tasks`, `branch_agent_tasks`, `scene_composition_agent_tasks`, `candidate_task`, and `state_patch_agent_tasks` in `workflow_state.json` when the corresponding artifacts exist.
 
 Promote the generated or latest candidate into the review lane:
 
 ```powershell
-python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-loop --generate-candidate --promote-candidate --provider dry-run
+python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-loop --generate-candidate --promote-candidate
 ```
+
+If the platform-agent candidate has not been written yet, promotion is deferred instead of invoking a local provider.
 
 Stable run id and linked retry:
 

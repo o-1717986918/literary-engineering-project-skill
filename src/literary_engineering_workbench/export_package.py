@@ -14,6 +14,7 @@ from .scene_draft import extract_draft_body
 
 
 EXPORT_FORMATS = {"md", "docx"}
+PASSING_REVIEW_CONCLUSIONS = {"pass", "pass_with_notes"}
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,7 @@ def build_export_package(
     exportable = []
     skipped = []
     for scene in scenes:
-        if scene.get("status") == "ready" or include_blocked:
+        if _is_export_ready(scene) or include_blocked:
             exportable.append(scene)
         else:
             skipped.append(scene)
@@ -280,6 +281,9 @@ def _scene_manifest(root: Path, scene: dict) -> dict:
         "scene_id": scene.get("scene_id", ""),
         "status": scene.get("status", ""),
         "review_conclusion": scene.get("review_conclusion", ""),
+        "agent_review_conclusion": scene.get("agent_review_conclusion", ""),
+        "agent_review_schema_status": scene.get("agent_review_schema_status", ""),
+        "agent_review_json": scene.get("agent_review_json", ""),
         "draft_path": scene.get("draft_path", ""),
         "draft_chars": len(_draft_body(root, scene)),
     }
@@ -290,7 +294,7 @@ def _warnings(exportable: list[dict], skipped: list[dict], include_blocked: bool
     if include_blocked:
         warnings.append("本次导出包含未通过审查或未完成的场景，仅可内部预览。")
     if skipped:
-        warnings.append("存在未导出的场景，请回到 chapter-workspace 或 review-scene 修订。")
+        warnings.append("存在未导出的场景，请回到 chapter-workspace、review-scene 或平台 Agent 场景审查修订。")
     if not exportable:
         warnings.append("没有可导出的 ready 场景。")
     return warnings
@@ -305,6 +309,15 @@ def _draft_body(root: Path, scene: dict) -> str:
     if not draft_path.exists():
         return ""
     return extract_draft_body(draft_path.read_text(encoding="utf-8", errors="ignore")).strip()
+
+
+def _is_export_ready(scene: dict) -> bool:
+    return (
+        scene.get("status") == "ready"
+        and scene.get("review_conclusion") in PASSING_REVIEW_CONCLUSIONS
+        and scene.get("agent_review_conclusion") in PASSING_REVIEW_CONCLUSIONS
+        and scene.get("agent_review_schema_status") == "pass"
+    )
 
 
 def _screenplay_body(body: str) -> str:

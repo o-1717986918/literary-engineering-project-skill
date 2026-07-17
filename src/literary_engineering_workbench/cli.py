@@ -3,19 +3,13 @@ import json
 import os
 from pathlib import Path
 
-from .agent_canon_review import review_canon_with_agent
-from .agent_committee import DEFAULT_REVIEWERS, run_agent_committee
-from .agent_json_builder import build_agent_json, plan_agent_patch
 from .agent_provider import AGENT_PROVIDERS, run_agent_task
 from .agent_schema import repair_agent_run, validate_agent_run
-from .agent_scene_review import review_scene_with_agent
 from .approval import build_approval_summary
 from .asset_workshop import (
     ASSET_TYPES,
-    create_asset_candidate,
     list_asset_candidates,
     promote_candidate_asset,
-    review_candidate_asset,
 )
 from .branch_lab import build_branch_simulation
 from .canon_lint import build_canon_lint
@@ -29,7 +23,6 @@ from .director_agent import build_director_status, run_director_turn
 from .dify_dsl import DEFAULT_DIFY_DSL_PATH, DifyDslOptions, build_dify_workflow_dsl
 from .docx_export import DOCX_KINDS, export_markdown_to_docx
 from .export_package import build_export_package
-from .generation_provider import GENERATION_PROVIDERS, generate_scene_candidate
 from .init_project import InitOptions, init_work_project
 from .knowledge_store import KNOWLEDGE_BACKENDS, build_knowledge_store, search_knowledge_store
 from .langgraph_adapter import run_literary_graph
@@ -43,6 +36,19 @@ from .model_config import (
     save_config,
 )
 from .orchestration_blueprint import build_orchestration_blueprint
+from .platform_agent_tasks import (
+    write_platform_asset_creation_task,
+    write_platform_asset_review_task,
+    write_platform_canon_review_task,
+    write_platform_committee_task,
+    write_platform_json_task,
+    write_platform_patch_plan_task,
+    write_platform_scene_generation_task,
+    write_platform_scene_review_task,
+    write_platform_style_prompt_eval_task,
+    write_platform_style_prompt_task,
+)
+from .prompt_pack import build_scene_prompt_pack, write_prompt_manifest
 from .publish import publish_chapter
 from .review_ci import review_scene_draft
 from .scene_composer import build_scene_composition
@@ -59,11 +65,8 @@ from .style_lab import (
     list_author_projects,
     list_style_skills,
     mount_style_skill,
-    run_author_style_learning,
+    run_author_style_learning_platform_task,
 )
-from .style_prompt import STYLE_PROMPT_PROVIDERS, build_style_prompt
-from .style_prompt_agent import build_agent_style_prompt
-from .style_prompt_eval import run_style_prompt_eval
 from .workflow_runner import WORKFLOW_MODES, run_workflow
 
 
@@ -138,18 +141,18 @@ def build_parser() -> argparse.ArgumentParser:
     style_eval.add_argument("--mode", default="back-translation", choices=sorted(STYLE_EVAL_MODES))
     style_eval.add_argument("--out-dir", default="", help="Output directory. Defaults to profile_dir/evaluation_results/{mode}.")
 
-    style_prompt = sub.add_parser("style-prompt", help="Generate an LLM-facing style constraint prompt from a style profile.")
+    style_prompt = sub.add_parser("style-prompt", help="Write a platform-agent task for an LLM-facing style constraint prompt.")
     style_prompt.add_argument("profile_dir", help="Directory containing style-profile.md and style_metrics.json.")
-    style_prompt.add_argument("--provider", default="auto", choices=sorted(STYLE_PROMPT_PROVIDERS))
+    style_prompt.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
     style_prompt.add_argument("--out", default="", help="Output style prompt path. Defaults to profile_dir/style_prompt.md.")
     style_prompt.add_argument("--manifest-out", default="", help="Output prompt manifest path. Defaults to profile_dir/style_prompt.prompt.json.")
 
-    style_prompt_eval = sub.add_parser("style-prompt-eval", help="Generate a style test candidate with style_prompt.md, then evaluate prompt effectiveness.")
+    style_prompt_eval = sub.add_parser("style-prompt-eval", help="Write a platform-agent task for a style-prompt evaluation candidate.")
     style_prompt_eval.add_argument("profile_dir", help="Directory containing style_prompt.md and style_metrics.json.")
     style_prompt_eval.add_argument("--reference", required=True, help="Original/reference Chinese text file.")
     style_prompt_eval.add_argument("--input", required=True, help="Back-translation English text, outline, or blind-review task input.")
     style_prompt_eval.add_argument("--mode", default="back-translation", choices=sorted(STYLE_EVAL_MODES))
-    style_prompt_eval.add_argument("--provider", default="auto", choices=sorted(STYLE_PROMPT_PROVIDERS))
+    style_prompt_eval.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
     style_prompt_eval.add_argument("--style-prompt", default="", help="Style prompt path. Defaults to profile_dir/style_prompt.md.")
     style_prompt_eval.add_argument("--out-dir", default="", help="Output directory. Defaults to profile_dir/evaluation_results/{mode}.")
 
@@ -180,11 +183,11 @@ def build_parser() -> argparse.ArgumentParser:
     style_lab_import.add_argument("--filename", default="")
     style_lab_import.add_argument("--chunk-chars", type=int, default=4000)
 
-    style_lab_compile = sub.add_parser("style-lab-compile", help="Compile an author profile and LLM-facing style prompt.")
+    style_lab_compile = sub.add_parser("style-lab-compile", help="Compile an author profile and write a platform-agent style prompt task.")
     style_lab_compile.add_argument("--library", default="", help="Style library root. Defaults to global config.")
     style_lab_compile.add_argument("--author-id", required=True)
     style_lab_compile.add_argument("--profile-id", default="default")
-    style_lab_compile.add_argument("--provider", default="auto", choices=sorted(STYLE_PROMPT_PROVIDERS))
+    style_lab_compile.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
 
     style_lab_skill = sub.add_parser("style-lab-build-skill", help="Build a mountable style skill from an author profile.")
     style_lab_skill.add_argument("--library", default="", help="Style library root. Defaults to global config.")
@@ -221,52 +224,44 @@ def build_parser() -> argparse.ArgumentParser:
     agent_repair.add_argument("--run-dir", default="", help="Agent run directory. Relative paths resolve from project root.")
     agent_repair.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
 
-    agent_review_scene = sub.add_parser("agent-review-scene", help="Run an LLM/Agent scene review with schema validation.")
+    agent_review_scene = sub.add_parser("agent-review-scene", help="Write a formal platform-agent scene review task.")
     agent_review_scene.add_argument("project", help="Work project directory.")
     agent_review_scene.add_argument("--scene", default="scenes/scene_0001.yaml")
     agent_review_scene.add_argument("--draft", default="", help="Draft path. Defaults to drafts/scenes/{scene_id}.md.")
-    agent_review_scene.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
-    agent_review_scene.add_argument("--out", default="", help="Output markdown path.")
-    agent_review_scene.add_argument("--json-out", default="", help="Output JSON path.")
+    agent_review_scene.add_argument("--out", default="", help="Expected markdown report path.")
+    agent_review_scene.add_argument("--json-out", default="", help="Expected JSON result path.")
 
-    agent_canon_review = sub.add_parser("agent-canon-review", help="Run an LLM/Agent canon and continuity review.")
+    agent_canon_review = sub.add_parser("agent-canon-review", help="Write a formal platform-agent canon and continuity review task.")
     agent_canon_review.add_argument("project", help="Work project directory.")
-    agent_canon_review.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
-    agent_canon_review.add_argument("--out", default="", help="Output markdown path.")
-    agent_canon_review.add_argument("--json-out", default="", help="Output JSON path.")
 
-    agent_build_json = sub.add_parser("agent-build-json", help="Ask an agent to draft JSON for a named schema.")
+    agent_build_json = sub.add_parser("agent-build-json", help="Write a platform-agent task to draft JSON for a named schema.")
     agent_build_json.add_argument("project", help="Work project directory.")
     agent_build_json.add_argument("--schema", required=True, help="Schema name, such as json_patch_plan.v1.")
     agent_build_json.add_argument("--agent-id", default="json-builder")
     agent_build_json.add_argument("--task", default="build-json")
     agent_build_json.add_argument("--source", default="", help="Optional source file.")
     agent_build_json.add_argument("--target", default="", help="Optional target path or object.")
-    agent_build_json.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
+    agent_build_json.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
     agent_build_json.add_argument("--out-dir", default="", help="Output run directory.")
 
-    agent_plan_patch = sub.add_parser("agent-plan-patch", help="Create a controlled writeback patch plan through an agent.")
+    agent_plan_patch = sub.add_parser("agent-plan-patch", help="Write a platform-agent task for a controlled writeback patch plan.")
     agent_plan_patch.add_argument("project", help="Work project directory.")
     agent_plan_patch.add_argument("--target", required=True, help="Safe relative target path.")
     agent_plan_patch.add_argument("--source", default="", help="Optional source file.")
-    agent_plan_patch.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
+    agent_plan_patch.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
     agent_plan_patch.add_argument("--out", default="", help="Output markdown path.")
     agent_plan_patch.add_argument("--json-out", default="", help="Output JSON path.")
 
-    agent_style_prompt = sub.add_parser("agent-style-prompt", help="Generate style_prompt.md through the generic agent provider and schema gate.")
+    agent_style_prompt = sub.add_parser("agent-style-prompt", help="Write a platform-agent task for style_prompt.md and schema JSON.")
     agent_style_prompt.add_argument("profile_dir", help="Directory containing style-profile.md and style_metrics.json.")
-    agent_style_prompt.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
+    agent_style_prompt.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
     agent_style_prompt.add_argument("--out", default="", help="Output style prompt path. Defaults to profile_dir/style_prompt.md.")
     agent_style_prompt.add_argument("--json-out", default="", help="Output agent JSON path. Defaults to profile_dir/style_prompt.agent.json.")
 
-    agent_committee = sub.add_parser("agent-committee", help="Run a multi-agent review committee.")
+    agent_committee = sub.add_parser("agent-committee", help="Write a formal platform-agent review committee task.")
     agent_committee.add_argument("project", help="Work project directory.")
     agent_committee.add_argument("--subject", required=True, help="Review subject label.")
     agent_committee.add_argument("--source", default="", help="Optional source file.")
-    agent_committee.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
-    agent_committee.add_argument("--reviewers", default=",".join(DEFAULT_REVIEWERS), help="Comma-separated reviewer ids.")
-    agent_committee.add_argument("--out", default="", help="Output markdown path.")
-    agent_committee.add_argument("--json-out", default="", help="Output JSON path.")
 
     director_chat = sub.add_parser("director-chat", help="Run the top-level creative director agent for one user direction.")
     director_chat.add_argument("project", help="Work project directory.")
@@ -280,15 +275,15 @@ def build_parser() -> argparse.ArgumentParser:
     director_status.add_argument("--limit", type=int, default=8)
 
     for command, asset_type, help_text in [
-        ("agent-create-character", "character", "Ask an agent to create a character profile candidate."),
-        ("agent-create-background-story", "background-story", "Ask an agent to create a hidden background-story candidate."),
-        ("agent-create-relationship", "relationship", "Ask an agent to create a relationship graph candidate."),
-        ("agent-create-world", "world", "Ask an agent to create a world-rules candidate."),
-        ("agent-create-location", "location", "Ask an agent to create a location candidate."),
-        ("agent-create-organization", "organization", "Ask an agent to create an organization candidate."),
-        ("agent-create-outline", "outline", "Ask an agent to create a plot outline candidate."),
-        ("agent-create-chapter-plan", "chapter-plan", "Ask an agent to create a chapter-plan candidate."),
-        ("agent-create-scene-list", "scene-list", "Ask an agent to create a scene-list candidate."),
+        ("agent-create-character", "character", "Write a platform-agent task for a character profile candidate."),
+        ("agent-create-background-story", "background-story", "Write a platform-agent task for a hidden background-story candidate."),
+        ("agent-create-relationship", "relationship", "Write a platform-agent task for a relationship graph candidate."),
+        ("agent-create-world", "world", "Write a platform-agent task for a world-rules candidate."),
+        ("agent-create-location", "location", "Write a platform-agent task for a location candidate."),
+        ("agent-create-organization", "organization", "Write a platform-agent task for an organization candidate."),
+        ("agent-create-outline", "outline", "Write a platform-agent task for a plot outline candidate."),
+        ("agent-create-chapter-plan", "chapter-plan", "Write a platform-agent task for a chapter-plan candidate."),
+        ("agent-create-scene-list", "scene-list", "Write a platform-agent task for a scene-list candidate."),
     ]:
         create = sub.add_parser(command, help=help_text)
         create.set_defaults(asset_type=asset_type)
@@ -296,26 +291,26 @@ def build_parser() -> argparse.ArgumentParser:
         create.add_argument("--brief", default="", help="Creative brief or constraints for the candidate.")
         create.add_argument("--target-id", default="", help="Stable id for the target character/location/organization when useful.")
         create.add_argument("--source", default="", help="Optional source file. Relative paths resolve from project root.")
-        create.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
-        create.add_argument("--out-dir", default="", help="Optional agent run output directory.")
+        create.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
+        create.add_argument("--out-dir", default="", help="Legacy compatibility only; formal command writes task sidecars next to expected outputs.")
 
-    create_asset = sub.add_parser("asset-create", help="Create any supported candidate asset by type.")
+    create_asset = sub.add_parser("asset-create", help="Write a platform-agent task for any supported candidate asset by type.")
     create_asset.add_argument("project", help="Work project directory.")
     create_asset.add_argument("--type", required=True, choices=ASSET_TYPES)
     create_asset.add_argument("--brief", default="")
     create_asset.add_argument("--target-id", default="")
     create_asset.add_argument("--source", default="")
-    create_asset.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
-    create_asset.add_argument("--out-dir", default="")
+    create_asset.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
+    create_asset.add_argument("--out-dir", default="", help="Legacy compatibility only; formal command writes task sidecars next to expected outputs.")
 
     list_assets = sub.add_parser("list-candidate-assets", help="List candidate assets created by agent asset commands.")
     list_assets.add_argument("project", help="Work project directory.")
     list_assets.add_argument("--type", default="", choices=("", *ASSET_TYPES))
 
-    review_asset = sub.add_parser("review-candidate-asset", help="Review a candidate asset before promotion.")
+    review_asset = sub.add_parser("review-candidate-asset", help="Write a platform-agent task to review a candidate asset before promotion.")
     review_asset.add_argument("project", help="Work project directory.")
     review_asset.add_argument("candidate", help="Candidate path or candidate id.")
-    review_asset.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
+    review_asset.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
 
     promote_asset = sub.add_parser("promote-candidate-asset", help="Promote any reviewed and approved candidate asset.")
     promote_asset.add_argument("project", help="Work project directory.")
@@ -349,16 +344,16 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("draft", help="Draft markdown path.")
     review.add_argument("--out", default="", help="Output review report path.")
 
-    generate = sub.add_parser("generate-scene", help="Generate a scene candidate through a pluggable provider.")
+    generate = sub.add_parser("generate-scene", help="Write a formal platform-agent scene generation task.")
     generate.add_argument("project", help="Work project directory.")
     generate.add_argument("--scene", default="scenes/scene_0001.yaml")
     generate.add_argument("--context", default="", help="Existing context packet path.")
     generate.add_argument("--composition", default="", help="Existing scene composition path. Defaults to drafts/compositions/{scene_id}_composition.md.")
     generate.add_argument("--query", default="", help="Extra retrieval query when context needs rebuilding.")
     generate.add_argument("--rebuild-context", action="store_true")
-    generate.add_argument("--provider", default="auto", choices=sorted(GENERATION_PROVIDERS))
+    generate.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal command always targets the platform agent.")
     generate.add_argument("--out", default="", help="Output candidate markdown path.")
-    generate.add_argument("--agent-tasks", action="store_true", help="Write a platform-agent task sidecar for reviewing the candidate and prompt manifest.")
+    generate.add_argument("--agent-tasks", action="store_true", help="Legacy compatibility only; formal command always writes a platform-agent task.")
 
     promote = sub.add_parser("promote-candidate", help="Promote a generated scene candidate into the draft review lane.")
     promote.add_argument("project", help="Work project directory.")
@@ -435,6 +430,7 @@ def build_parser() -> argparse.ArgumentParser:
     chapter.add_argument("--scenes", default="", help="Comma-separated scene yaml paths. Defaults to chapter scenes.")
     chapter.add_argument("--build-missing", action="store_true", help="Create missing scene draft workspaces.")
     chapter.add_argument("--review-drafts", action="store_true", help="Run review on available scene drafts.")
+    chapter.add_argument("--agent-review", action="store_true", help="Write platform-agent review tasks and require completed platform review JSON for ready scenes.")
     chapter.add_argument("--out", default="", help="Output chapter markdown path.")
     chapter.add_argument("--json-out", default="", help="Output chapter JSON path.")
 
@@ -484,7 +480,7 @@ def build_parser() -> argparse.ArgumentParser:
     workflow.add_argument("--promote-candidate", action="store_true", help="Promote the generated or latest candidate into drafts/scenes before review.")
     workflow.add_argument("--agent-review", action="store_true", help="Run schema-gated agent scene/canon review nodes.")
     workflow.add_argument("--agent-tasks", action="store_true", help="Generate platform-agent task sidecars for creative workflow artifacts.")
-    workflow.add_argument("--provider", default="auto", choices=sorted(GENERATION_PROVIDERS), help="Provider for model-backed workflow nodes.")
+    workflow.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal workflow writes platform-agent tasks.")
     workflow.add_argument("--run-id", default="", help="Use a stable workflow run id instead of an auto-generated one.")
     workflow.add_argument("--resume-run-id", default="", help="Create a new linked run that resumes/retries from a previous run id.")
     workflow.add_argument("--overwrite-run", action="store_true", help="Allow replacing an existing run directory with the same run id.")
@@ -505,7 +501,7 @@ def build_parser() -> argparse.ArgumentParser:
     langgraph.add_argument("--generate-candidate", action="store_true", help="Generate a scene candidate after scene composition.")
     langgraph.add_argument("--promote-candidate", action="store_true", help="Promote the generated or latest candidate into drafts/scenes before review.")
     langgraph.add_argument("--agent-review", action="store_true", help="Run schema-gated agent scene/canon review nodes.")
-    langgraph.add_argument("--provider", default="auto", choices=sorted(GENERATION_PROVIDERS), help="Provider for model-backed workflow nodes.")
+    langgraph.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal workflow writes platform-agent tasks.")
     langgraph.add_argument("--thread-id", default="", help="External orchestration thread id for LangGraph config.")
 
     serve = sub.add_parser("serve-api", help="Start a FastAPI backend for Dify and workflow clients.")
@@ -713,36 +709,30 @@ def main(argv=None) -> int:
     if args.command == "style-prompt":
         out = Path(args.out) if args.out else None
         manifest_out = Path(args.manifest_out) if args.manifest_out else None
-        result = build_style_prompt(
+        result = write_platform_style_prompt_task(
             Path(args.profile_dir),
-            provider=args.provider,
             output=out,
-            manifest_output=manifest_out,
+            json_path=manifest_out,
         )
-        print(f"style_prompt: {result.output_path}")
-        print(f"manifest: {result.manifest_path}")
-        print(f"provider: {result.provider}")
-        print(f"chars: {result.generated_chars}")
+        print(f"style_prompt_task: {result.task_path}")
+        print(f"expected_style_prompt: {result.expected_report_path}")
+        print(f"expected_json: {result.expected_json_path}")
+        print("receiver: platform-agent")
         return 0
 
     if args.command == "style-prompt-eval":
-        result = run_style_prompt_eval(
+        result = write_platform_style_prompt_eval_task(
             Path(args.profile_dir),
             reference=Path(args.reference),
             task_input=Path(args.input),
             mode=args.mode,
-            provider=args.provider,
             style_prompt=Path(args.style_prompt) if args.style_prompt else None,
-            out_dir=Path(args.out_dir) if args.out_dir else None,
+            output_dir=Path(args.out_dir) if args.out_dir else None,
         )
-        print(f"candidate: {result.candidate_path}")
-        print(f"prompt_manifest: {result.prompt_manifest_path}")
-        print(f"style_eval_report: {result.report_path}")
-        print(f"style_eval_metrics: {result.metrics_path}")
-        print(f"mode: {result.mode}")
-        print(f"provider: {result.provider}")
-        print(f"overall_score: {result.overall_score}")
-        print(f"risk_level: {result.risk_level}")
+        print(f"style_prompt_eval_task: {result.task_path}")
+        print(f"expected_candidate: {result.expected_report_path}")
+        print(f"expected_prompt_manifest: {result.expected_json_path}")
+        print("receiver: platform-agent")
         return 0
 
     if args.command == "style-lab-list":
@@ -801,17 +791,17 @@ def main(argv=None) -> int:
         return 0
 
     if args.command == "style-lab-compile":
-        result = run_author_style_learning(
+        result = run_author_style_learning_platform_task(
             Path(args.library) if args.library else None,
             author_id=args.author_id,
             profile_id=args.profile_id,
-            provider=args.provider,
         )
         print(f"profile_dir: {result.profile_dir}")
         print(f"profile: {result.profile_path}")
         print(f"metrics: {result.metrics_path}")
-        print(f"style_prompt: {result.style_prompt_path}")
-        print(f"prompt_manifest: {result.prompt_manifest_path}")
+        print(f"style_prompt_task: {result.style_prompt_task_path}")
+        print(f"expected_style_prompt: {result.expected_style_prompt_path}")
+        print(f"expected_json: {result.expected_json_path}")
         print(f"sources: {result.source_count}")
         return 0
 
@@ -904,115 +894,101 @@ def main(argv=None) -> int:
 
     if args.command == "agent-review-scene":
         try:
-            result = review_scene_with_agent(
-                Path(args.project),
-                scene=Path(args.scene),
-                draft=Path(args.draft) if args.draft else None,
-                provider=args.provider,
-                output=Path(args.out) if args.out else None,
-                json_output=Path(args.json_out) if args.json_out else None,
+            root = Path(args.project).resolve()
+            scene_path = Path(args.scene)
+            scene_path = scene_path if scene_path.is_absolute() else root / scene_path
+            draft_path = Path(args.draft) if args.draft else root / "drafts" / "scenes" / f"{scene_path.stem}.md"
+            draft_path = draft_path if draft_path.is_absolute() else root / draft_path
+            result = write_platform_scene_review_task(
+                root,
+                scene_path=scene_path,
+                draft_path=draft_path,
+                report_path=Path(args.out) if args.out else None,
+                json_path=Path(args.json_out) if args.json_out else None,
             )
         except (FileExistsError, FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))
-        print(f"agent_scene_review: {result.report_path}")
-        print(f"json: {result.json_path}")
-        print(f"validation: {result.validation_path}")
-        print(f"scene: {result.scene_id}")
-        print(f"conclusion: {result.conclusion}")
+        print(f"agent_scene_review_task: {result.task_path}")
+        print(f"expected_report: {result.expected_report_path}")
+        print(f"expected_json: {result.expected_json_path}")
         return 0
 
     if args.command == "agent-canon-review":
         try:
-            result = review_canon_with_agent(
-                Path(args.project),
-                provider=args.provider,
-                output=Path(args.out) if args.out else None,
-                json_output=Path(args.json_out) if args.json_out else None,
-            )
+            result = write_platform_canon_review_task(Path(args.project).resolve())
         except (FileExistsError, FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))
-        print(f"agent_canon_review: {result.report_path}")
-        print(f"json: {result.json_path}")
-        print(f"validation: {result.validation_path}")
-        print(f"conclusion: {result.conclusion}")
+        print(f"agent_canon_review_task: {result.task_path}")
+        print(f"expected_report: {result.expected_report_path}")
+        print(f"expected_json: {result.expected_json_path}")
         return 0
 
     if args.command == "agent-build-json":
         try:
-            result = build_agent_json(
-                Path(args.project),
+            result = write_platform_json_task(
+                Path(args.project).resolve(),
                 schema_name=args.schema,
-                agent_id=args.agent_id,
                 task=args.task,
                 source=Path(args.source) if args.source else None,
                 target=args.target,
-                provider=args.provider,
                 output_dir=Path(args.out_dir) if args.out_dir else None,
             )
         except (FileExistsError, FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))
-        print(f"run_dir: {result.run_dir}")
-        print(f"schema: {result.schema_name}")
-        print(f"status: {result.status}")
-        print(f"validation: {result.validation_path}")
+        print(f"json_task: {result.task_path}")
+        print(f"expected_report: {result.expected_report_path}")
+        print(f"expected_json: {result.expected_json_path}")
+        print("receiver: platform-agent")
         return 0
 
     if args.command == "agent-plan-patch":
         try:
-            result = plan_agent_patch(
-                Path(args.project),
+            result = write_platform_patch_plan_task(
+                Path(args.project).resolve(),
                 target=args.target,
                 source=Path(args.source) if args.source else None,
-                provider=args.provider,
-                output=Path(args.out) if args.out else None,
-                json_output=Path(args.json_out) if args.json_out else None,
+                report_path=Path(args.out) if args.out else None,
+                json_path=Path(args.json_out) if args.json_out else None,
             )
         except (FileExistsError, FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))
-        print(f"patch_plan: {result.report_path}")
-        print(f"json: {result.json_path}")
-        print(f"target: {result.target}")
-        print(f"status: {result.status}")
-        print(f"validation: {result.validation_path}")
+        print(f"patch_plan_task: {result.task_path}")
+        print(f"expected_report: {result.expected_report_path}")
+        print(f"expected_json: {result.expected_json_path}")
+        print("receiver: platform-agent")
         return 0
 
     if args.command == "agent-style-prompt":
         try:
-            result = build_agent_style_prompt(
+            result = write_platform_style_prompt_task(
                 Path(args.profile_dir),
-                provider=args.provider,
                 output=Path(args.out) if args.out else None,
-                json_output=Path(args.json_out) if args.json_out else None,
+                json_path=Path(args.json_out) if args.json_out else None,
             )
         except (FileExistsError, FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))
-        print(f"style_prompt: {result.output_path}")
-        print(f"json: {result.json_path}")
-        print(f"validation: {result.validation_path}")
-        print(f"provider: {result.provider}")
-        print(f"chars: {result.generated_chars}")
+        print(f"style_prompt_task: {result.task_path}")
+        print(f"expected_style_prompt: {result.expected_report_path}")
+        print(f"expected_json: {result.expected_json_path}")
+        print("receiver: platform-agent")
         return 0
 
     if args.command == "agent-committee":
-        reviewers = tuple(item.strip() for item in args.reviewers.split(",") if item.strip())
         try:
-            result = run_agent_committee(
-                Path(args.project),
+            root = Path(args.project).resolve()
+            source = Path(args.source) if args.source else None
+            if source and not source.is_absolute():
+                source = root / source
+            result = write_platform_committee_task(
+                root,
                 subject=args.subject,
-                source=Path(args.source) if args.source else None,
-                provider=args.provider,
-                reviewers=reviewers or DEFAULT_REVIEWERS,
-                output=Path(args.out) if args.out else None,
-                json_output=Path(args.json_out) if args.json_out else None,
+                source=source,
             )
         except (FileExistsError, FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))
-        print(f"committee: {result.report_path}")
-        print(f"json: {result.json_path}")
-        print(f"validation: {result.validation_path}")
-        print(f"subject: {result.subject}")
-        print(f"final_recommendation: {result.final_recommendation}")
-        print(f"reviewers: {result.reviewer_count}")
+        print(f"agent_committee_task: {result.task_path}")
+        print(f"expected_report: {result.expected_report_path}")
+        print(f"expected_json: {result.expected_json_path}")
         return 0
 
     if args.command == "director-chat":
@@ -1054,44 +1030,36 @@ def main(argv=None) -> int:
         "agent-create-scene-list",
     }:
         try:
-            result = create_asset_candidate(
-                Path(args.project),
+            result = write_platform_asset_creation_task(
+                Path(args.project).resolve(),
                 asset_type=args.asset_type,
                 brief=args.brief,
                 target_id=args.target_id,
                 source=Path(args.source) if args.source else None,
-                provider=args.provider,
-                output_dir=Path(args.out_dir) if args.out_dir else None,
             )
         except (FileExistsError, FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))
-        print(f"candidate: {result.candidate_path}")
-        print(f"report: {result.report_path}")
-        print(f"run_dir: {result.run_dir}")
-        print(f"validation: {result.validation_path}")
-        print(f"asset_type: {result.asset_type}")
-        print(f"status: {result.status}")
+        print(f"asset_creation_task: {result.task_path}")
+        print(f"expected_candidate: {result.expected_json_path}")
+        print(f"expected_report: {result.expected_report_path}")
+        print("receiver: platform-agent")
         return 0
 
     if args.command == "asset-create":
         try:
-            result = create_asset_candidate(
-                Path(args.project),
+            result = write_platform_asset_creation_task(
+                Path(args.project).resolve(),
                 asset_type=args.type,
                 brief=args.brief,
                 target_id=args.target_id,
                 source=Path(args.source) if args.source else None,
-                provider=args.provider,
-                output_dir=Path(args.out_dir) if args.out_dir else None,
             )
         except (FileExistsError, FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))
-        print(f"candidate: {result.candidate_path}")
-        print(f"report: {result.report_path}")
-        print(f"run_dir: {result.run_dir}")
-        print(f"validation: {result.validation_path}")
-        print(f"asset_type: {result.asset_type}")
-        print(f"status: {result.status}")
+        print(f"asset_creation_task: {result.task_path}")
+        print(f"expected_candidate: {result.expected_json_path}")
+        print(f"expected_report: {result.expected_report_path}")
+        print("receiver: platform-agent")
         return 0
 
     if args.command == "list-candidate-assets":
@@ -1101,15 +1069,16 @@ def main(argv=None) -> int:
 
     if args.command == "review-candidate-asset":
         try:
-            result = review_candidate_asset(Path(args.project), args.candidate, provider=args.provider)
+            result = write_platform_asset_review_task(
+                Path(args.project).resolve(),
+                candidate_path=Path(args.candidate),
+            )
         except (FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))
-        print(f"review: {result.report_path}")
-        print(f"json: {result.json_path}")
-        print(f"agent_run: {result.agent_run_dir}")
-        print(f"status: {result.status}")
-        print(f"errors: {result.error_count}")
-        print(f"warnings: {result.warning_count}")
+        print(f"asset_review_task: {result.task_path}")
+        print(f"expected_report: {result.expected_report_path}")
+        print(f"expected_json: {result.expected_json_path}")
+        print("receiver: platform-agent")
         return 0
 
     if args.command == "promote-candidate-asset":
@@ -1173,28 +1142,34 @@ def main(argv=None) -> int:
         return 0
 
     if args.command == "generate-scene":
-        context = Path(args.context) if args.context else None
-        composition = Path(args.composition) if args.composition else None
-        out = Path(args.out) if args.out else None
-        result = generate_scene_candidate(
-            Path(args.project),
-            scene=Path(args.scene),
-            context=context,
-            composition=composition,
-            query=args.query,
-            rebuild_context=args.rebuild_context,
-            provider=args.provider,
-            output=out,
-            agent_tasks=args.agent_tasks,
-        )
-        print(f"candidate: {result.candidate_path}")
-        print(f"manifest: {result.manifest_path}")
-        print(f"prompt_manifest: {result.prompt_manifest_path}")
-        if result.agent_tasks_path:
-            print(f"agent_tasks: {result.agent_tasks_path}")
-        print(f"provider: {result.provider}")
-        print(f"scene: {result.scene_id}")
-        print(f"chars: {result.generated_chars}")
+        try:
+            root = Path(args.project).resolve()
+            scene_path = _cli_path(root, args.scene)
+            scene_id = scene_path.stem
+            context_path = _cli_path(root, args.context) if args.context else root / "memory" / "context_packets" / f"{scene_id}.md"
+            if args.rebuild_context or not context_path.exists():
+                context_path = build_context_packet(root, scene=scene_path, query=args.query, rebuild_index=True, output=context_path).output_path
+            composition = _cli_path(root, args.composition) if args.composition else None
+            candidate = _cli_path(root, args.out) if args.out else root / "drafts" / "candidates" / f"{scene_id}-platform-agent.md"
+            prompt_pack = build_scene_prompt_pack(root, scene_path, context_path, composition=composition)
+            prompt_manifest = candidate.with_suffix(".prompt.json")
+            write_prompt_manifest(prompt_pack, prompt_manifest, provider="platform-agent", model="tool-layer-agent")
+            result = write_platform_scene_generation_task(
+                root,
+                scene_path=scene_path,
+                context_path=context_path,
+                composition_path=prompt_pack.composition_path,
+                prompt_manifest_path=prompt_manifest,
+                candidate_path=candidate,
+            )
+        except (FileExistsError, FileNotFoundError, RuntimeError, ValueError, KeyError) as exc:
+            parser.error(str(exc))
+        print(f"scene_generation_task: {result.task_path}")
+        print(f"expected_candidate: {result.expected_report_path}")
+        print(f"expected_manifest: {result.expected_json_path}")
+        print(f"prompt_manifest: {prompt_manifest}")
+        print("receiver: platform-agent")
+        print(f"scene: {scene_id}")
         return 0
 
     if args.command == "promote-candidate":
@@ -1371,6 +1346,7 @@ def main(argv=None) -> int:
             scenes=scenes,
             build_missing=args.build_missing,
             review_drafts=args.review_drafts,
+            agent_review=args.agent_review,
             output=out,
             json_output=json_out,
         )
@@ -1615,3 +1591,8 @@ def main(argv=None) -> int:
 
     parser.error(f"unknown command: {args.command}")
     return 2
+
+
+def _cli_path(root: Path, value: str | Path) -> Path:
+    path = value if isinstance(value, Path) else Path(value)
+    return path if path.is_absolute() else root / path

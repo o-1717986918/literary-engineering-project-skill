@@ -35,7 +35,7 @@ class StylePromptTests(TempProjectMixin, unittest.TestCase):
         code = main(["style-prompt", str(profile_dir), "--provider", "dry-run"])
 
         self.assertEqual(code, 0)
-        self.assertTrue((profile_dir / "style_prompt.md").exists())
+        self.assertTrue((profile_dir / "style_prompt.agent_tasks.md").exists())
 
     def test_style_prompt_eval_generates_candidate_and_scores_effectiveness(self):
         project = self.make_project()
@@ -91,6 +91,7 @@ class StylePromptTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertTrue((profile_dir / "evaluation_results" / "back-translation").exists())
+        self.assertTrue((profile_dir / "evaluation_results" / "back-translation" / "platform_agent_candidate.agent_tasks.md").exists())
 
     def _compile_profile(self, project):
         corpus = project / "corpus"

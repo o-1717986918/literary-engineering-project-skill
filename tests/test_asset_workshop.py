@@ -112,9 +112,10 @@ class AssetWorkshopTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(result.status, "completed")
         state = json.loads(result.state_path.read_text(encoding="utf-8"))
         self.assertTrue(state["human_approval_required"])
-        self.assertIn("world_candidate", state["artifacts"])
-        self.assertIn("character_candidate", state["artifacts"])
-        self.assertIn("outline_candidate", state["artifacts"])
+        self.assertIn("world_candidate_task", state["artifacts"])
+        self.assertIn("character_candidate_task", state["artifacts"])
+        self.assertIn("outline_candidate_task", state["artifacts"])
+        self.assertIn("[AGENT_TASK:", (project / state["artifacts"]["world_candidate_task"]).read_text(encoding="utf-8"))
 
     def test_cli_exposes_asset_creation_and_promotion(self):
         help_text = subprocess.check_output(

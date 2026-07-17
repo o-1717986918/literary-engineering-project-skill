@@ -4,6 +4,8 @@
 
 已在 `v0.26.0` 实现 `style-prompt` 和 `style-prompt-eval`。
 
+> Current project-type skill override: formal `style-prompt` and `style-prompt-eval` write platform-agent task sidecars and expected output paths. They do not call local `dry-run`, `http-chat`, or external agent services.
+
 ## 目标
 
 修正文风模块的产物定义：`style-profile` 和 `style_metrics.json` 只是中间资产，最终交付应是供 LLM 写作时直接注入的文风约束提示词。
@@ -28,17 +30,12 @@ $env:PYTHONPATH="src"
 python -m literary_engineering_workbench style-prompt work/demo-work/style/demo-author
 ```
 
-离线调试：
-
-```powershell
-python -m literary_engineering_workbench style-prompt work/demo-work/style/demo-author --provider dry-run
-```
-
 输出：
 
 ```text
 style/{profile}/style_prompt.md
-style/{profile}/style_prompt.prompt.json
+style/{profile}/style_prompt.agent.json
+style/{profile}/style_prompt.agent_tasks.md
 ```
 
 `style_prompt.md` 是给 LLM 用的提示词，必须覆盖：
@@ -64,13 +61,12 @@ python -m literary_engineering_workbench style-prompt-eval work/demo-work/style/
   --mode back-translation
 ```
 
-`v0.48.0` 起，默认 `provider=auto` 会调用真实 LLM；未配置模型时可显式追加 `--provider dry-run` 做离线链路验证。
-
 输出：
 
 ```text
-style/{profile}/evaluation_results/{mode}/style_prompt_candidate_{timestamp}.txt
-style/{profile}/evaluation_results/{mode}/style_prompt_candidate_{timestamp}.prompt.json
+style/{profile}/evaluation_results/{mode}/platform_agent_candidate.md
+style/{profile}/evaluation_results/{mode}/platform_agent_candidate.prompt.json
+style/{profile}/evaluation_results/{mode}/platform_agent_candidate.agent_tasks.md
 style/{profile}/evaluation_results/{mode}/style_eval_{timestamp}.md
 style/{profile}/evaluation_results/{mode}/style_eval_{timestamp}.json
 ```
@@ -79,7 +75,7 @@ style/{profile}/evaluation_results/{mode}/style_eval_{timestamp}.json
 
 1. 用 `style_prompt.md` 作为 system prompt。
 2. 用英文回译文本、大纲或盲评任务作为 user prompt。
-3. 由 provider 生成候选中文文本。
+3. 由平台 Agent 生成候选中文文本。
 4. 调用 `style-eval` 比较 reference 与 candidate。
 5. 输出风格相似度、结构指标和复制风险。
 
@@ -97,7 +93,7 @@ style/{profile}/evaluation_results/{mode}/style_eval_{timestamp}.json
 ## 边界
 
 - `style-prompt` 不训练模型，只生成提示词资产。
-- `style-prompt-eval` 可以调用真实 LLM，但 key 只来自 `LEW_MODEL_*` 环境变量。
+- `style-prompt-eval` 的正式路径不调用本地 provider；候选由平台 Agent 回填。
 - 统计指标只是辅助生成提示词和审查提示词有效性的证据。
 - 精确模仿仅限公版或授权语料；其他语料应抽象为高层技法提示词。
 - 提示词有效不等于作品可发布，仍需 canon、人物、剧情和原创性审查。

@@ -21,7 +21,8 @@ Do not read the entire repository by default. Follow the route map in `agentread
 - The local `director-chat` implementation is legacy/experimental. Use it only when the user explicitly wants local orchestration or regression testing.
 - Prefer platform-native reasoning, file editing, review, and subagents for creative work.
 - Every creative generation, LLM-authored JSON/schema draft, simulation, review, branch choice, style prompt, candidate promotion recommendation, and free-form project decision must stay under the supervision of the tool-layer agent that loaded this skill.
-- Local model-backed commands are draft/evidence producers. The platform agent chooses their task and context, inspects raw and parsed outputs, applies schema/canon/style checks, and decides the next step.
+- Formal non-deterministic commands write platform-agent task sidecars plus expected output paths. The platform agent reads those tasks, performs the creative/review judgment, writes the expected artifacts, applies schema/canon/style checks, and decides the next step.
+- Local model-backed commands, HTTP providers, and the local `director-chat` implementation are legacy/debug tools. Use them only when the user explicitly asks for that path.
 
 ## Hard Rules
 
@@ -62,7 +63,7 @@ $env:PYTHONPATH = "<skill-root>\\scripts"
 python -m literary_engineering_workbench --help
 ```
 
-Use local model providers only when the user explicitly wants that path. Otherwise the tool-layer platform's own model is the creative provider.
+Provider flags on formal commands are compatibility fields. Use local model providers only when the user explicitly wants legacy/debug behavior. Otherwise the tool-layer platform's own model is the creative provider and reviewer.
 
 ## Git Rules
 

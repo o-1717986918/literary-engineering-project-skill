@@ -9,10 +9,6 @@ from pathlib import Path
 import re
 from uuid import uuid4
 
-from .agent_canon_review import review_canon_with_agent
-from .agent_committee import run_agent_committee
-from .agent_scene_review import review_scene_with_agent
-from .asset_workshop import create_asset_candidate, review_candidate_asset
 from .branch_lab import build_branch_simulation
 from .candidate_promotion import promote_scene_candidate
 from .character_state_evolver import build_character_state_patch
@@ -21,7 +17,15 @@ from .context_packet import build_context_packet
 from .export_package import build_export_package
 from .longform_audit import build_longform_audit
 from .memory_index import build_memory_index
-from .generation_provider import generate_scene_candidate
+from .platform_agent_tasks import (
+    write_platform_asset_creation_task,
+    write_platform_asset_review_task,
+    write_platform_canon_review_task,
+    write_platform_committee_task,
+    write_platform_scene_generation_task,
+    write_platform_scene_review_task,
+)
+from .prompt_pack import build_scene_prompt_pack, write_prompt_manifest
 from .review_ci import review_scene_draft
 from .roleplay_lab import build_roleplay_simulation
 from .scene_composer import build_scene_composition
@@ -214,10 +218,20 @@ def _run_scene_loop(
             lambda: _generation_artifact(root, scene_path, provider, agent_tasks),
         )
     if promote_candidate:
-        node(
-            "promote_candidate",
-            lambda: _promotion_artifact(root, scene_path, state.artifacts.get("candidate", ""), overwrite_draft),
-        )
+        promotion_candidate = state.artifacts.get("candidate", "") or state.artifacts.get("expected_candidate", "")
+        if promotion_candidate and not _artifact_exists(root, promotion_candidate):
+            _skip_node(
+                state,
+                "promote_candidate",
+                {"expected_candidate": promotion_candidate},
+                "platform-agent candidate not written yet; promotion deferred",
+            )
+            state.human_approval_required = True
+        else:
+            node(
+                "promote_candidate",
+                lambda: _promotion_artifact(root, scene_path, promotion_candidate, overwrite_draft),
+            )
 
     draft_path = root / "drafts" / "scenes" / f"{scene_id}.md"
     if draft_path.exists() and not overwrite_draft:
@@ -235,6 +249,8 @@ def _run_scene_loop(
         if agent_review:
             node("agent_scene_review", lambda: _agent_scene_review_artifact(root, scene_path, draft_path, provider))
             node("agent_committee", lambda: _agent_committee_artifact(root, scene_id, draft_path, provider))
+            state.human_approval_required = True
+            state.warnings.append("platform agent review tasks were written; complete their JSON reports before chapter readiness.")
         node("state_evolution_patch", lambda: _state_patch_artifact(root, scene_path, draft_path, agent_tasks))
     else:
         _skip_node(state, "review_ci", {}, "draft missing; review skipped")
@@ -254,7 +270,7 @@ def _run_chapter_publish(
     _run_node(
         state,
         "chapter_workspace",
-        lambda: _chapter_artifact(root, chapter_id),
+        lambda: _chapter_artifact(root, chapter_id, agent_review),
     )
     _run_node(
         state,
@@ -267,6 +283,8 @@ def _run_chapter_publish(
             "agent_canon_review",
             lambda: _agent_canon_review_artifact(root, provider),
         )
+        state.human_approval_required = True
+        state.warnings.append("platform agent canon review task was written; complete it before publication.")
     _run_node(
         state,
         "export_package",
@@ -283,12 +301,13 @@ def _run_asset_workflow(root: Path, mode: str, state: WorkflowState, provider: s
         "outline-lab": ["outline", "chapter-plan", "scene-list"],
     }[mode]
     for asset_type in plan:
+        key = asset_type.replace("-", "_")
         _run_node(
             state,
             f"agent_create_{asset_type.replace('-', '_')}",
             lambda asset_type=asset_type: _asset_candidate_artifact(root, asset_type, provider, brief),
         )
-        latest = state.artifacts.get(f"{asset_type}_candidate", "")
+        latest = state.artifacts.get(f"{key}_candidate_expected", "")
         if latest:
             _run_node(
                 state,
@@ -296,7 +315,7 @@ def _run_asset_workflow(root: Path, mode: str, state: WorkflowState, provider: s
                 lambda latest=latest: _asset_review_artifact(root, latest, provider),
             )
     state.human_approval_required = True
-    state.warnings.append("asset workflow creates candidates only; promotion requires human approve.")
+    state.warnings.append("asset workflow wrote platform-agent creation/review tasks only; platform agent must fill candidates before promotion.")
 
 
 def _run_node(state: WorkflowState, node_id: str, func) -> None:
@@ -361,35 +380,52 @@ def _composition_artifact(root: Path, scene_path: Path, agent_tasks: bool) -> tu
 
 
 def _generation_artifact(root: Path, scene_path: Path, provider: str, agent_tasks: bool) -> tuple[dict[str, str], str]:
-    result = generate_scene_candidate(root, scene=scene_path, rebuild_context=False, provider=provider, agent_tasks=agent_tasks)
+    scene_id = scene_path.stem
+    context_path = root / "memory" / "context_packets" / f"{scene_id}.md"
+    if not context_path.exists():
+        context_path = build_context_packet(root, scene=scene_path, rebuild_index=True).output_path
+    prompt_pack = build_scene_prompt_pack(root, scene_path, context_path)
+    candidate_path = root / "drafts" / "candidates" / f"{scene_id}-platform-agent.md"
+    prompt_manifest_path = candidate_path.with_suffix(".prompt.json")
+    write_prompt_manifest(prompt_pack, prompt_manifest_path, provider="platform-agent", model="tool-layer-agent")
+    result = write_platform_scene_generation_task(
+        root,
+        scene_path=scene_path,
+        context_path=context_path,
+        composition_path=prompt_pack.composition_path,
+        prompt_manifest_path=prompt_manifest_path,
+        candidate_path=candidate_path,
+    )
     artifacts = {
-        "candidate": _rel_str(result.candidate_path, root),
-        "candidate_manifest": _rel_str(result.manifest_path, root),
-        "prompt_manifest": _rel_str(result.prompt_manifest_path, root),
+        "candidate_task": _rel_str(result.task_path, root),
+        "expected_candidate": _rel_str(result.expected_report_path, root),
+        "expected_candidate_manifest": _rel_str(result.expected_json_path, root),
+        "prompt_manifest": _rel_str(prompt_manifest_path, root),
     }
-    if result.agent_tasks_path:
-        artifacts["candidate_agent_tasks"] = _rel_str(result.agent_tasks_path, root)
-    return artifacts, f"provider={result.provider}; chars={result.generated_chars}"
+    if result.expected_report_path.exists():
+        artifacts["candidate"] = _rel_str(result.expected_report_path, root)
+    return artifacts, "platform-agent generation task written; no local provider invoked"
 
 
 def _asset_candidate_artifact(root: Path, asset_type: str, provider: str, brief: str) -> tuple[dict[str, str], str]:
-    result = create_asset_candidate(root, asset_type=asset_type, provider=provider, brief=brief)
+    result = write_platform_asset_creation_task(root, asset_type=asset_type, brief=brief)
     key = asset_type.replace("-", "_")
     return {
-        f"{key}_candidate": _rel_str(result.candidate_path, root),
-        f"{key}_candidate_report": _rel_str(result.report_path, root),
-        f"{key}_agent_run": _rel_str(result.run_dir, root),
-        f"{key}_validation": _rel_str(result.validation_path, root),
-    }, f"asset_type={asset_type}; status={result.status}"
+        f"{key}_candidate_task": _rel_str(result.task_path, root),
+        f"{key}_candidate_expected": _rel_str(result.expected_json_path, root),
+        f"{key}_candidate_report_expected": _rel_str(result.expected_report_path, root),
+    }, "platform-agent asset creation task written; no local provider invoked"
 
 
 def _asset_review_artifact(root: Path, candidate: str, provider: str) -> tuple[dict[str, str], str]:
-    result = review_candidate_asset(root, candidate, provider=provider)
-    key = result.candidate_path.stem.replace("-", "_")
+    candidate_path = Path(candidate)
+    result = write_platform_asset_review_task(root, candidate_path=candidate_path)
+    key = candidate_path.stem.replace("-", "_")
     return {
-        f"{key}_asset_review": _rel_str(result.report_path, root),
-        f"{key}_asset_review_json": _rel_str(result.json_path, root),
-    }, f"candidate_review={result.status}; errors={result.error_count}"
+        f"{key}_asset_review_task": _rel_str(result.task_path, root),
+        f"{key}_asset_review_expected_report": _rel_str(result.expected_report_path, root),
+        f"{key}_asset_review_expected_json": _rel_str(result.expected_json_path, root),
+    }, "platform-agent asset review task written; no local provider invoked"
 
 
 def _promotion_artifact(root: Path, scene_path: Path, candidate: str, overwrite: bool) -> tuple[dict[str, str], str]:
@@ -414,33 +450,30 @@ def _review_artifact(root: Path, draft_path: Path) -> tuple[dict[str, str], str]
 
 
 def _agent_scene_review_artifact(root: Path, scene_path: Path, draft_path: Path, provider: str) -> tuple[dict[str, str], str]:
-    result = review_scene_with_agent(root, scene=scene_path, draft=draft_path, provider=provider)
+    result = write_platform_scene_review_task(root, scene_path=scene_path, draft_path=draft_path)
     return {
-        "agent_scene_review": _rel_str(result.report_path, root),
-        "agent_scene_review_json": _rel_str(result.json_path, root),
-        "agent_scene_review_validation": _rel_str(result.validation_path, root),
-        "agent_scene_review_conclusion": result.conclusion,
-    }, f"conclusion={result.conclusion}; provider={provider}"
+        "agent_scene_review_task": _rel_str(result.task_path, root),
+        "agent_scene_review_expected_report": _rel_str(result.expected_report_path, root),
+        "agent_scene_review_expected_json": _rel_str(result.expected_json_path, root),
+    }, "platform-agent task written; no local provider invoked"
 
 
 def _agent_canon_review_artifact(root: Path, provider: str) -> tuple[dict[str, str], str]:
-    result = review_canon_with_agent(root, provider=provider)
+    result = write_platform_canon_review_task(root)
     return {
-        "agent_canon_review": _rel_str(result.report_path, root),
-        "agent_canon_review_json": _rel_str(result.json_path, root),
-        "agent_canon_review_validation": _rel_str(result.validation_path, root),
-        "agent_canon_review_conclusion": result.conclusion,
-    }, f"conclusion={result.conclusion}; provider={provider}"
+        "agent_canon_review_task": _rel_str(result.task_path, root),
+        "agent_canon_review_expected_report": _rel_str(result.expected_report_path, root),
+        "agent_canon_review_expected_json": _rel_str(result.expected_json_path, root),
+    }, "platform-agent task written; no local provider invoked"
 
 
 def _agent_committee_artifact(root: Path, scene_id: str, draft_path: Path, provider: str) -> tuple[dict[str, str], str]:
-    result = run_agent_committee(root, subject=f"scene-{scene_id}", source=draft_path, provider=provider)
+    result = write_platform_committee_task(root, subject=f"scene-{scene_id}", source=draft_path)
     return {
-        "agent_committee": _rel_str(result.report_path, root),
-        "agent_committee_json": _rel_str(result.json_path, root),
-        "agent_committee_validation": _rel_str(result.validation_path, root),
-        "agent_committee_recommendation": result.final_recommendation,
-    }, f"recommendation={result.final_recommendation}; reviewers={result.reviewer_count}; provider={provider}"
+        "agent_committee_task": _rel_str(result.task_path, root),
+        "agent_committee_expected_report": _rel_str(result.expected_report_path, root),
+        "agent_committee_expected_json": _rel_str(result.expected_json_path, root),
+    }, "platform-agent task written; no local provider invoked"
 
 
 def _state_patch_artifact(root: Path, scene_path: Path, source_path: Path, agent_tasks: bool) -> tuple[dict[str, str], str]:
@@ -454,8 +487,8 @@ def _state_patch_artifact(root: Path, scene_path: Path, source_path: Path, agent
     return artifacts, f"characters={result.character_count}; unresolved={result.unresolved_count}"
 
 
-def _chapter_artifact(root: Path, chapter_id: str) -> tuple[dict[str, str], str]:
-    result = build_chapter_workspace(root, chapter_id=chapter_id, build_missing=False, review_drafts=False)
+def _chapter_artifact(root: Path, chapter_id: str, agent_review: bool) -> tuple[dict[str, str], str]:
+    result = build_chapter_workspace(root, chapter_id=chapter_id, build_missing=False, review_drafts=False, agent_review=agent_review)
     message = f"scenes={result.scene_count}; ready={result.ready_count}; blocked={result.blocked_count}"
     return {"chapter_workspace": _rel_str(result.markdown_path, root), "chapter_state": _rel_str(result.json_path, root)}, message
 
@@ -606,3 +639,11 @@ def _rel_str(path: Path, root: Path) -> str:
         return path.resolve().relative_to(root).as_posix()
     except ValueError:
         return str(path)
+
+
+def _artifact_exists(root: Path, value: str) -> bool:
+    if not value:
+        return False
+    path = Path(value)
+    resolved = path if path.is_absolute() else root / path
+    return resolved.exists()

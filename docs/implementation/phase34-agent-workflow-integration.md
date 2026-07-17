@@ -6,6 +6,8 @@
 
 ## 新增能力
 
+> Current project-type skill override: formal creative/review workflow nodes now write platform-agent task sidecars and expected artifacts. They do not invoke local dry-run, `http-chat`, or external agent services. Legacy local provider paths remain only for explicit regression/debug use.
+
 - `run-workflow --agent-review`
 - `run-langgraph --agent-review`
 - FastAPI `RunWorkflowRequest.agent_review`
@@ -19,7 +21,7 @@
 ```powershell
 $env:PYTHONPATH="src"
 python -m literary_engineering_workbench run-workflow work/demo --mode scene-loop --agent-review
-python -m literary_engineering_workbench run-workflow work/demo --mode scene-loop --agent-tasks --generate-candidate --provider dry-run
+python -m literary_engineering_workbench run-workflow work/demo --mode scene-loop --agent-tasks --generate-candidate
 ```
 
 ## 工作流节点

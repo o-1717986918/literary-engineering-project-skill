@@ -12,6 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from .model_config import load_config
+from .platform_agent_tasks import write_platform_style_prompt_task
 from .style_compiler import StyleCompileOptions, compile_style_profile
 from .style_prompt import build_style_prompt
 
@@ -64,6 +65,20 @@ class StyleLearningResult:
     metrics_path: Path
     style_prompt_path: Path
     prompt_manifest_path: Path
+    source_count: int
+
+
+@dataclass(frozen=True)
+class StyleLearningTaskResult:
+    library_root: Path
+    author_id: str
+    profile_id: str
+    profile_dir: Path
+    profile_path: Path
+    metrics_path: Path
+    style_prompt_task_path: Path
+    expected_style_prompt_path: Path
+    expected_json_path: Path
     source_count: int
 
 
@@ -328,6 +343,52 @@ def run_author_style_learning(
         compiled.metrics_path,
         prompt.output_path,
         prompt.manifest_path,
+        compiled.source_count,
+    )
+
+
+def run_author_style_learning_platform_task(
+    library_root: Path | None,
+    *,
+    author_id: str,
+    profile_id: str = "default",
+) -> StyleLearningTaskResult:
+    library = ensure_style_library(library_root)
+    author_dir = _author_dir(library, author_id)
+    author = json.loads((author_dir / "author.json").read_text(encoding="utf-8"))
+    profile = author_dir / "profiles" / _slug(profile_id or "default")
+    corpus_dir = profile / "corpus"
+    if corpus_dir.exists():
+        shutil.rmtree(corpus_dir)
+    corpus_dir.mkdir(parents=True, exist_ok=True)
+    normalized_sources = sorted((author_dir / "works").glob("*/sources/normalized/*.txt"))
+    if not normalized_sources:
+        raise ValueError(f"author has no imported normalized sources: {author_id}")
+    for source in normalized_sources:
+        work_id = source.parents[2].name
+        shutil.copyfile(source, corpus_dir / f"{work_id}-{source.name}")
+    compiled = compile_style_profile(
+        StyleCompileOptions(
+            corpus=corpus_dir,
+            output_dir=profile,
+            name=str(author.get("name") or author_id),
+            author=str(author.get("name") or author_id),
+            mode=str(author.get("mode") or "public_domain_or_authorized"),
+            source_note=str(author.get("source_note") or ""),
+        )
+    )
+    task = write_platform_style_prompt_task(profile)
+    _write_profile_manifest(profile, author, author_id, profile_id, compiled.source_count, "platform-agent")
+    return StyleLearningTaskResult(
+        library,
+        author_id,
+        _slug(profile_id or "default"),
+        profile,
+        compiled.profile_path,
+        compiled.metrics_path,
+        task.task_path,
+        task.expected_report_path,
+        task.expected_json_path,
         compiled.source_count,
     )
 

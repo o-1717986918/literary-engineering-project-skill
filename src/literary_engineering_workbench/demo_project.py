@@ -5,12 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .agent_canon_review import review_canon_with_agent
-from .agent_committee import run_agent_committee
-from .agent_scene_review import review_scene_with_agent
-from .asset_workshop import create_project_seed_candidates
 from .context_packet import build_context_packet
 from .init_project import InitOptions, init_work_project
+from .platform_agent_tasks import (
+    write_platform_asset_creation_task,
+    write_platform_canon_review_task,
+    write_platform_committee_task,
+    write_platform_scene_review_task,
+)
 from .review_ci import review_scene_draft
 from .scene_draft import build_scene_draft
 from .workflow_runner import run_workflow
@@ -40,16 +42,20 @@ def build_demo_project(target: Path, *, title: str = "文学工程 Demo", run_ag
             target_length=12000,
         )
     )
-    asset_candidates = create_project_seed_candidates(root, provider="dry-run", brief="为 demo 项目生成世界观、角色和大纲候选。")
+    asset_tasks = [
+        write_platform_asset_creation_task(root, asset_type="world", brief="为 demo 项目生成世界观候选。"),
+        write_platform_asset_creation_task(root, asset_type="character", brief="为 demo 项目生成角色候选。"),
+        write_platform_asset_creation_task(root, asset_type="outline", brief="为 demo 项目生成大纲候选。"),
+    ]
     _write_character(root)
     _write_scene(root)
     build_context_packet(root, scene=Path("scenes/scene_0001.yaml"), rebuild_index=True)
     draft = build_scene_draft(root, scene=Path("scenes/scene_0001.yaml")).draft_path
     _fill_draft(draft)
     review = review_scene_draft(root, draft)
-    agent_scene = review_scene_with_agent(root, scene=Path("scenes/scene_0001.yaml"), draft=draft, provider="dry-run")
-    agent_canon = review_canon_with_agent(root, provider="dry-run")
-    committee = run_agent_committee(root, subject="demo-scene-0001", source=draft, provider="dry-run")
+    agent_scene = write_platform_scene_review_task(root, scene_path=root / "scenes" / "scene_0001.yaml", draft_path=draft)
+    agent_canon = write_platform_canon_review_task(root)
+    committee = write_platform_committee_task(root, subject="demo-scene-0001", source=draft)
     workflow_state = None
     if run_agent_workflow:
         workflow = run_workflow(
@@ -58,26 +64,34 @@ def build_demo_project(target: Path, *, title: str = "文学工程 Demo", run_ag
             scene=Path("scenes/scene_0001.yaml"),
             run_id="demo-agent-scene-loop",
             agent_review=True,
-            provider="dry-run",
             overwrite_run=True,
         )
         workflow_state = workflow.state_path
     report_path = root / "reviews" / "agent" / "demo_walkthrough.md"
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(
-        _render_report(root, draft, review.report_path, agent_scene.report_path, agent_canon.report_path, committee.report_path, workflow_state, tuple(item.candidate_path for item in asset_candidates)),
+        _render_report(
+            root,
+            draft,
+            review.report_path,
+            agent_scene.task_path,
+            agent_canon.task_path,
+            committee.task_path,
+            workflow_state,
+            tuple(item.task_path for item in asset_tasks),
+        ),
         encoding="utf-8",
     )
     return DemoProjectResult(
         root=root,
         draft_path=draft,
         review_path=review.report_path,
-        agent_scene_review=agent_scene.report_path,
-        agent_canon_review=agent_canon.report_path,
-        committee_review=committee.report_path,
+        agent_scene_review=agent_scene.task_path,
+        agent_canon_review=agent_canon.task_path,
+        committee_review=committee.task_path,
         workflow_state=workflow_state,
         report_path=report_path,
-        asset_candidates=tuple(item.candidate_path for item in asset_candidates),
+        asset_candidates=tuple(item.task_path for item in asset_tasks),
     )
 
 
@@ -204,12 +218,12 @@ def _render_report(root: Path, draft: Path, review: Path, agent_scene: Path, age
         "",
         f"- Draft: `{_rel(draft, root)}`",
         f"- Rule Review: `{_rel(review, root)}`",
-        f"- Agent Scene Review: `{_rel(agent_scene, root)}`",
-        f"- Agent Canon Review: `{_rel(agent_canon, root)}`",
-        f"- Agent Committee: `{_rel(committee, root)}`",
+        f"- Platform Agent Scene Review Task: `{_rel(agent_scene, root)}`",
+        f"- Platform Agent Canon Review Task: `{_rel(agent_canon, root)}`",
+        f"- Platform Agent Committee Task: `{_rel(committee, root)}`",
     ]
     for candidate in asset_candidates:
-        lines.append(f"- Agent Asset Candidate: `{_rel(candidate, root)}`")
+        lines.append(f"- Platform Agent Asset Task: `{_rel(candidate, root)}`")
     if workflow_state:
         lines.append(f"- Workflow State: `{_rel(workflow_state, root)}`")
     return "\n".join(lines) + "\n"
