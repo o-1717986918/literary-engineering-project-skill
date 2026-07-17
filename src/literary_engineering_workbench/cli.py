@@ -54,6 +54,7 @@ from .review_ci import review_scene_draft
 from .scene_composer import build_scene_composition
 from .roleplay_lab import build_roleplay_simulation
 from .scene_draft import build_scene_draft
+from .protocol import protocol_to_json, render_protocol, render_protocol_list, resolve_protocol_route
 from .style_compiler import StyleCompileOptions, compile_style_profile
 from .style_evaluator import STYLE_EVAL_MODES, StyleEvalOptions, evaluate_style
 from .style_lab import (
@@ -76,6 +77,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="Literary Engineering Workbench command line tools.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    protocol = sub.add_parser("protocol", help="Print the mandatory agent/CLI run protocol for a route.")
+    protocol.add_argument("route", nargs="?", default="", help="Route key such as scene-development, style-engineering, or export-and-release. Omit to list routes.")
+    protocol.add_argument("--json", action="store_true", help="Output machine-readable JSON.")
 
     init = sub.add_parser("init", help="Initialize a fictional work project.")
     init.add_argument("target", help="Target project directory.")
@@ -564,6 +569,17 @@ def _read_prompt_arg(project: Path, file_arg: str, text_arg: str, label: str) ->
 def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.command == "protocol":
+        if not args.route:
+            print(protocol_to_json(None) if args.json else render_protocol_list(), end="")
+            return 0
+        try:
+            route = resolve_protocol_route(args.route)
+        except KeyError as exc:
+            parser.error(str(exc))
+        print(protocol_to_json(route) if args.json else render_protocol(route), end="")
+        return 0
 
     if args.command == "init":
         result = init_work_project(

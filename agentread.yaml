@@ -10,9 +10,12 @@ read_first:
   - SKILL.md
   - AGENTS.md
   - CLAUDE.md
+  - references/agent-run-protocol.md
   - references/project-director-playbook.md
 
 core_references:
+  agent_run_protocol: references/agent-run-protocol.md
+  cli_run_protocol: references/cli-run-protocol.md
   project_director: references/project-director-playbook.md
   artifact_contracts: references/artifact-contracts.md
   workflows: references/workflows.md
@@ -56,8 +59,46 @@ governance:
     - local director decisions
     - provider-generated prose
 
+route_execution_contract:
+  applies_to:
+    - project_director
+    - work_project_initialization
+    - style_engineering
+    - character_and_world_assets
+    - scene_development
+    - review_and_audit
+    - export_and_release
+    - optional_cli
+  mandatory_preflight:
+    - classify workspace type
+    - select one primary route from task_routes
+    - read references/agent-run-protocol.md
+    - read route-specific references before changing artifacts
+    - inspect current project state and latest review/workflow/approval records
+    - state intended artifacts, review gates, and approval boundary
+  cli_preflight:
+    - read references/cli-run-protocol.md before any CLI-backed task
+    - run "python -m literary_engineering_workbench protocol <route>" before route-specific command chains
+    - inspect command output paths instead of trusting terminal success alone
+    - read and execute .agent_tasks.md sidecars when generated
+  completion_gates:
+    - route selected and route references accounted for
+    - project state inspected
+    - platform agent handled every creative, review, JSON, simulation, and second-level decision
+    - schema/canon/character/style/punctuation/release checks applied when relevant
+    - candidate, promoted, revised, blocked, and approval-pending artifacts clearly separated
+    - final response reports changed files, checks run, and pending approval decisions
+  forbidden_shortcuts:
+    - do not accept CLI output as canon or final creative judgment
+    - do not accept generated JSON because it parses
+    - do not skip .agent_tasks.md handling when a command writes sidecars
+    - do not promote candidates without review and approval unless the user asks for an internal experiment
+    - do not skip Chinese punctuation review for Chinese prose
+    - do not store API keys or provider secrets in work projects
+
 task_routes:
   project_director:
+    protocol: project-director
     when:
       - 用户给大方向、继续、修改创作口味、决定下一步
       - 需要 Codex/Claude 接管项目管理而非调用内部 director-chat
@@ -81,8 +122,13 @@ task_routes:
       - candidate plan or candidate files
       - review/audit notes
       - next high-level creative choice
+    completion_gates:
+      - current project status inspected
+      - broad direction converted into candidate plan or concrete project action
+      - user-facing answer hides internal schema noise unless requested
 
   work_project_initialization:
+    protocol: work-project-initialization
     when:
       - 新建小说、剧本、伪记录、短剧或长视频提示词项目
     read:
@@ -96,8 +142,13 @@ task_routes:
       - initial premise and project brief
       - first candidate-generation plan
       - approval boundaries
+    completion_gates:
+      - project skeleton exists or planned path is explicit
+      - initial creative brief remains candidate until reviewed
+      - approval boundaries recorded
 
   style_engineering:
+    protocol: style-engineering
     when:
       - 文风学习、作家风格项目、Style Skill、文风挂载、回译/扩写评测
     read:
@@ -116,8 +167,13 @@ task_routes:
       - LLM-facing style prompt
       - mountable Style Skill
       - style risk/effectiveness review
+    completion_gates:
+      - corpus authorization or public-domain assumption recorded
+      - style prompt created or platform-agent task sidecar handled
+      - effectiveness/risk review completed before mounting as priority style
 
   character_and_world_assets:
+    protocol: character-and-world-assets
     when:
       - 创建或修改人物、背景故事、关系、世界观、地点、组织、主线大纲
     read:
@@ -133,8 +189,13 @@ task_routes:
       - candidate review
       - promotion recommendation
       - user approval question
+    completion_gates:
+      - asset written as candidate first
+      - schema and canon risks reviewed
+      - explicit approval required before promotion
 
   scene_development:
+    protocol: scene-development
     when:
       - 场景推进、剧情分支、正文候选、人物状态演化
     read:
@@ -158,8 +219,14 @@ task_routes:
       - draft candidate
       - review report
       - character state patch
+    completion_gates:
+      - context packet or equivalent project-state inspection completed
+      - roleplay/branch/composition sidecars handled by platform agent when generated
+      - prose candidate reviewed for canon, character, style, and punctuation
+      - state patch remains candidate until reviewed and approved
 
   review_and_audit:
+    protocol: review-and-audit
     when:
       - 审查、canon 检查、长篇连续性、章节 ready、发布前检查
     read:
@@ -174,8 +241,13 @@ task_routes:
       - blocking/warning/info findings
       - revision plan
       - approval gates
+    completion_gates:
+      - blocking findings separated from warnings
+      - revision plan maps findings to artifacts
+      - readiness and approval limits stated
 
   export_and_release:
+    protocol: export-and-release
     when:
       - 导出小说、剧本、长视频提示词、DOCX 成品、发布章节、回滚说明
     read:
@@ -191,8 +263,14 @@ task_routes:
       - release manifest
       - release notes
       - rollback notes
+    completion_gates:
+      - chapter/work readiness checked
+      - approval record verified or pending approval stated
+      - requested file formats generated and inspected
+      - release notes and rollback notes prepared
 
   optional_cli:
+    protocol: optional-cli
     when:
       - 需要确定性命令、回归测试、Dify/LangGraph、本地前端或批处理
     read:
@@ -206,6 +284,10 @@ task_routes:
       - exact command
       - command result summary
       - generated artifact paths
+    completion_gates:
+      - CLI command selected from route needs, not convenience
+      - stdout paths inspected
+      - generated sidecars handled or listed as pending
 
 do_not_assume:
   - local director-chat is the required top-level interface

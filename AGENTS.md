@@ -6,13 +6,27 @@ This repository is now a project-type skill for tool-layer agents such as Codex 
 
 1. `SKILL.md`
 2. `agentread.yaml`
-3. `references/project-director-playbook.md`
-4. `references/artifact-contracts.md` when writing or moving project artifacts
-5. `references/workflows.md` when using the optional CLI
-6. `references/punctuation-standard.md` when generating, reviewing, revising, or exporting Chinese prose
-7. `references/orchestration.md` only for LangGraph, Dify, subagents, or external workflow design
+3. `references/agent-run-protocol.md`
+4. `references/project-director-playbook.md`
+5. `references/artifact-contracts.md` when writing or moving project artifacts
+6. `references/cli-run-protocol.md` and `references/workflows.md` when using the optional CLI
+7. `references/punctuation-standard.md` when generating, reviewing, revising, or exporting Chinese prose
+8. `references/orchestration.md` only for LangGraph, Dify, subagents, or external workflow design
 
 Do not read the entire repository by default. Follow the route map in `agentread.yaml`.
+
+## Mandatory Protocol
+
+Every task must run through the protocol loop before it is considered complete:
+
+1. Classify the workspace as skill root, work project, or style library.
+2. Select the primary `agentread.yaml` route.
+3. Read `references/agent-run-protocol.md`; if any CLI command will be used, also read `references/cli-run-protocol.md` or run `python -m literary_engineering_workbench protocol <route>`.
+4. Inspect current project state before generating, reviewing, promoting, or exporting.
+5. Treat CLI output as preparation or evidence. The supervising platform agent handles creative judgment, JSON drafting/repair, review findings, branch decisions, and promotion recommendations.
+6. Process any `.agent_tasks.md` sidecar by reading it and writing the expected artifact paths.
+7. Apply route completion gates before final response.
+8. Report changed files, candidate-only outputs, promoted outputs, checks run, and approvals still needed.
 
 ## Operating Model
 
@@ -66,6 +80,13 @@ python -m literary_engineering_workbench --help
 ```
 
 Provider flags on formal commands are compatibility fields. Use local model providers only when the user explicitly wants legacy/debug behavior. Otherwise the tool-layer platform's own model is the creative provider and reviewer.
+
+Print a route runbook before a CLI-backed task:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m literary_engineering_workbench protocol scene-development
+```
 
 ## Git Rules
 

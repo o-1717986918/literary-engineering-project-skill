@@ -40,13 +40,25 @@ Never let generated JSON, simulation output, local-director output, model scores
    - **Style library**: contains `authors/{author_id}/`, `works/`, `profiles/`, `style_skills/`.
 2. Read `AGENTS.md` and `agentread.yaml` before changing a work project or this skill.
 3. Select the smallest task route in `agentread.yaml`.
-4. Load only the needed reference file:
+4. Apply the mandatory run protocol before doing work:
+   - Read `references/agent-run-protocol.md` for every project task.
+   - Read `references/cli-run-protocol.md` before using the optional CLI.
+   - If using the CLI, run `python -m literary_engineering_workbench protocol <route>` first and follow its preflight, handoff points, completion gates, and forbidden shortcuts.
+5. Load only the needed reference file:
    - `references/project-director-playbook.md` for project-director behavior and user interaction.
    - `references/artifact-contracts.md` before changing file layouts or writing project artifacts.
    - `references/workflows.md` for CLI command recipes.
    - `references/orchestration.md` for LangGraph, Dify, subagents, or external workflow design.
    - `references/punctuation-standard.md` before generating, reviewing, revising, or exporting Chinese prose.
    - `references/file-format-export.md` before exporting final work artifacts to DOCX or other concrete delivery formats.
+
+## Mandatory Run Protocol
+
+Every task must follow the loop in `references/agent-run-protocol.md`: classify workspace, choose a route, read route references, inspect project state, plan, execute deterministic helpers only as helpers, let the platform agent handle creative judgment, process `.agent_tasks.md`, validate outputs, decide candidate/revision/promotion status, and finish with an audit summary.
+
+Every CLI-backed task must follow `references/cli-run-protocol.md`. The CLI is never the creative authority. A command that writes `.agent_tasks.md` has prepared work for the platform agent; it has not completed the creative or review step.
+
+Before final response, explicitly account for the relevant completion gates: route selected, references read, project state inspected, task sidecars handled or listed as pending, schema/canon/character/style/punctuation/release checks applied when relevant, and approval boundaries recorded.
 
 ## Operating Rules
 
@@ -102,6 +114,13 @@ python -m literary_engineering_workbench --help
 ```
 
 Provider flags on formal commands are compatibility fields. In normal Codex/Claude use, the platform's own model and subagents should do creative reasoning, generation, JSON drafting, review, and second-level decisions. Use local provider paths only when the user explicitly asks for legacy/debug behavior.
+
+Before using a route-specific command chain, print the runbook:
+
+```powershell
+$env:PYTHONPATH = "<skill-root>\\src"
+python -m literary_engineering_workbench protocol scene-development
+```
 
 ## Validation
 

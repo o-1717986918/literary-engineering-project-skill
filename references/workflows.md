@@ -4,6 +4,25 @@ These commands are optional deterministic helpers for a tool-layer director. In 
 
 Use the CLI when repeatability matters: scaffolding, indexing, context packets, style compilation, schema/lint checks, audits, exports, and regression tests.
 
+## Mandatory CLI Protocol
+
+Before any route-specific command chain:
+
+1. Select the primary route from `agentread.yaml`.
+2. Read `references/agent-run-protocol.md`.
+3. Read `references/cli-run-protocol.md` when a CLI command will be used.
+4. Print the route runbook:
+
+```powershell
+$env:PYTHONPATH = "<skill-root>\\src"       # development copy
+# or: $env:PYTHONPATH = "<skill-root>\\scripts"  # installed package
+python -m literary_engineering_workbench protocol <route>
+```
+
+Use route keys such as `project-director`, `work-project-initialization`, `style-engineering`, `character-and-world-assets`, `scene-development`, `review-and-audit`, `export-and-release`, and `optional-cli`.
+
+The task is not complete until the route completion gates in the runbook are accounted for.
+
 ## Tool-Layer Supervision Rule
 
 Any command that writes creative material, drafts JSON, repairs schema output, simulates characters, scores branches, composes scenes, or chooses workflow steps is supervised by the tool-layer agent that loaded this skill. Formal commands write `.agent_tasks.md` sidecars and expected artifact paths; the platform agent fills those artifacts. The command must not become the project director by itself.
