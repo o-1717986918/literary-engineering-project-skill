@@ -69,7 +69,7 @@ python -m literary_engineering_workbench style-lab-mount <project> <style-skill>
 
 The platform agent must write or approve the LLM-facing style prompt and judge its effectiveness. Exact imitation is limited to public-domain or authorized corpora.
 
-`style-lab-compile` and `style-prompt-eval` write `.agent_tasks.md` sidecars; they do not finish the creative/evaluative step by themselves. Before `style-lab-build-skill`, the platform agent must create `style_prompt.md` and `style_prompt.agent.json`. Before default `style-lab-mount`, at least one `style_eval_*.json` effectiveness/risk review must exist and pass the mount readiness gate. Use `--allow-unreviewed` only for an internal experiment.
+`style-lab-compile` and `style-prompt-eval` write `.agent_tasks.md` sidecars; they do not finish the creative/evaluative step by themselves. Before `style-lab-build-skill`, the platform agent must create `style_prompt.md` and `style_prompt.agent.json`; the prompt must be a detailed but executable 500-1500 non-whitespace content characters and include the required high-quality prompt blocks. Before default `style-lab-mount`, at least one `style_eval_*.json` effectiveness/risk review must exist and pass the mount readiness gate. Use `--allow-unreviewed` only for an internal experiment.
 
 ### Character And World Assets
 

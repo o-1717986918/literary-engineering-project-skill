@@ -53,6 +53,29 @@ class SceneReviewTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("mechanical-transition-overuse", rules)
         self.assertIn("dash-overuse", rules)
 
+    def test_review_flags_ai_trace_patterns(self):
+        project = self.make_project()
+        draft = make_passing_scene(project)
+        text = draft.read_text(encoding="utf-8")
+        ai_body = (
+            "林舟站在门口。这不是一次普通的停电，而是一场被隐藏的试探。"
+            "他知道自己不是为了答案而来，而是为了真相本身。"
+            "她明白这不是命运的偶然，而是某种意义上的回声。"
+            "他意识到这一刻不是结束，而是开始。"
+        )
+        text = text.replace(
+            "林舟站在旧楼门口，听见楼道深处的电流声断断续续。",
+            ai_body,
+        )
+        draft.write_text(text, encoding="utf-8")
+
+        review = review_scene_draft(project, draft)
+        report = review.report_path.read_text(encoding="utf-8")
+
+        self.assertEqual(review.conclusion, "revise_required")
+        self.assertIn("AI Trace Reduction Test", report)
+        self.assertIn("机械对照句式", report)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -49,7 +49,10 @@ Every task must run through the protocol loop before it is considered complete:
 - Promote candidates only after review and explicit user approval unless the user clearly asks for an internal experiment.
 - Character `background_story` is hidden behavioral causality. It should affect action, omission, speech, hesitation, misreading, and pressure, not appear as direct exposition unless the scene is designed to reveal it.
 - Mounted Style Skills have highest priority for expression-level writing choices, but never override canon, character facts, plot causality, safety/legal constraints, or explicit user instructions.
+- Mountable Style Skills require a reliable LLM-facing `prompt.md` with 500-1500 non-whitespace content characters and complete high-quality prompt blocks: identity/boundary, priority, core mechanism, narrative distance, syntax/rhythm, punctuation, imagery/sensory, psychology/behavior, dialogue/tone, forbidden tendencies, and output self-check.
 - Standard Chinese punctuation is a baseline expression constraint beneath every Style Skill. Do not let generated prose or reviews mix English punctuation into Chinese sentences unless the project explicitly records a format reason.
+- Reduce AI-like prose habits during drafting and review: dense “不是……而是……” frames, abstract summary language, explanatory psychology labels, template transitions, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings.
+- Keep each character in a separate file. Mark `importance: major` for major characters; context packets load major characters plus secondary/cameo characters named by the current scene, instead of loading every biography into every scene.
 - Do not store API keys or provider secrets inside work projects.
 - Keep outputs auditable: say what changed, where candidates were written, what remains unapproved, and what validation ran.
 

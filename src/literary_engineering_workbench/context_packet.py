@@ -55,18 +55,129 @@ def _query_from_scene(scene_text: str, extra_query: str) -> str:
     return "\n".join(keys)
 
 
-def _character_section(root: Path) -> str:
+def _list_value(text: str, key: str) -> list[str]:
+    inline = re.search(rf"(?m)^\s*{re.escape(key)}:\s*\[(.*?)\]\s*$", text)
+    if inline:
+        return [item.strip().strip("'\"") for item in inline.group(1).split(",") if item.strip()]
+    lines = text.splitlines()
+    values: list[str] = []
+    in_block = False
+    base_indent = 0
+    for line in lines:
+        if re.match(rf"^\s*{re.escape(key)}:\s*$", line):
+            in_block = True
+            base_indent = len(line) - len(line.lstrip())
+            continue
+        if not in_block:
+            continue
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip())
+        if stripped and indent <= base_indent and not stripped.startswith("-"):
+            break
+        if stripped.startswith("-"):
+            value = stripped[1:].strip().strip("'\"")
+            if value:
+                values.append(value)
+    scalar = re.search(rf"(?m)^\s*{re.escape(key)}:\s*(.+?)\s*$", text)
+    if not values and scalar and scalar.group(1).strip() not in {"", "[]"}:
+        values.append(scalar.group(1).strip().strip("'\""))
+    return values
+
+
+def _scene_character_refs(scene_text: str) -> set[str]:
+    refs: set[str] = set()
+    for key in ("participants", "referenced_characters", "character_refs"):
+        refs.update(_list_value(scene_text, key))
+    return {item for item in refs if item}
+
+
+def _field_value(text: str, key: str) -> str:
+    match = re.search(rf"(?m)^\s*{re.escape(key)}:\s*(.+?)\s*$", text)
+    if not match:
+        return ""
+    return match.group(1).strip().strip("'\"")
+
+
+def _character_aliases(path: Path, text: str) -> set[str]:
+    aliases = {path.stem}
+    for key in ("character_id", "name"):
+        value = _field_value(text, key)
+        if value:
+            aliases.add(value)
+    return aliases
+
+
+def _is_major_character(text: str) -> bool:
+    role = _field_value(text, "role").lower()
+    importance = _field_value(text, "importance").lower()
+    combined = f"{role} {importance}"
+    return any(marker in combined for marker in ("主角", "主要", "核心", "major", "main", "core", "protagonist"))
+
+
+def _filter_retrieval_hits(hits, allowed_character_ids: set[str], restrict_characters: bool):
+    if not restrict_characters:
+        return hits
+    filtered = []
+    for hit in hits:
+        source = str(hit.source)
+        if not source.startswith("characters/") or not source.endswith((".yaml", ".yml")):
+            filtered.append(hit)
+            continue
+        stem = Path(source).stem
+        if stem.startswith("_") or stem in allowed_character_ids:
+            filtered.append(hit)
+    return filtered
+
+
+def _character_section(root: Path, scene_text: str) -> tuple[str, set[str], bool]:
     chars_dir = root / "characters"
     if not chars_dir.exists():
-        return "无人物档案。"
+        return "无人物档案。", set(), False
     files = [p for p in sorted(chars_dir.glob("*.yaml")) if not p.name.startswith("_")]
     if not files:
         template = _read(chars_dir / "_template.yaml")
-        return "尚无正式人物档案。以下是人物模板，生成前应先补齐主要人物：\n\n```yaml\n" + template + "\n```"
-    sections = []
+        return "尚无正式人物档案。以下是人物模板，生成前应先补齐主要人物：\n\n```yaml\n" + template + "\n```", set(), False
+
+    scene_refs = _scene_character_refs(scene_text)
+    restrict_characters = bool(scene_refs)
+    major_sections = []
+    scene_sections = []
+    omitted = []
+    loaded_ids: set[str] = set()
     for path in files:
-        sections.append(f"### {path.name}\n\n```yaml\n{_read(path)}\n```")
-    return "\n\n".join(sections)
+        text = _read(path)
+        aliases = _character_aliases(path, text)
+        is_major = _is_major_character(text)
+        in_scene = bool(scene_refs & aliases)
+        if not restrict_characters:
+            major_sections.append(f"### {path.name}\n\n```yaml\n{text}\n```")
+            loaded_ids.add(path.stem)
+        elif is_major:
+            major_sections.append(f"### {path.name}（主要角色常驻）\n\n```yaml\n{text}\n```")
+            loaded_ids.add(path.stem)
+        elif in_scene:
+            scene_sections.append(f"### {path.name}（本场景参与/引用）\n\n```yaml\n{text}\n```")
+            loaded_ids.add(path.stem)
+        else:
+            omitted.append(path.stem)
+
+    parts = [
+        "### 加载策略",
+        "",
+        "- 主要角色（`role`/`importance` 标记为主角、主要、核心、major/main/core/protagonist）默认作为长篇连续性硬约束载入。",
+        "- 次要角色只在当前场景 `participants`、`referenced_characters` 或 `character_refs` 中出现时完整载入。",
+        "- 未载入的次要角色仍可通过软记忆检索补充，但不能覆盖已载入硬人物档案。",
+        f"- 当前场景角色引用：{', '.join(sorted(scene_refs)) if scene_refs else '未填写，临时载入全部正式人物以避免漏约束。'}",
+    ]
+    if major_sections:
+        parts.extend(["", "### 主要角色常驻档案", "", "\n\n".join(major_sections)])
+    if scene_sections:
+        parts.extend(["", "### 本场景涉及次要角色档案", "", "\n\n".join(scene_sections)])
+    if omitted:
+        parts.extend(["", "### 本场景省略的次要角色", "", "- " + "\n- ".join(sorted(omitted))])
+    if not major_sections and not scene_sections:
+        parts.extend(["", "### 已载入人物档案", "", "未匹配到当前场景参与者。请补齐 `participants` 或人物 `character_id/name`。"])
+    return "\n".join(parts), loaded_ids, restrict_characters
 
 
 def _retrieval_section(hits) -> str:
@@ -105,7 +216,9 @@ def build_context_packet(
 
     scene_text = _read(scene_path)
     retrieval_query = _query_from_scene(scene_text, query)
-    hits = search_memory(root, retrieval_query, top_k=top_k)
+    raw_hits = search_memory(root, retrieval_query, top_k=top_k)
+    character_text, loaded_character_ids, restrict_character_hits = _character_section(root, scene_text)
+    hits = _filter_retrieval_hits(raw_hits, loaded_character_ids, restrict_character_hits)
 
     scene_id = _extract_scene_id(scene_path)
     output_path = output or root / "memory" / "context_packets" / f"{scene_id}.md"
@@ -148,7 +261,7 @@ def build_context_packet(
 
 ## 人物状态
 
-{_character_section(root)}
+{character_text}
 
 ## 剧情状态
 

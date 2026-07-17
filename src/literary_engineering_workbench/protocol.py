@@ -142,7 +142,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         ),
         completion_gates=(
             "Corpus authorization or public-domain assumption recorded.",
-            "Style prompt created or sidecar handled.",
+            "Style prompt created or sidecar handled, with 500-1500 non-whitespace content characters and all required high-quality prompt blocks for reliable mounting.",
             "Effectiveness/risk review completed before mounting.",
         ),
         forbidden_shortcuts=COMMON_FORBIDDEN

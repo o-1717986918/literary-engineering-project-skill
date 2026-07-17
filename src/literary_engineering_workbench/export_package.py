@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,10 @@ from .scene_draft import extract_draft_body
 
 EXPORT_FORMATS = {"md", "docx"}
 PASSING_REVIEW_CONCLUSIONS = {"pass", "pass_with_notes"}
+INTERNAL_HEADING_RE = re.compile(
+    r"(?im)^\s{0,3}#{1,6}\s*(状态变化|状态变化候选|写回|写回清单|写回候选|自检|创作说明|工作流程|"
+    r"审查|审查状态|canon|Canon|上下文|提示词|Prompt|需要人工确认|新增事实候选|人物状态变化|关系变化|伏笔变化)\b.*$"
+)
 
 
 @dataclass(frozen=True)
@@ -138,17 +143,9 @@ def _render_novel(root: Path, chapter_id: str, scenes: list[dict], skipped: list
     lines = [
         f"# {chapter_id}",
         "",
-        f"导出时间：{datetime.now(timezone.utc).isoformat()}",
-        "",
-        "## 导出规则",
-        "",
-        "- 本文件是章节正文导出草案。",
-        "- 默认只包含审查通过的 ready 场景。",
-        "- 新 canon 写回仍以章节工作台和审查报告为准。",
-        "",
     ]
     if include_blocked:
-        lines.append("> 注意：本次包含未通过审查或未完成的场景，仅可用于内部预览。")
+        lines.append("> 内部预览版本。")
         lines.append("")
     if not scenes:
         lines.append("## 无可导出场景")
@@ -161,11 +158,6 @@ def _render_novel(root: Path, chapter_id: str, scenes: list[dict], skipped: list
         body = _draft_body(root, scene)
         lines.append(body or "- 未读取到正文。")
         lines.append("")
-    if skipped:
-        lines.append("## 未导出场景")
-        lines.append("")
-        for scene in skipped:
-            lines.append(f"- `{scene.get('scene_id', '')}`：{scene.get('status', 'unknown')}")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -191,8 +183,6 @@ def _render_screenplay(root: Path, chapter_id: str, scenes: list[dict], skipped:
                 "",
                 f"**场景**：{location}",
                 f"**人物**：{participants}",
-                f"**场景目标**：{scene.get('scene_goal') or '未填写'}",
-                f"**审查状态**：{scene.get('review_conclusion') or 'missing'} / {scene.get('status') or 'unknown'}",
                 "",
                 "### 剧本文本",
                 "",
@@ -236,8 +226,6 @@ def _render_video_prompt_pack(root: Path, chapter_id: str, scenes: list[dict], s
                 "",
                 f"- 地点：{location}",
                 f"- 人物：{participants}",
-                f"- 场景目标：{scene.get('scene_goal') or '未填写'}",
-                f"- 审查状态：{scene.get('review_conclusion') or 'missing'} / {scene.get('status') or 'unknown'}",
                 "",
                 "### 场景摘要",
                 "",
@@ -308,7 +296,26 @@ def _draft_body(root: Path, scene: dict) -> str:
     draft_path = path if path.is_absolute() else root / path
     if not draft_path.exists():
         return ""
-    return extract_draft_body(draft_path.read_text(encoding="utf-8", errors="ignore")).strip()
+    return clean_final_body(extract_draft_body(draft_path.read_text(encoding="utf-8", errors="ignore"))).strip()
+
+
+def clean_final_body(text: str) -> str:
+    """Remove workbench-only traces from prose before final export."""
+
+    body = re.sub(r"<!--.*?-->", "", text, flags=re.S).strip()
+    match = INTERNAL_HEADING_RE.search(body)
+    if match:
+        body = body[: match.start()].strip()
+    cleaned_lines = []
+    for raw_line in body.splitlines():
+        line = raw_line.strip()
+        if not line:
+            cleaned_lines.append("")
+            continue
+        if re.search(r"(canon|Canon|workflow|prompt manifest|AGENT_TASK|上下文包|写回候选|新增事实候选|人物状态变化|需要人工确认)", line):
+            continue
+        cleaned_lines.append(raw_line.rstrip())
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(cleaned_lines)).strip()
 
 
 def _is_export_ready(scene: dict) -> bool:

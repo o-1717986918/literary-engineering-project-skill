@@ -3,7 +3,12 @@ import unittest
 
 from literary_engineering_workbench.cli import build_parser, main
 from literary_engineering_workbench.style_compiler import StyleCompileOptions, compile_style_profile
-from literary_engineering_workbench.style_prompt import build_style_prompt
+from literary_engineering_workbench.style_prompt import (
+    STYLE_PROMPT_MAX_DETAIL_CHARS,
+    STYLE_PROMPT_MIN_DETAIL_CHARS,
+    build_style_prompt,
+    count_style_prompt_detail_chars,
+)
 from literary_engineering_workbench.style_prompt_eval import run_style_prompt_eval
 
 from helpers import TempProjectMixin
@@ -22,6 +27,9 @@ class StylePromptTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("LLM 文风约束提示词", text)
         self.assertIn("## 核心风格机制", text)
         self.assertIn("## 输出自检", text)
+        detail_chars = count_style_prompt_detail_chars(text)
+        self.assertGreaterEqual(detail_chars, STYLE_PROMPT_MIN_DETAIL_CHARS)
+        self.assertLessEqual(detail_chars, STYLE_PROMPT_MAX_DETAIL_CHARS)
         manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(manifest["provider"], "dry-run")
         self.assertEqual(manifest["messages"][0]["role"], "system")

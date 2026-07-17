@@ -97,6 +97,8 @@ Important fields:
 - `chapter_id`
 - `location`
 - `participants`
+- `referenced_characters`
+- `context_policy`
 - `scene_goal`
 - `conflict`
 - `input_state`
@@ -112,6 +114,7 @@ Important fields:
 - `character_id`
 - `name`
 - `role`
+- `importance`
 - `identity`
 - `background_story`
 - `bdi`
@@ -122,6 +125,8 @@ Important fields:
 - `state`
 
 `background_story` is internal behavioral causality. It should affect choices, avoidance, misreadings, tone, and relationship pressure, but should not be directly explained in final prose unless the selected scene is meant to reveal the past.
+
+Use one file per character. Set `importance: major` for protagonists, viewpoint characters, long-arc antagonists, or other characters whose state must remain visible across most scenes. Set `importance: secondary` or `cameo` for supporting characters. Context packets load major characters by default and load secondary/cameo characters only when the current scene lists them in `participants`, `referenced_characters`, or `character_refs`. This keeps long-form continuity available without flooding every scene prompt with irrelevant biographies.
 
 ## Context Packets
 
@@ -155,7 +160,21 @@ style/{profile}/style_prompt.agent.json
 style/{profile}/style_prompt.agent_tasks.md
 ```
 
-`style_prompt.md` is the LLM-facing style constraint prompt. It is the final style-learning asset for generation, while `style_metrics.json` and `style-profile.md` are evidence and intermediate artifacts.
+`style_prompt.md` is the LLM-facing style constraint prompt. It is the final style-learning asset for generation, while `style_metrics.json` and `style-profile.md` are evidence and intermediate artifacts. A reliable mountable `style_prompt.md` must be detailed enough to guide another LLM but short enough to remain executable: 500-1500 non-whitespace content characters after Markdown scaffolding is ignored. Shorter prompts are under-specified; longer prompts are treated as diffuse and must be condensed before default mounting.
+
+Content requirements for a mountable style prompt:
+
+- usage identity, applicable boundary, and priority against canon/user constraints;
+- core style mechanism grounded in profile/metrics evidence rather than vague adjectives;
+- narrative distance and viewpoint rules;
+- syntax, sentence length, paragraph rhythm, and transition rules;
+- punctuation rhythm under the standard Chinese punctuation baseline;
+- imagery and sensory channel rules;
+- psychological presentation and hidden background behavior rules;
+- dialogue, tone, and action rules;
+- AI trace reduction rules covering mechanical contrast frames, abstract summary language, explanatory psychology labels, template transitions, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings;
+- explicit avoid/forbidden tendencies;
+- output self-check criteria.
 
 Generated after the platform agent completes `style-prompt-eval`:
 
@@ -496,6 +515,10 @@ characters/state_patches/{scene_id}_state_apply.json
 ```
 
 The apply record points to the source patch and approval run. It may update only `characters/*.yaml` state, arc, relationships, and memory refs. It must not write `canon/`.
+
+## Export Cleanliness
+
+Final prose and screenplay exports are reader-facing delivery artifacts. They must not contain workbench-only sections such as scene context packets, canon notes, prompt manifests, workflow logs, review status, writeback candidates, `## 状态变化`, `### 新增事实候选`, `### 人物状态变化`, `### 需要人工确认`, or “导出规则”. Keep provenance, readiness, skipped scenes, source draft paths, and review metadata in `export_manifest.json`, release manifests, review files, and workflow logs.
 
 ## Chapter Workspace
 

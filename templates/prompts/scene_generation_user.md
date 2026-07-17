@@ -24,6 +24,10 @@
 
 {punctuation_standard}
 
+## 降低 AI 腔约束
+
+{anti_ai_style}
+
 ## 输出契约
 
 {output_contract}

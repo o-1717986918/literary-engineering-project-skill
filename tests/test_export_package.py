@@ -19,9 +19,35 @@ class ExportPackageTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue(result.novel_path.exists())
         self.assertTrue(result.screenplay_path.exists())
         self.assertTrue(result.video_prompt_path.exists())
+        novel_text = result.novel_path.read_text(encoding="utf-8")
+        screenplay_text = result.screenplay_path.read_text(encoding="utf-8")
+        self.assertNotIn("导出规则", novel_text)
+        self.assertNotIn("新 canon 写回", novel_text)
+        self.assertNotIn("## 状态变化", novel_text)
+        self.assertNotIn("### 新增事实候选", novel_text)
+        self.assertNotIn("审查状态", screenplay_text)
+        self.assertNotIn("场景目标", screenplay_text)
         manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(len(manifest["exported_scenes"]), 1)
         self.assertEqual(result.docx_outputs, {})
+
+    def test_final_export_filters_accidental_workbench_traces_from_body(self):
+        project = self.make_project()
+        draft = make_reviewed_passing_scene(project)
+        text = draft.read_text(encoding="utf-8")
+        text = text.replace(
+            "他把手电压低，沿着墙边移动，心里清楚每一步都会改变同伴明天能否继续调查。",
+            "他把手电压低，沿着墙边移动。\n\n## 状态变化候选\n\n### 新增事实候选\n\n- canon 信息不应进入最终作品。",
+        )
+        draft.write_text(text, encoding="utf-8")
+        build_chapter_workspace(project, chapter_id="chapter_0001")
+
+        result = build_export_package(project, chapter_id="chapter_0001")
+        novel_text = result.novel_path.read_text(encoding="utf-8")
+
+        self.assertIn("他把手电压低", novel_text)
+        self.assertNotIn("状态变化候选", novel_text)
+        self.assertNotIn("canon 信息", novel_text)
 
     def test_exports_ready_scenes_to_docx_when_requested(self):
         project = self.make_project()

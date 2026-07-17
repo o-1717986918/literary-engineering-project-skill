@@ -93,6 +93,8 @@ Creates:
 
 Character files include `background_story`. Use it as an internal cause of behavior, not as direct exposition in final prose.
 
+For long projects, keep each character in a separate `characters/{character_id}.yaml` file and set `importance`. Major characters are loaded into most scene context packets; secondary/cameo characters are loaded only when the scene includes them in `participants`, `referenced_characters`, or `character_refs`. Scene files should therefore list every on-page participant and any off-page character whose memory, threat, relationship, or background pressure materially affects the scene.
+
 ## Build A Demo Project
 
 ```powershell
@@ -154,11 +156,11 @@ python -m literary_engineering_workbench style-lab-build-skill --author-id "<aut
 python -m literary_engineering_workbench style-lab-mount "<work-dir>" --style-id "<style-id>"
 ```
 
-`style-lab-compile` and the front-end `/style-lab/compile` endpoint compile deterministic profile/metrics, then write a platform-agent task sidecar for `style_prompt.md` and `style_prompt.agent.json`. They do not call a local provider for the LLM-facing prompt. The platform agent must read the task, write both expected artifacts, and inspect them before building a Style Skill.
+`style-lab-compile` and the front-end `/style-lab/compile` endpoint compile deterministic profile/metrics, then write a platform-agent task sidecar for `style_prompt.md` and `style_prompt.agent.json`. They do not call a local provider for the LLM-facing prompt. The platform agent must read the task, write both expected artifacts, and inspect them before building a Style Skill. A release-grade prompt must be 500-1500 non-whitespace content characters: under 500 is too thin to constrain style, while over 1500 is too diffuse for stable mounting. It must also satisfy high-quality prompt structure: identity/boundary, priority, core mechanism, narrative distance, syntax/rhythm, punctuation, imagery/sensory, psychology/behavior, dialogue/tone, forbidden tendencies, and output self-check.
 
 `style-prompt-eval` and `/style-lab/evaluate` likewise write a platform-agent task for the back-translation / outline-expansion candidate. After the platform agent writes the expected candidate and manifest, run deterministic `style-eval` or provide an equivalent `style_eval_*.json` review before mounting.
 
-`style-lab-mount` requires readiness evidence by default: `prompt.md`, `style_prompt.agent.json`, and at least one accepted `evaluation_results/*/style_eval_*.json`. Use `--allow-unreviewed` only for internal experiments, and record that the mounted style is not ready for release-grade writing.
+`style-lab-mount` requires readiness evidence by default: `prompt.md`, a prompt detail length of 500-1500 non-whitespace content characters, required style-prompt content blocks, `style_prompt.agent.json`, and at least one accepted `evaluation_results/*/style_eval_*.json`. Use `--allow-unreviewed` only for internal experiments, and record that the mounted style is not ready for release-grade writing.
 
 Mounted style skills are stored in the creative project under `style/mounted/{style_id}/` with `style/active_style_skill.json` as the active pointer. During generation, the mounted `prompt.md` is the highest-priority expression constraint, while canon, character facts, plot causality, safety boundaries, and explicit user constraints still take precedence.
 
@@ -301,6 +303,8 @@ When character `background_story` is present, scene and branch work should conve
 
 Generated candidates and promoted drafts should pass the standard Chinese punctuation gate. `review-scene` reports punctuation issues under `Punctuation Standard Test`; fix those before chapter readiness or export unless the user explicitly approves a recorded exception.
 
+Generated candidates and promoted drafts should also pass the AI trace reduction gate. `review-scene` reports dense “不是……而是……” frames, abstract summary language, explanatory psychology labels, template transitions, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings under `AI Trace Reduction Test`. Treat these as revision signals unless the project records a deliberate stylistic exception.
+
 `promote-candidate` turns a selected model candidate into `drafts/scenes/{scene_id}.md` and writes `drafts/promotions/{scene_id}_promotion.md` / `.json`. It does not confirm canon and does not write characters.
 
 The prompt manifest records system/user messages and source files for the platform agent. It must remain pure audit data and must not contain `[AGENT_TASK: ...]`.
@@ -371,6 +375,8 @@ Outputs:
 - `export_manifest.json`.
 
 By default only `ready` scenes are exported. Use `--include-blocked` only for internal preview.
+
+Final exported prose and screenplay files are cleaned delivery artifacts. They should not expose scene workbench sections, writeback candidates, canon notes, prompt manifests, review status, workflow IDs, or “导出规则” text. Audit and provenance remain in `export_manifest.json`, release manifests, review files, and workflow logs.
 
 ## Publish Chapter
 

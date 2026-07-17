@@ -11,6 +11,11 @@ from literary_engineering_workbench.cli import build_parser, main
 from literary_engineering_workbench.demo_project import build_demo_project
 from literary_engineering_workbench.style_compiler import StyleCompileOptions, compile_style_profile
 from literary_engineering_workbench.style_prompt_agent import build_agent_style_prompt
+from literary_engineering_workbench.style_prompt import (
+    STYLE_PROMPT_MAX_DETAIL_CHARS,
+    STYLE_PROMPT_MIN_DETAIL_CHARS,
+    count_style_prompt_detail_chars,
+)
 from literary_engineering_workbench.workflow_runner import load_workflow_state, run_workflow
 
 from helpers import TempProjectMixin, make_reviewed_passing_scene
@@ -64,7 +69,11 @@ class AgenticWorkflowTests(TempProjectMixin, unittest.TestCase):
 
         self.assertTrue(result.output_path.exists())
         self.assertTrue(result.json_path.exists())
-        self.assertIn("LLM 文风约束提示词", result.output_path.read_text(encoding="utf-8"))
+        prompt_text = result.output_path.read_text(encoding="utf-8")
+        self.assertIn("LLM 文风约束提示词", prompt_text)
+        detail_chars = count_style_prompt_detail_chars(prompt_text)
+        self.assertGreaterEqual(detail_chars, STYLE_PROMPT_MIN_DETAIL_CHARS)
+        self.assertLessEqual(detail_chars, STYLE_PROMPT_MAX_DETAIL_CHARS)
 
     def test_workflow_agent_review_records_artifacts(self):
         project = self.make_project()

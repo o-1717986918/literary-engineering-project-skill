@@ -17,6 +17,11 @@ from literary_engineering_workbench.style_lab import (
     mount_style_skill,
     run_author_style_learning,
 )
+from literary_engineering_workbench.style_prompt import (
+    STYLE_PROMPT_MAX_DETAIL_CHARS,
+    STYLE_PROMPT_MIN_DETAIL_CHARS,
+    count_style_prompt_detail_chars,
+)
 
 from helpers import TempProjectMixin, make_reviewed_passing_scene
 
@@ -90,6 +95,40 @@ class StyleLabTests(TempProjectMixin, unittest.TestCase):
             self.assertFalse(active["readiness"]["ready"])
             self.assertTrue(active["allow_unreviewed"])
 
+    def test_mount_blocks_style_prompt_outside_detail_range(self):
+        project = self.make_project()
+        with tempfile.TemporaryDirectory() as tmp:
+            library = Path(tmp) / "style-library"
+            author = create_author_project(library, name="测试作家", author_id="demo-author", source_note="测试语料")
+            work = create_author_work(library, author_id=author.author_id, title="测试作品", work_id="demo-work")
+            import_work_source(
+                library,
+                author_id=author.author_id,
+                work_id=work.work_id,
+                text="雨落在旧城。灯影摇晃。人们沉默。门外传来细小的脚步声。",
+                filename="sample.txt",
+            )
+            learned = run_author_style_learning(library, author_id=author.author_id, provider="dry-run")
+            self._write_style_readiness(learned.profile_dir)
+            skill = build_style_skill(library, author_id=author.author_id)
+
+            (skill.skill_dir / "prompt.md").write_text("文风约束太短。\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, f"detail_chars_below_{STYLE_PROMPT_MIN_DETAIL_CHARS}"):
+                mount_style_skill(project, library_root=library, style_id=skill.style_id)
+
+            long_prompt = "# LLM 文风约束提示词\n\n" + ("文风约束必须具体说明叙述距离句法节奏意象调度心理呈现对白动作标点边界。" * 80)
+            self.assertGreater(count_style_prompt_detail_chars(long_prompt), STYLE_PROMPT_MAX_DETAIL_CHARS)
+            (skill.skill_dir / "prompt.md").write_text(long_prompt, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, f"detail_chars_above_{STYLE_PROMPT_MAX_DETAIL_CHARS}"):
+                mount_style_skill(project, library_root=library, style_id=skill.style_id)
+
+            vague_prompt = "# LLM 文风约束提示词\n\n" + ("这份提示词要求文风优美克制，文学性强，整体高级，气质稳定，表达自然。" * 35)
+            self.assertGreaterEqual(count_style_prompt_detail_chars(vague_prompt), STYLE_PROMPT_MIN_DETAIL_CHARS)
+            self.assertLessEqual(count_style_prompt_detail_chars(vague_prompt), STYLE_PROMPT_MAX_DETAIL_CHARS)
+            (skill.skill_dir / "prompt.md").write_text(vague_prompt, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "missing_required_block"):
+                mount_style_skill(project, library_root=library, style_id=skill.style_id)
+
     def test_cli_exposes_style_lab_commands(self):
         help_text = build_parser().format_help()
         self.assertIn("style-lab-author", help_text)
@@ -101,6 +140,11 @@ class StyleLabTests(TempProjectMixin, unittest.TestCase):
             self.assertTrue((library / "authors" / "demo-author" / "author.json").exists())
 
     def _write_style_readiness(self, profile_dir: Path) -> None:
+        prompt_text = _valid_style_prompt_text()
+        detail_chars = count_style_prompt_detail_chars(prompt_text)
+        self.assertGreaterEqual(detail_chars, STYLE_PROMPT_MIN_DETAIL_CHARS)
+        self.assertLessEqual(detail_chars, STYLE_PROMPT_MAX_DETAIL_CHARS)
+        (profile_dir / "style_prompt.md").write_text(prompt_text, encoding="utf-8")
         (profile_dir / "style_prompt.agent.json").write_text(
             json.dumps(
                 {
@@ -134,6 +178,39 @@ class StyleLabTests(TempProjectMixin, unittest.TestCase):
             + "\n",
             encoding="utf-8",
         )
+
+
+def _valid_style_prompt_text() -> str:
+    return """# LLM 文风约束提示词
+
+## 使用身份
+
+你是长篇虚构文本生成 LLM。写作时先执行本文风约束，再处理局部词汇和句子润色。本文件只约束表达层，不确认 canon，不新增人物事实，不替剧情解决因果问题。
+
+## 核心风格机制
+
+文风应从叙述距离、信息分配、句法重心、意象回环和心理呈现中形成。不要把风格理解成几个高频词，也不要复用原文连续片段。人物的隐藏背景只通过迟疑、回避、误判、沉默、动作折返和对白遮掩间接影响选择。
+
+## 句法与节奏
+
+句长和段长跟随人物注意力、场景压力和信息密度变化。紧张处可以短，但不能连续碎句；舒缓处可以长，但逗号必须承接未完成动作、感知、心理或因果关系。段落必须承担推进事件、暴露关系、改变注意力或加深主题中的一种功能。
+
+## 意象、对白和动作
+
+意象从场景物理空间和人物处境中生长，重复意象必须带来关系或认知变化。对白要带有信息差和关系压力，避免直接朗读设定。动作描写体现目标、恐惧、道德边界和背景故事造成的选择惯性。
+
+## 标点边界
+
+中文正文使用全角标点，省略号用“……”，破折号用“——”。句号用于真实语义、镜头或心理落点；逗号用于未完成关系；分号用于层级并列；破折号只用于打断、插入、骤变或强解释性补充。转折优先由动作、视线、意象、信息差和因果推进完成。
+
+## 降低 AI 腔控制
+
+不要高频使用“不是……而是……”“并非……而是……”等机械对照句式。不要用抽象总结、解释性心理标签、模板化转折、对称排比或结尾金句替代具体叙事。人物认知变化应通过动作、停顿、回避、误判、语气和对白潜台词呈现。
+
+## 禁止倾向与自检
+
+不得摘抄原文、堆叠高频词、把候选事实写成 canon、用密集句号或破折号伪装文学性。输出前检查叙述距离是否稳定，意象是否服务人物状态，标点是否服务节奏，文本是否仍服从项目事实。
+"""
 
 
 if __name__ == "__main__":

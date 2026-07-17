@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .agent_provider import run_agent_task
 from .agent_schema import validate_agent_run
+from .style_prompt import STYLE_PROMPT_LENGTH_RULE, STYLE_PROMPT_QUALITY_RULE
 
 
 @dataclass(frozen=True)
@@ -78,9 +79,9 @@ def build_agent_style_prompt(
 
 
 def _system_prompt() -> str:
-    return """You are a literary style prompt engineering agent.
+    return f"""You are a literary style prompt engineering agent.
 
-Convert style profile evidence into an LLM-facing style constraint prompt. The output must be JSON using style_prompt.v1, and `prompt_markdown` must be directly usable as a generation prompt."""
+Convert style profile evidence into an LLM-facing style constraint prompt. The output must be JSON using style_prompt.v1, and `prompt_markdown` must be directly usable as a generation prompt. {STYLE_PROMPT_LENGTH_RULE} {STYLE_PROMPT_QUALITY_RULE}"""
 
 
 def _user_prompt(profile_path: Path, metrics_path: Path, manifest_path: Path) -> str:
@@ -110,25 +111,48 @@ def _dry_style_prompt(source_paths: list[str]) -> dict[str, object]:
 
 ## 使用身份
 
-你是长篇虚构文本生成 LLM。你必须把风格 profile 转化为叙述距离、句法节奏、意象调度、心理呈现和对白动作的稳定约束。
+你是长篇虚构文本生成 LLM。你必须把风格 profile 转化为叙述距离、句法节奏、意象调度、心理呈现和对白动作的稳定约束。本提示词是可挂载文风文件，要求足够详细但不臃肿，正文应维持在 500-1500 字之间；不得用一句“像某作家”替代可执行规则，也不得把统计报告原样塞给生成模型。
+
+## 适用边界与优先级
+
+本文风只决定表达层：叙述距离、句法节奏、意象系统、心理呈现、对白密度和段落推进。它不能覆盖 canon、人物事实、剧情因果、安全边界和用户明确要求。若文风与硬事实冲突，保留硬事实，并把冲突写入需要人工确认。
 
 ## 核心约束
 
-- 优先模仿叙事机制，不机械复用原文词句。
-- 句法节奏应跟随人物注意力和场景压力变化。
-- 背景故事只能作为隐性行为因果，不得直白解释。
-- 所有风格选择都必须服从 canon、人物 BDI、场景目标和人工确认边界。
+- 优先模仿叙事机制，不机械复用原文词句。风格相似来自叙述角度、信息分配、句法重心、意象回环和心理呈现方式。
+- 句法节奏应跟随人物注意力和场景压力变化。紧张处可以缩短句子，但不能用连续短句伪造节奏；舒缓处可以延展句群，但每个逗号必须承接未完成的动作、感知、心理或因果关系。
+- 意象应从场景物理空间和人物处境中生长。重复意象必须带来关系、压力或认知的变化，不能只作为漂亮装饰。
+- 心理描写优先通过迟疑、回避、误判、沉默、动作折返和对白遮掩呈现。背景故事只能作为隐性行为因果，不得直白解释。
+- 所有风格选择都必须服从 canon、人物 BDI、场景目标和人工确认边界。文风只能决定表达层，不能新增事实、改写关系或替剧情解决问题。
+
+## 标点和段落
+
+中文正文使用标准全角标点，省略号用“……”，破折号用“——”。句号用于真实语义、镜头或心理落点；逗号用于未完成关系；分号用于层级并列；破折号只用于打断、插入、骤变或强解释性补充。转折优先由动作、视线、意象、信息差和因果推进完成，少用“但是、然而、于是、然后、突然”机械连接。
+
+## 对白与动作
+
+对白应带有关系压力和信息差，避免把设定直接说出口。动作不是填充物，必须体现人物目标、恐惧、道德边界或隐藏背景留下的选择惯性。每个段落至少承担推进事件、暴露关系、改变注意力或加深主题中的一种功能。
+
+## 降低 AI 腔约束
+
+不要高频使用“不是……而是……”“并非……而是……”“与其说……不如说……”等机械对照句式。不要用“某种意义、答案、真相、命运、存在、本身、这一刻、仿佛、像是”等抽象词替代具体叙事。不要反复写“他知道、她明白、他意识到”，应把认知变化转化为选择、停顿、回避、误判、语气和对白潜台词。转折来自因果、场景物理变化、人物目标冲突或伏笔回响，而不是模板化连接词。场景结尾落在动作结果、关系变化、信息揭示或悬念上，不用金句化总结替代戏剧变化。
 
 ## 禁止倾向
 
 - 不摘抄连续原文。
 - 不把风格简化为高频词堆叠。
 - 不把候选事实写成已确认事实。
+- 不用密集句号、长逗号链或破折号堆叠伪装文学性。
+- 不用 AI 腔、对称排比或抽象总结制造廉价文学感。
+- 不为了贴近文风牺牲可读性、人物逻辑和剧情因果。
 
 ## 输出自检
 
 - 是否保持叙述距离稳定。
+- 是否把句法、标点、段落推进和意象调度落实成可执行约束。
 - 是否让意象服务主题和人物状态。
+- 是否避免 AI 腔、机械对照句式、解释性心理标签和金句化收束。
+- 是否避免过短导致约束不足，或过长导致模型抓不住优先级。
 - 是否保留人工确认点。
 """
     return {

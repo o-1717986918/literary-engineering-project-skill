@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import re
 
+from .anti_ai_style import lint_ai_style
 from .punctuation_standard import lint_punctuation
 from .scene_draft import extract_draft_body
 
@@ -107,6 +108,12 @@ def review_scene_draft(project_root: Path, draft: Path, output: Path | None = No
             message += f" 示例：{punctuation_issue.sample}"
         issues.append(ReviewIssue("Punctuation Standard Test", punctuation_issue.severity, message))
 
+    for ai_issue in lint_ai_style(body):
+        message = ai_issue.message
+        if ai_issue.sample:
+            message += f" 示例：{ai_issue.sample}"
+        issues.append(ReviewIssue("AI Trace Reduction Test", ai_issue.severity, message))
+
     high_count = sum(1 for issue in issues if issue.severity == "high")
     medium_count = sum(1 for issue in issues if issue.severity == "medium")
     if high_count:
@@ -155,6 +162,7 @@ def _review_report(draft_path: Path, conclusion: str, issues: list[ReviewIssue],
         "Foreshadow Test",
         "Style Test",
         "Punctuation Standard Test",
+        "AI Trace Reduction Test",
         "Anti-Cliche Test",
         "Originality Test",
         "Structure Test",

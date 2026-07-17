@@ -1,6 +1,7 @@
 character_id: ""
 name: ""
 role: ""
+importance: secondary  # major | secondary | cameo
 
 identity:
   age: null

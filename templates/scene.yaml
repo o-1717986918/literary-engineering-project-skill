@@ -8,6 +8,10 @@ time:
 
 location: ""
 participants: []
+referenced_characters: []
+context_policy:
+  include_major_characters: true
+  include_minor_characters: participants_and_referenced_only
 
 input_state:
   canon_refs: []

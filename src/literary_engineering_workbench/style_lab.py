@@ -14,7 +14,13 @@ from uuid import uuid4
 from .model_config import load_config
 from .platform_agent_tasks import write_platform_style_prompt_task
 from .style_compiler import StyleCompileOptions, compile_style_profile
-from .style_prompt import build_style_prompt
+from .style_prompt import (
+    STYLE_PROMPT_MAX_DETAIL_CHARS,
+    STYLE_PROMPT_MIN_DETAIL_CHARS,
+    count_style_prompt_detail_chars,
+    build_style_prompt,
+    style_prompt_quality_report,
+)
 
 
 STYLE_LAB_SCHEMA = "literary-engineering-workbench/style-library/v0.1"
@@ -449,6 +455,7 @@ def build_style_skill(
         "created_at": _now(),
         "guardrails": [
             "文风约束优先影响表达、叙述距离、句法节奏、意象系统和心理呈现。",
+            f"可靠可挂载的 prompt.md 必须足够详细但可执行，正文非空白内容为 {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} 字。",
             "文风标点节奏必须建立在标准中文标点约束之上，不得无理由混用中英标点。",
             "文风不得覆盖 canon、人物事实、剧情因果或用户明确约束。",
             "不直接复刻原文连续片段；精确模仿仅限公版或授权语料。",
@@ -546,9 +553,9 @@ def _payload_readiness(payload: dict[str, Any], skill_dir: Path) -> dict[str, An
     readiness = payload.get("readiness")
     if isinstance(readiness, dict):
         fresh = _style_skill_readiness(skill_dir)
-        if fresh.get("ready") != readiness.get("ready"):
-            return fresh
-        return readiness
+        if fresh.get("ready") == readiness.get("ready"):
+            fresh["manifest_readiness_checked"] = True
+        return fresh
     return _style_skill_readiness(skill_dir)
 
 
@@ -556,13 +563,27 @@ def _style_skill_readiness(skill_dir: Path) -> dict[str, Any]:
     missing: list[str] = []
     blocking_risks: list[str] = []
 
-    prompt_exists = (skill_dir / "prompt.md").is_file()
+    prompt_path = skill_dir / "prompt.md"
+    prompt_exists = prompt_path.is_file()
+    prompt_detail_chars = 0
+    prompt_length_ok = False
+    prompt_quality: dict[str, Any] = {}
     agent_json_exists = (skill_dir / "style_prompt.agent.json").is_file()
     eval_jsons = sorted((skill_dir / "evaluation_results").glob("*/style_eval_*.json"))
     accepted_evals: list[dict[str, Any]] = []
 
     if not prompt_exists:
         missing.append("prompt.md")
+    else:
+        prompt_quality = style_prompt_quality_report(prompt_path.read_text(encoding="utf-8", errors="ignore"))
+        prompt_detail_chars = int(prompt_quality.get("detail_chars") or count_style_prompt_detail_chars(prompt_path.read_text(encoding="utf-8", errors="ignore")))
+        prompt_length_ok = bool(prompt_quality.get("length_ok"))
+        if prompt_detail_chars < STYLE_PROMPT_MIN_DETAIL_CHARS:
+            blocking_risks.append(f"prompt.md: detail_chars_below_{STYLE_PROMPT_MIN_DETAIL_CHARS}")
+        elif prompt_detail_chars > STYLE_PROMPT_MAX_DETAIL_CHARS:
+            blocking_risks.append(f"prompt.md: detail_chars_above_{STYLE_PROMPT_MAX_DETAIL_CHARS}")
+        for missing_block in prompt_quality.get("missing_blocks", []):
+            blocking_risks.append(f"prompt.md: missing_required_block:{missing_block}")
     if not agent_json_exists:
         missing.append("style_prompt.agent.json")
     if not eval_jsons:
@@ -594,8 +615,12 @@ def _style_skill_readiness(skill_dir: Path) -> dict[str, Any]:
         missing.append("accepted style evaluation")
 
     return {
-        "ready": prompt_exists and agent_json_exists and bool(accepted_evals) and not blocking_risks,
+        "ready": prompt_exists and prompt_length_ok and bool(prompt_quality.get("structure_ok")) and agent_json_exists and bool(accepted_evals) and not blocking_risks,
         "prompt_exists": prompt_exists,
+        "prompt_detail_chars": prompt_detail_chars,
+        "prompt_length_range": [STYLE_PROMPT_MIN_DETAIL_CHARS, STYLE_PROMPT_MAX_DETAIL_CHARS],
+        "prompt_length_ok": prompt_length_ok,
+        "prompt_quality": prompt_quality,
         "platform_agent_prompt_json": "style_prompt.agent.json" if agent_json_exists else "",
         "accepted_evaluations": accepted_evals,
         "evaluation_count": len(eval_jsons),
@@ -603,6 +628,8 @@ def _style_skill_readiness(skill_dir: Path) -> dict[str, Any]:
         "blocking_risks": blocking_risks,
         "rules": [
             "style prompt must be written by the platform agent into style_prompt.md",
+            f"style prompt detail must be {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} non-whitespace content characters",
+            "style prompt must include identity/boundary, mechanism, narrative distance, syntax/rhythm, punctuation, imagery/sensory, psychology/behavior, dialogue, avoid rules, and self-check blocks",
             "style_prompt.agent.json must record the platform-agent prompt contract",
             "at least one deterministic style_eval JSON must pass copy-risk and similarity gates",
         ],
@@ -630,6 +657,10 @@ It does not override canon, character facts, plot causality, legal/safety bounda
 - `prompt.md`: LLM-facing style constraint prompt.
 - `style-profile.md`: compiled profile.
 - `style_metrics.json`: measurable style signals.
+
+## Readiness
+
+`prompt.md` must be a reliable LLM-facing style constraint prompt with {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} non-whitespace content characters. Shorter prompts are treated as under-specified; longer prompts are treated as too diffuse for stable mounting.
 """
 
 

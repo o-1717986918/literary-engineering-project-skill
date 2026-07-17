@@ -16,6 +16,7 @@ import re
 from .agent_tasks import write_agent_tasks
 from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, ASSET_TYPES
 from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
+from .style_prompt import STYLE_PROMPT_LENGTH_RULE, STYLE_PROMPT_QUALITY_RULE
 
 
 @dataclass(frozen=True)
@@ -441,6 +442,8 @@ def write_platform_style_prompt_task(
         source_paths=sources,
         notes=[
             "由平台 agent 生成供 LLM 使用的文风约束提示词；不要调用本地 dry-run、http-chat 或外部 agent。",
+            STYLE_PROMPT_LENGTH_RULE,
+            STYLE_PROMPT_QUALITY_RULE,
             f"完成后写入提示词 Markdown：{_rel(prompt, profile)}",
             f"完成后写入 JSON：{_rel(json_output, profile)}",
         ],
@@ -451,11 +454,11 @@ def write_platform_style_prompt_task(
             ),
             (
                 "写入文风提示词",
-                f"""创建或覆盖 `{_rel(prompt, profile)}`。必须包含使用身份、核心风格机制、句法与节奏、标点节奏与标准标点边界、叙述距离与心理呈现、意象和感官调度、对白与动作、禁止倾向、输出自检。标点边界必须保留：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+                f"""创建或覆盖 `{_rel(prompt, profile)}`。必须包含使用身份与适用边界、核心风格机制、叙述距离与视角、句法与节奏、标点节奏与标准标点边界、意象与感官调度、心理呈现与行为因果、对白与语气、禁止倾向、输出自检。正文必须控制在 500-1500 字之间：低于 500 字视为文风约束不足，高于 1500 字视为过度扩散。每个模块都要写成可执行规则，说明做什么、为什么、何时例外、如何自检；不要使用“优美、克制、文学性强”等空泛形容词替代规则。标点边界必须保留：{PUNCTUATION_STANDARD_SHORT_RULE}""",
             ),
             (
                 "写入 schema JSON",
-                f"""创建或覆盖 `{_rel(json_output, profile)}`，按 `style_prompt.v1` 记录 prompt_markdown、constraints、avoid、source_paths、evaluation_plan 和 risk_notes。""",
+                f"""创建或覆盖 `{_rel(json_output, profile)}`，按 `style_prompt.v1` 记录 prompt_markdown、constraints、avoid、source_paths、evaluation_plan 和 risk_notes；risk_notes 中注明本提示词已按 500-1500 字可靠挂载范围和高质量 prompt 模块完整性自检。""",
             ),
         ],
     )

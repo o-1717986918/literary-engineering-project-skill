@@ -9,6 +9,7 @@ from pathlib import Path
 from string import Formatter
 from typing import Any
 
+from .anti_ai_style import ANTI_AI_STYLE_PROMPT
 from .punctuation_standard import render_punctuation_standard_for_prompt
 
 
@@ -23,6 +24,7 @@ OUTPUT_CONTRACT = """模型输出必须使用以下 Markdown 结构：
 写入场景正文候选。正文必须遵守 canon、人物 BDI、背景故事隐性动因、场景编排包和文风 profile。
 正文还必须遵守标准中文标点约束：中文句子使用全角标点，省略号用“……”，破折号用“——”，避免英文标点混入中文正文和连续感叹/疑问符。
 标点必须服务文学节奏：句号用于真实语义落点，逗号承接未完成关系，破折号只用于打断、插入或骤变；不要用密集句号制造伪节奏，不要用长逗号链串接无层级动作，不要滥用“——”，不要靠“但是、然而、于是、然后、突然”机械制造转折。
+正文必须降低 AI 腔：限制“不是……而是……”等机械对照句式，避免抽象总结、解释性心理标签、模板化转折、对称排比、全知说教和结尾金句化。
 
 ## 状态变化候选
 
@@ -85,6 +87,7 @@ def build_scene_prompt_pack(
         "composition_text": _limit(_read(composition_path), DEFAULT_COMPOSITION_LIMIT) if composition_path else "未找到场景创作编排包。若需要更稳的正文候选，请先运行 compose-scene。",
         "style_profile": _render_style_constraint(root, style_profile_path),
         "punctuation_standard": render_punctuation_standard_for_prompt(),
+        "anti_ai_style": ANTI_AI_STYLE_PROMPT,
         "output_contract": OUTPUT_CONTRACT.strip(),
         "generated_at": _now(),
     }
