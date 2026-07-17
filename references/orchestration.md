@@ -4,6 +4,8 @@ In the project-type skill architecture, Codex, Claude, or another tool-layer pla
 
 Do not rebuild the full Creative Director inside the repository unless the user explicitly asks for local/offline orchestration. Prefer to expose stable file contracts and helper commands so the platform agent can plan, delegate, observe, and revise directly.
 
+Any orchestration node that calls an LLM, drafts JSON, creates prose, simulates characters, scores branches, proposes writebacks, or chooses a route must return auditable artifacts to the supervising platform agent. The adapter may execute a node, but the tool-layer agent remains responsible for final creative judgment, canon/style/schema checks, user-facing decisions, and promotion approval.
+
 The current implementation is intentionally file-backed and CLI-first. Treat every command as a future workflow node.
 
 ## Recommended Stack
@@ -54,7 +56,7 @@ LoadProjectState
 | DifyHttpBackend | `serve-api` |
 | GlobalConfig | `config-init`, `config-show`, `config-set-profile` |
 | LocalConsole | `serve-api` `/` |
-| AssetWorkshop | `agent-create-*`, `review-candidate-asset`, `promote-candidate-asset` |
+| AssetWorkshop | `agent-create-*`, `asset-create`, `review-candidate-asset`, `promote-candidate-asset` |
 
 ## Local Runner And LangGraph
 

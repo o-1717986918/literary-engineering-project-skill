@@ -15,6 +15,21 @@ Use this skill to let Codex, Claude, or another capable tool-layer agent manage 
 - Prefer direct tool-layer reasoning, file edits, review passes, and subagent delegation when the platform supports them.
 - Use the local CLI only when deterministic project operations are useful: initialization, indexing, context packet generation, style compilation, lint, audit, export, and packaging.
 
+## Tool-Layer Participation Gate
+
+The tool-layer agent that loaded this skill must lead every non-deterministic creative step. Local model-backed commands and HTTP providers are auditable draft generators, not independent creative authorities.
+
+Require tool-layer planning, prompting, inspection, and acceptance for:
+
+- prose, project briefs, characters, hidden background stories, world rules, outlines, scenes, revisions, and style prompts;
+- LLM-authored JSON, schema repair, patch plans, committee reports, review findings, and candidate metadata;
+- roleplay, branch, scene, consequence, and character-state simulations;
+- free routing decisions, project-director decisions, candidate promotion recommendations, release choices, and any user-facing creative judgment.
+
+When using local commands such as `agent-run`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-repair`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, `run-workflow`, or `director-chat`, the platform agent must choose the task and context, inspect raw and parsed outputs, apply schema/canon/style review, then decide whether to revise, keep as candidate, ask the user, or promote after approval.
+
+Never let generated JSON, simulation output, local-director output, model scores, or a CLI recommendation become canon, selected plot direction, approved style policy, final prose, or release authority by itself.
+
 ## First Move
 
 1. Identify the workspace type:
@@ -34,6 +49,7 @@ Use this skill to let Codex, Claude, or another capable tool-layer agent manage 
 - Project state is source code; generated prose is an artifact.
 - Canon, character facts, and approved plot decisions are hard constraints.
 - Retrieval results, roleplay output, model summaries, and style matches are evidence, not canon.
+- LLM-authored JSON is a draft artifact until the tool-layer agent validates schema, checks project constraints, and accepts it as a candidate or asks for approval.
 - New characters, world rules, locations, organizations, relationship graphs, outlines, and major plot turns start as candidates.
 - Promote candidates only after review and explicit user approval unless the user clearly asks for an internal experimental branch.
 - Preserve `background_story` as hidden behavioral causality. It should shape choices, avoidance, speech, misreadings, and relationship pressure; do not dump it as exposition unless the scene intentionally reveals it.

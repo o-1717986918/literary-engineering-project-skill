@@ -30,6 +30,28 @@ core_project_files:
   schemas: schemas/
   docs: docs/
 
+governance:
+  tool_layer_participation_required_for:
+    - creative generation and revision
+    - LLM-authored JSON and schema repair
+    - style-prompt creation and evaluation
+    - character, world, outline, and relationship candidate assets
+    - roleplay, branch, scene, consequence, and state simulations
+    - review findings, committee reports, and patch plans
+    - promotion recommendations, release choices, and free project decisions
+  local_model_commands_are: draft_or_evidence_producers
+  required_platform_agent_actions:
+    - choose task, prompt, context packet, and guardrails
+    - inspect raw and parsed outputs
+    - run or perform schema, canon, character, style, and safety review
+    - decide revise, keep as candidate, ask user, approve internally, or promote after approval
+  never_auto_accept:
+    - generated JSON
+    - simulation recommendations
+    - branch scores
+    - local director decisions
+    - provider-generated prose
+
 task_routes:
   project_director:
     when:
@@ -178,8 +200,11 @@ task_routes:
 
 do_not_assume:
   - local director-chat is the required top-level interface
+  - local model-backed commands can independently decide creative direction
   - model output is canon
+  - parsed JSON is accepted because it parses
   - retrieval is canon
+  - simulation scores are final plot decisions
   - style similarity is originality safety
   - candidates may be promoted without review and approval
   - API keys may be written into work projects

@@ -2,6 +2,8 @@
 
 Use this map after reading `SKILL.md`, `AGENTS.md`, and `agentread.yaml`.
 
+Supervision rule: any creative generation, LLM-authored JSON, schema repair, style prompt, simulation, review, branch choice, candidate promotion recommendation, release choice, or free-form project decision is led by the tool-layer agent that loaded this skill. Local CLI/API outputs are draft artifacts or evidence until the platform agent validates schema, checks canon/character/style constraints, and decides whether to revise, keep as candidate, ask the user, or promote after approval.
+
 ## Project Director
 
 Read: `references/project-director-playbook.md`, `references/artifact-contracts.md`.

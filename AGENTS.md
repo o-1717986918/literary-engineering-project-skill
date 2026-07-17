@@ -20,12 +20,15 @@ Do not read the entire repository by default. Follow the route map in `agentread
 - `src/literary_engineering_workbench/` in the development copy or `scripts/literary_engineering_workbench/` in the installed skill contains optional helper code, not the primary intelligence layer.
 - The local `director-chat` implementation is legacy/experimental. Use it only when the user explicitly wants local orchestration or regression testing.
 - Prefer platform-native reasoning, file editing, review, and subagents for creative work.
+- Every creative generation, LLM-authored JSON/schema draft, simulation, review, branch choice, style prompt, candidate promotion recommendation, and free-form project decision must stay under the supervision of the tool-layer agent that loaded this skill.
+- Local model-backed commands are draft/evidence producers. The platform agent chooses their task and context, inspects raw and parsed outputs, applies schema/canon/style checks, and decides the next step.
 
 ## Hard Rules
 
 - Project state is source code; prose is an artifact.
 - Confirmed canon, approved character facts, and selected plot decisions are hard constraints.
 - Retrieval, roleplay, branch simulations, model summaries, and style scores are evidence, not canon.
+- LLM-authored JSON is not accepted merely because it parsed. Treat it as a draft until schema validation and tool-layer review accept it as candidate material.
 - New characters, background stories, world rules, locations, organizations, relationships, outlines, major plot turns, and state changes start as candidates.
 - Promote candidates only after review and explicit user approval unless the user clearly asks for an internal experiment.
 - Character `background_story` is hidden behavioral causality. It should affect action, omission, speech, hesitation, misreading, and pressure, not appear as direct exposition unless the scene is designed to reveal it.

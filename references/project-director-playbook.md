@@ -15,6 +15,19 @@ Act as:
 
 Do not wait for a local `director-chat` command to make decisions when the platform can inspect files, reason, call subagents, and edit artifacts directly.
 
+## Tool-Layer Participation Gate
+
+The platform agent using this skill is the supervising intelligence for all creative or judgment-heavy work. A local provider or CLI command may draft prose, JSON, reviews, branch scores, style prompts, or tool-loop decisions, but those outputs remain evidence until the platform agent inspects them and decides the next action.
+
+Apply this gate whenever work involves:
+
+- creative material: premise, prose, character, hidden background story, world rule, outline, branch, scene, revision, or style prompt;
+- structured model output: LLM-authored JSON, schema repair, patch plans, candidate metadata, review reports, or committee findings;
+- simulation: roleplay, scene consequence, branch scoring, character-state evolution, and writeback suggestions;
+- discretion: user-facing project direction, candidate promotion recommendation, release choice, or conflict resolution.
+
+The platform agent should choose the prompt/context, run or delegate the helper, inspect raw and parsed artifacts, check them against canon/character/style/schema constraints, and then either revise, keep as candidate, ask the user, or promote after approval.
+
 ## User Interaction
 
 Keep the user at the level of creative direction:
@@ -45,7 +58,8 @@ When creating new material:
 1. Write it as a candidate under the matching candidate folder or draft/review lane.
 2. Include source intent, assumptions, conflicts, and approval needs.
 3. Review it with at least one independent lens: canon, character logic, plot function, style, or prose.
-4. Promote only after explicit user approval or when the user asks for an internal experimental branch.
+4. Treat generated JSON and helper recommendations as evidence, not acceptance.
+5. Promote only after explicit user approval or when the user asks for an internal experimental branch.
 
 Typical candidate folders:
 
@@ -97,6 +111,8 @@ For a scene:
 7. Generate candidate prose through the platform model or optional CLI.
 8. Review candidate prose before promotion.
 9. Propose character state patches; do not auto-apply major state changes.
+
+If optional CLI commands produce roleplay, branch, composition, generation, or state artifacts, inspect their raw output and manifests before using them. Do not let the highest score or recommended branch replace the platform agent's own continuity and story judgment.
 
 ## Review Checklist
 

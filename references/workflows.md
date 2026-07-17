@@ -4,6 +4,14 @@ These commands are optional deterministic helpers for a tool-layer director. In 
 
 Use the CLI when repeatability matters: scaffolding, indexing, context packets, style compilation, schema/lint checks, audits, exports, and regression tests.
 
+## Tool-Layer Supervision Rule
+
+Any command that calls a model, writes creative material, drafts JSON, repairs schema output, simulates characters, scores branches, composes scenes, or chooses workflow steps is supervised by the tool-layer agent that loaded this skill. The command may create draft artifacts; it must not become the project director by itself.
+
+Before running such a command, the platform agent should choose the task, prompt/context packet, constraints, and approval boundary. After running it, the platform agent must inspect raw and parsed artifacts, validate schema where relevant, check canon/character/style constraints, and decide whether to revise, keep as candidate, ask the user, or promote after approval.
+
+This rule covers `agent-run`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-repair`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, `run-workflow`, and `director-chat`.
+
 Use the bundled CLI through:
 
 ```powershell
@@ -154,7 +162,7 @@ python -m literary_engineering_workbench config-show
 python -m literary_engineering_workbench agent-run "<work-dir>" --agent-id canon-reviewer --task review-canon --system "<system-prompt.md>" --user "<user-prompt.md>"
 ```
 
-Agent output is not canon. Even parsed JSON should be treated as evidence until a schema gate, review command, or human approval accepts it.
+Agent output is not canon. Even parsed JSON should be treated as evidence until a schema gate, review command, and platform-agent review accept it as candidate material; human approval is still required before promotion when the change affects canon, character state, plot direction, style policy, release status, or user-facing decisions.
 
 ## Creative Director
 
@@ -176,9 +184,9 @@ The local director chooses the internal workflow, runs schema-gated specialist a
 - `director/runs/{run_id}/agent_observe_{step}/`
 - optional delegated `workflow/runs/{run_id}-wf/`
 
-`director_tools` is a bounded tool loop: the director decides the next safe tool, executes it, observes artifacts/status, and then decides whether another tool is needed.
+`director_tools` is a bounded local tool loop: the local director decides the next safe tool, executes it, observes artifacts/status, and then decides whether another tool is needed.
 
-For the project-type skill route, prefer the platform agent's own planning and subagents. Use lower-level asset or workflow commands when deterministic file-backed helpers are useful.
+For the project-type skill route, prefer the platform agent's own planning and subagents. If the local director is exercised, treat its `director_decision.json`, `tool_loop.json`, delegated agent runs, and report as evidence for the platform agent to review, not as the final project decision.
 
 ## Agent Asset Workshop
 
@@ -198,7 +206,7 @@ python -m literary_engineering_workbench review-candidate-asset "<work-dir>" "<c
 python -m literary_engineering_workbench promote-character-candidate "<work-dir>" "<candidate-id-or-path>" --approval-run-id "<candidate-id>"
 ```
 
-For internal experiments only, pass `--allow-unapproved`. Candidate assets are written under `characters/candidates/`, `canon/candidates/`, and `plot/candidates/`; they are not canon until promoted.
+For internal experiments only, pass `--allow-unapproved`. Candidate assets are written under `characters/candidates/`, `canon/candidates/`, and `plot/candidates/`; they are not canon until promoted. The platform agent should inspect every generated candidate and review report before asking for approval or using it in later planning.
 
 Validate or repair an agent run:
 
@@ -249,13 +257,13 @@ python -m literary_engineering_workbench state-evolve "<work-dir>" --scene scene
 - `branch_manifest.json`
 - `branch_selection.md`
 
-Branches are not canon. The recommended branch is only a scoring hint; record the actual human decision in `branch_selection.md`.
+Branches are not canon. The recommended branch is only a scoring hint; the platform agent should evaluate it against story direction, canon, character pressure, and user intent before recording the actual human or tool-layer decision in `branch_selection.md`.
 
-`compose-scene` turns the selected or recommended branch into a creation packet under `drafts/compositions/{scene_id}_composition.md` and `.json`, including scene beats, subtext, dialogue intents, sensory palette, prose seed, revision targets, and writeback candidates. It is a pre-draft planning artifact, not final prose.
+`compose-scene` turns the selected or recommended branch into a creation packet under `drafts/compositions/{scene_id}_composition.md` and `.json`, including scene beats, subtext, dialogue intents, sensory palette, prose seed, revision targets, and writeback candidates. It is a pre-draft planning artifact, not final prose. The platform agent must inspect generated JSON before using it as a prompt pack or writeback source.
 
 When character `background_story` is present, scene and branch work should convert it into choices, hesitation, avoidance, misreadings, tone, and relationship pressure. Do not turn it into an explanatory background paragraph unless the selected scene explicitly reveals the past.
 
-`generate-scene` writes model candidates under `drafts/candidates/`; it does not overwrite `drafts/scenes/` and does not write canon.
+`generate-scene` writes model candidates under `drafts/candidates/`; it does not overwrite `drafts/scenes/` and does not write canon. The platform agent reviews the candidate prose, prompt manifest, and constraints before promotion.
 
 `promote-candidate` turns a selected model candidate into `drafts/scenes/{scene_id}.md` and writes `drafts/promotions/{scene_id}_promotion.md` / `.json`. It does not confirm canon and does not write characters.
 
@@ -276,7 +284,7 @@ Review conclusions:
 - `revise_required`: not exportable.
 - `reject`: not exportable.
 
-`state-evolve` builds a reviewable character-state patch under `characters/state_patches/` from a scene draft, generated candidate, or composition artifact. It does not modify `characters/*.yaml`; major character state changes still require human confirmation before any later writeback.
+`state-evolve` builds a reviewable character-state patch under `characters/state_patches/` from a scene draft, generated candidate, or composition artifact. It does not modify `characters/*.yaml`; the platform agent must inspect the patch for hidden-background causality, canon risk, and unintended relationship drift. Major character state changes still require human confirmation before any later writeback.
 
 After a workflow run is approved, apply a character state patch with:
 
@@ -382,7 +390,7 @@ Add candidate generation to the scene loop:
 python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-loop --generate-candidate --provider dry-run
 ```
 
-Use `--provider http-chat` only when the global provider profile is configured and an API key is available from `LEW_MODEL_API_KEY`, the configured `api_key_env`, or saved profile `api_key`.
+Use `--provider http-chat` only when the global provider profile is configured and an API key is available from `LEW_MODEL_API_KEY`, the configured `api_key_env`, or saved profile `api_key`. The resulting candidate remains under the same platform-agent review and approval gates.
 
 Add schema-gated agent review nodes:
 

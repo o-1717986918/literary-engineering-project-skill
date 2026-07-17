@@ -11,6 +11,8 @@ Read first:
 
 Claude should act as the project director and creative director. Do not treat the local `director-chat` command as the primary interface. Use the repository as operating rules, artifact contracts, templates, schemas, and optional deterministic CLI helpers.
 
+For creative generation, LLM-authored JSON, schema repair, style prompts, scene/branch simulation, candidate promotion, release choice, or any free-form project decision, Claude must remain the supervising tool-layer agent. Local model-backed commands may draft or validate artifacts, but their outputs are evidence until Claude reviews them against schema, canon, style, and user intent.
+
 Core constraints:
 
 - Project state is source code; prose is an artifact.
