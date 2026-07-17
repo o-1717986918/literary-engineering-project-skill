@@ -23,6 +23,7 @@ python -m literary_engineering_workbench compose-scene work/demo-work --scene sc
 - `--branch-selection`：指定 `branch_selection.md`。
 - `--out`：指定 Markdown 输出。
 - `--json-out`：指定 JSON 输出。
+- `--agent-tasks`：生成 `drafts/compositions/{scene_id}_composition.agent_tasks.md`，不污染 composition Markdown / JSON。
 
 ## 输入
 
@@ -38,8 +39,10 @@ python -m literary_engineering_workbench compose-scene work/demo-work --scene sc
 
 - `drafts/compositions/{scene_id}_composition.md`
 - `drafts/compositions/{scene_id}_composition.json`
+- `drafts/compositions/{scene_id}_composition.agent_tasks.md`（可选）
 
 Markdown 面向作者和 agent 阅读，JSON 面向后续 LangGraph / Dify / provider 编排。
+由于 composition Markdown 可能进入 `generate-scene` prompt pack，`[AGENT_TASK: ...]` 只写入 sidecar，不写入 composition Markdown。
 
 ## 产物结构
 

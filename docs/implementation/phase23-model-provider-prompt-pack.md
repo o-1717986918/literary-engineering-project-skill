@@ -92,19 +92,22 @@ python -m literary_engineering_workbench run-workflow work/demo-work --mode scen
 - `drafts/candidates/{scene_id}-{provider}-{timestamp}.md`
 - `drafts/candidates/{scene_id}-{provider}-{timestamp}.json`
 - `drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json`
+- `drafts/candidates/{scene_id}-{provider}-{timestamp}.agent_tasks.md`（使用 `--agent-tasks` 时）
 
 `run-workflow --generate-candidate` 会把以下路径写入 workflow state：
 
 - `candidate`
 - `candidate_manifest`
 - `prompt_manifest`
+- `candidate_agent_tasks`（使用 `--agent-tasks` 时）
 
 ## 边界
 
 - 模型输出是候选，不是正稿。
 - 候选不会覆盖 `drafts/scenes/`。
 - 候选不会写入 `canon/`、`characters/` 或 `plot/`。
-- prompt manifest 记录提示词内容，但不记录 API key。
+- prompt manifest 记录提示词内容，但不记录 API key，也不写入 `[AGENT_TASK: ...]`。
+- 平台 agent 审查候选和 prompt manifest 的任务写入 sidecar `.agent_tasks.md`。
 - 外部模型错误会让对应 workflow 节点失败，并要求人工处理。
 
 ## 下一步

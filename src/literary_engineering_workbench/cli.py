@@ -272,6 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
     director_chat.add_argument("--message", required=True, help="High-level creative direction from the user.")
     director_chat.add_argument("--provider", default="auto", choices=sorted(AGENT_PROVIDERS))
     director_chat.add_argument("--no-execute", action="store_true", help="Plan and record the director decision without running the delegated workflow.")
+    director_chat.add_argument("--agent-tasks", action="store_true", help="Ask delegated workflows to emit platform-agent task sidecars.")
 
     director_status = sub.add_parser("director-status", help="Show project status as seen by the creative director.")
     director_status.add_argument("project", help="Work project directory.")
@@ -356,6 +357,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--rebuild-context", action="store_true")
     generate.add_argument("--provider", default="auto", choices=sorted(GENERATION_PROVIDERS))
     generate.add_argument("--out", default="", help="Output candidate markdown path.")
+    generate.add_argument("--agent-tasks", action="store_true", help="Write a platform-agent task sidecar for reviewing the candidate and prompt manifest.")
 
     promote = sub.add_parser("promote-candidate", help="Promote a generated scene candidate into the draft review lane.")
     promote.add_argument("project", help="Work project directory.")
@@ -372,6 +374,7 @@ def build_parser() -> argparse.ArgumentParser:
     state_evolve.add_argument("--source", default="", help="Draft, candidate, composition markdown, or composition JSON path. Defaults to the scene draft when present.")
     state_evolve.add_argument("--out", default="", help="Output patch markdown path.")
     state_evolve.add_argument("--json-out", default="", help="Output patch JSON path.")
+    state_evolve.add_argument("--agent-tasks", action="store_true", help="Write a platform-agent task sidecar for reviewing the state patch.")
 
     state_apply = sub.add_parser("state-apply", help="Apply an approved character state patch to character files.")
     state_apply.add_argument("project", help="Work project directory.")
@@ -389,6 +392,7 @@ def build_parser() -> argparse.ArgumentParser:
     simulate.add_argument("--query", default="", help="Extra retrieval query when context needs rebuilding.")
     simulate.add_argument("--rebuild-context", action="store_true")
     simulate.add_argument("--out", default="", help="Output simulation path.")
+    simulate.add_argument("--agent", "--agent-tasks", dest="agent_tasks", action="store_true", help="Generate platform-agent executable task directives instead of empty placeholders.")
 
     branch = sub.add_parser("branch-simulate", help="Create scored multi-branch plot candidates for a scene.")
     branch.add_argument("project", help="Work project directory.")
@@ -400,6 +404,7 @@ def build_parser() -> argparse.ArgumentParser:
     branch.add_argument("--out", default="", help="Output markdown path.")
     branch.add_argument("--json-out", default="", help="Output JSON manifest path.")
     branch.add_argument("--selection-out", default="", help="Output human selection record path.")
+    branch.add_argument("--agent", "--agent-tasks", dest="agent_tasks", action="store_true", help="Write a platform-agent task sidecar for reviewing branch decisions.")
 
     compose = sub.add_parser("compose-scene", help="Create a scene composition packet from context, characters, and branch artifacts.")
     compose.add_argument("project", help="Work project directory.")
@@ -411,6 +416,7 @@ def build_parser() -> argparse.ArgumentParser:
     compose.add_argument("--branch-selection", default="", help="Existing branch selection path. Defaults to branches/{scene_id}/branch_selection.md.")
     compose.add_argument("--out", default="", help="Output composition markdown path.")
     compose.add_argument("--json-out", default="", help="Output composition JSON path.")
+    compose.add_argument("--agent-tasks", action="store_true", help="Write a platform-agent task sidecar without polluting composition artifacts.")
 
     orchestration = sub.add_parser("orchestration-plan", help="Create an agent workflow platform blueprint.")
     orchestration.add_argument("project", help="Work project directory.")
@@ -467,6 +473,7 @@ def build_parser() -> argparse.ArgumentParser:
     workflow.add_argument("--generate-candidate", action="store_true", help="Generate a scene candidate after scene composition.")
     workflow.add_argument("--promote-candidate", action="store_true", help="Promote the generated or latest candidate into drafts/scenes before review.")
     workflow.add_argument("--agent-review", action="store_true", help="Run schema-gated agent scene/canon review nodes.")
+    workflow.add_argument("--agent-tasks", action="store_true", help="Generate platform-agent task sidecars for creative workflow artifacts.")
     workflow.add_argument("--provider", default="auto", choices=sorted(GENERATION_PROVIDERS), help="Provider for model-backed workflow nodes.")
     workflow.add_argument("--run-id", default="", help="Use a stable workflow run id instead of an auto-generated one.")
     workflow.add_argument("--resume-run-id", default="", help="Create a new linked run that resumes/retries from a previous run id.")
@@ -1005,6 +1012,7 @@ def main(argv=None) -> int:
                 args.message,
                 provider=args.provider,
                 auto_execute=not args.no_execute,
+                agent_tasks=args.agent_tasks,
             )
         except (FileExistsError, FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))
@@ -1167,10 +1175,13 @@ def main(argv=None) -> int:
             rebuild_context=args.rebuild_context,
             provider=args.provider,
             output=out,
+            agent_tasks=args.agent_tasks,
         )
         print(f"candidate: {result.candidate_path}")
         print(f"manifest: {result.manifest_path}")
         print(f"prompt_manifest: {result.prompt_manifest_path}")
+        if result.agent_tasks_path:
+            print(f"agent_tasks: {result.agent_tasks_path}")
         print(f"provider: {result.provider}")
         print(f"scene: {result.scene_id}")
         print(f"chars: {result.generated_chars}")
@@ -1206,9 +1217,12 @@ def main(argv=None) -> int:
             source=source,
             output=out,
             json_output=json_out,
+            agent_tasks=args.agent_tasks,
         )
         print(f"state_patch: {result.output_path}")
         print(f"json: {result.json_path}")
+        if result.agent_tasks_path:
+            print(f"agent_tasks: {result.agent_tasks_path}")
         print(f"scene: {result.scene_id}")
         print(f"source: {result.source_path}")
         print(f"characters: {result.character_count}")
@@ -1250,6 +1264,7 @@ def main(argv=None) -> int:
             query=args.query,
             rebuild_context=args.rebuild_context,
             output=out,
+            agent_mode=args.agent_tasks,
         )
         print(f"simulation: {result.output_path}")
         print(f"context: {result.context_path}")
@@ -1273,12 +1288,15 @@ def main(argv=None) -> int:
                 output=out,
                 json_output=json_out,
                 selection_output=selection_out,
+                agent_tasks=args.agent_tasks,
             )
         except ValueError as exc:
             parser.error(str(exc))
         print(f"branch_simulation: {result.output_path}")
         print(f"manifest: {result.manifest_path}")
         print(f"selection: {result.selection_path}")
+        if result.agent_tasks_path:
+            print(f"agent_tasks: {result.agent_tasks_path}")
         print(f"context: {result.context_path}")
         print(f"scene: {result.scene_id}")
         print(f"branches: {result.branch_count}")
@@ -1301,9 +1319,12 @@ def main(argv=None) -> int:
             branch_selection=selection,
             output=out,
             json_output=json_out,
+            agent_tasks=args.agent_tasks,
         )
         print(f"composition: {result.output_path}")
         print(f"json: {result.json_path}")
+        if result.agent_tasks_path:
+            print(f"agent_tasks: {result.agent_tasks_path}")
         print(f"context: {result.context_path}")
         print(f"scene: {result.scene_id}")
         print(f"branch: {result.selected_branch}")
@@ -1431,6 +1452,7 @@ def main(argv=None) -> int:
             generate_candidate=args.generate_candidate,
             promote_candidate=args.promote_candidate,
             agent_review=args.agent_review,
+            agent_tasks=args.agent_tasks,
             provider=args.provider,
             output_dir=out_dir,
             run_id=args.run_id or None,

@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .context_packet import build_context_packet
 from .roleplay_lab import CharacterCard, _load_characters, _read
 
@@ -43,6 +44,7 @@ class BranchSimulationResult:
     output_path: Path
     manifest_path: Path
     selection_path: Path
+    agent_tasks_path: Path | None
     context_path: Path
     scene_id: str
     branch_count: int
@@ -74,6 +76,7 @@ def build_branch_simulation(
     output: Path | None = None,
     json_output: Path | None = None,
     selection_output: Path | None = None,
+    agent_tasks: bool = False,
 ) -> BranchSimulationResult:
     """Create a scored branch simulation workspace for one scene."""
 
@@ -134,16 +137,59 @@ def build_branch_simulation(
     manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     output_path.write_text(_render_markdown(root, scene_path, context_path, payload), encoding="utf-8")
     selection_path.write_text(_render_selection(scene_facts, payload), encoding="utf-8")
+    agent_tasks_path = None
+    if agent_tasks:
+        agent_tasks_path = _write_branch_agent_tasks(root, scene_path, context_path, output_path, manifest_path, selection_path, payload)
 
     return BranchSimulationResult(
         project_root=root,
         output_path=output_path,
         manifest_path=manifest_path,
         selection_path=selection_path,
+        agent_tasks_path=agent_tasks_path,
         context_path=context_path,
         scene_id=scene_facts.scene_id,
         branch_count=len(candidates),
         recommended_branch=recommended,
+    )
+
+
+def _write_branch_agent_tasks(
+    root: Path,
+    scene_path: Path,
+    context_path: Path,
+    report_path: Path,
+    manifest_path: Path,
+    selection_path: Path,
+    payload: dict[str, object],
+) -> Path:
+    return write_agent_tasks(
+        default_agent_tasks_path(manifest_path),
+        title=f"branch-simulate {payload['scene_id']}",
+        root=root,
+        source_paths=[scene_path, context_path, report_path, manifest_path, selection_path],
+        notes=[
+            "branch_manifest.json 是机器契约，不能写入 AGENT_TASK 标记。",
+            "推荐分支只是启发式建议，平台 agent 必须独立审查后再决定是否询问用户。",
+        ],
+        tasks=[
+            (
+                "审查分支候选",
+                """读取 branch_simulation.md 和 branch_manifest.json，逐条检查每个分支是否符合 scene_goal、participants、canon_refs、next_hooks 与人物 BDI。指出每个分支最强处、最弱处和需要补证据的地方。""",
+            ),
+            (
+                "复核评分偏置",
+                """复核每个分支的人物逻辑、Canon 安全、戏剧张力、文学潜力和长线收益评分。若启发式评分与平台 agent 的判断不同，写出修正理由。""",
+            ),
+            (
+                "决定选择策略",
+                """不要自动接受 recommended_branch。基于用户方向、人物压力和 longform 结构，决定：选择一个分支、融合多个分支、退回重做，或向用户提出一个高价值选择题。把决定写入 branch_selection.md 或作为候选审查意见提交。""",
+            ),
+            (
+                "检查写回风险",
+                """检查每个分支的 writeback_candidates，标出哪些新增事实、人物状态、关系变化和伏笔变化需要用户批准。不得直接写入 canon 或 characters/*.yaml。""",
+            ),
+        ],
     )
 
 

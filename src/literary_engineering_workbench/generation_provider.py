@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Protocol
 from urllib import error, request
 
+from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .context_packet import build_context_packet
 from .model_config import MODEL_PROVIDER_CHOICES, get_model_settings, resolve_model_provider
 from .prompt_pack import build_scene_prompt_pack, write_prompt_manifest
@@ -38,6 +39,7 @@ class GenerationResult:
     candidate_path: Path
     manifest_path: Path
     prompt_manifest_path: Path
+    agent_tasks_path: Path | None
     provider: str
     scene_id: str
     generated_chars: int
@@ -134,6 +136,7 @@ def generate_scene_candidate(
     rebuild_context: bool = False,
     provider: str = "auto",
     output: Path | None = None,
+    agent_tasks: bool = False,
 ) -> GenerationResult:
     root = project_root.resolve()
     if not root.is_dir():
@@ -201,14 +204,72 @@ def generate_scene_candidate(
         },
     }
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    agent_tasks_path = None
+    if agent_tasks:
+        agent_tasks_path = _write_generation_agent_tasks(
+            root,
+            scene_path,
+            context_path,
+            candidate_path,
+            manifest_path,
+            prompt_manifest_path,
+            prompt_pack.composition_path,
+            prompt_pack.style_profile_path,
+        )
     return GenerationResult(
         project_root=root,
         candidate_path=candidate_path,
         manifest_path=manifest_path,
         prompt_manifest_path=prompt_manifest_path,
+        agent_tasks_path=agent_tasks_path,
         provider=resolved_provider,
         scene_id=scene_id,
         generated_chars=len(rendered),
+    )
+
+
+def _write_generation_agent_tasks(
+    root: Path,
+    scene_path: Path,
+    context_path: Path,
+    candidate_path: Path,
+    manifest_path: Path,
+    prompt_manifest_path: Path,
+    composition_path: Path | None,
+    style_profile_path: Path | None,
+) -> Path:
+    sources = [scene_path, context_path, candidate_path, manifest_path, prompt_manifest_path]
+    if composition_path:
+        sources.append(composition_path)
+    if style_profile_path:
+        sources.append(style_profile_path)
+    return write_agent_tasks(
+        default_agent_tasks_path(candidate_path),
+        title=f"generate-scene {scene_path.stem}",
+        root=root,
+        source_paths=sources,
+        notes=[
+            "prompt manifest 是审计证据，不能写入 AGENT_TASK 标记。",
+            "candidate markdown 是模型候选，不是正稿；进入 drafts/scenes 前必须审查。",
+        ],
+        tasks=[
+            (
+                "审查 prompt manifest",
+                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill 或用户约束。""",
+            ),
+            (
+                "审查候选正文",
+                """读取候选正文，判断它是否服从 prompt manifest、scene.yaml、context packet、composition 和 style prompt。标出人物 OOC、canon 冲突、background_story 直白化、风格偏离和不确定新增事实。""",
+            ),
+            (
+                "决定下一步",
+                """决定候选应进入 review-scene、返回 generate-scene 重写、人工修订，还是保留为废弃候选。不得直接 promote；如建议 promote，先写清选择理由和需要用户确认的事项。""",
+            ),
+            (
+                "整理写回风险",
+                """从候选中的状态变化候选区域提取新增事实、人物状态、关系和伏笔变化，标记哪些需要后续 state-evolve、canon-lint 或用户批准。""",
+            ),
+        ],
     )
 
 

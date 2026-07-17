@@ -33,6 +33,7 @@ class CharacterStateEvolverTests(TempProjectMixin, unittest.TestCase):
         report = result.output_path.read_text(encoding="utf-8")
         self.assertIn("人物状态演化候选 Patch", report)
         self.assertIn("不会自动修改", report)
+        self.assertIsNone(result.agent_tasks_path)
 
     def test_state_patch_finds_default_scene_draft(self):
         project = self.make_project()
@@ -42,6 +43,25 @@ class CharacterStateEvolverTests(TempProjectMixin, unittest.TestCase):
         result = build_character_state_patch(project, scene=Path("scenes/scene_0001.yaml"))
 
         self.assertEqual(result.source_path, project / "drafts" / "scenes" / "scene_0001.md")
+
+    def test_agent_tasks_sidecar_does_not_pollute_state_patch_json(self):
+        project = self.make_project()
+        add_character(project)
+        draft = make_passing_scene(project)
+
+        result = build_character_state_patch(
+            project,
+            scene=Path("scenes/scene_0001.yaml"),
+            source=draft,
+            agent_tasks=True,
+        )
+
+        self.assertIsNotNone(result.agent_tasks_path)
+        assert result.agent_tasks_path is not None
+        tasks = result.agent_tasks_path.read_text(encoding="utf-8")
+        self.assertIn("[AGENT_TASK:", tasks)
+        self.assertIn("审查状态变化依据", tasks)
+        self.assertNotIn("[AGENT_TASK:", result.json_path.read_text(encoding="utf-8"))
 
     def test_cli_exposes_and_runs_state_evolve(self):
         project = self.make_project()

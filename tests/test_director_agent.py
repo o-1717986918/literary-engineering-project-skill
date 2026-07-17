@@ -146,10 +146,14 @@ class DirectorAgentTests(TempProjectMixin, unittest.TestCase):
     def test_director_can_run_scene_loop(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
-        result = run_director_turn(project, "推进并审查当前场景", provider="dry-run")
+        result = run_director_turn(project, "推进并审查当前场景", provider="dry-run", agent_tasks=True)
 
         self.assertEqual(result.decision["chosen_workflow"], "scene-loop")
+        self.assertTrue(result.decision["agent_tasks"])
         self.assertTrue(result.workflow_state_path.exists())
+        state = json.loads(result.workflow_state_path.read_text(encoding="utf-8"))
+        self.assertIn("simulation_agent_tasks", state["artifacts"])
+        self.assertIn("candidate_agent_tasks", state["artifacts"])
 
 
 def _director_payload_with_aliases():

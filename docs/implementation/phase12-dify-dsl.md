@@ -35,15 +35,17 @@ docs/integrations/dify/literary-workbench-reviewer.workflow.yml
 
 ```text
 Start
-  -> Run workbench workflow
-  -> Read workflow log
+  -> Run creative director
+  -> Read director report
   -> End
 ```
 
 对应后端 endpoints：
 
-- `POST /workflow/run`
+- `POST /director/chat`
 - `GET /workflow/artifact`
+
+Start 变量包含 `project_root`、`creative_direction`、`provider`、`auto_execute` 和 `agent_tasks`。`agent_tasks=true` 时，创作总监触发的内部工作流会产出 `.agent_tasks.md` 侧车任务文件，供平台 Agent 审查与继续执行。
 
 ## 设计边界
 

@@ -193,6 +193,14 @@ workflow:
               required: true
               type: select
               variable: auto_execute
+            - default: "true"
+              label: "Agent task sidecars"
+              options:
+                - "true"
+                - "false"
+              required: true
+              type: select
+              variable: agent_tasks
         height: 120
         id: "1000000000000"
         position:
@@ -227,6 +235,10 @@ workflow:
                 key: auto_execute
                 type: string
                 value: "{{{{#1000000000000.auto_execute#}}}}"
+              - id: body-agent-tasks
+                key: agent_tasks
+                type: string
+                value: "{{{{#1000000000000.agent_tasks#}}}}"
             type: json
           desc: ""
           headers: |-

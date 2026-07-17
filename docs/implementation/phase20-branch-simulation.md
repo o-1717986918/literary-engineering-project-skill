@@ -17,6 +17,7 @@ python -m literary_engineering_workbench branch-simulate work/demo-work --scene 
 - `--out`：自定义 Markdown 工作台路径。
 - `--json-out`：自定义 JSON manifest 路径。
 - `--selection-out`：自定义人工选择记录路径。
+- `--agent` / `--agent-tasks`：生成 `branch_manifest.agent_tasks.md`，供平台 agent 审查分支和评分。
 
 ## 输出
 
@@ -25,6 +26,7 @@ python -m literary_engineering_workbench branch-simulate work/demo-work --scene 
 - `branch_simulation.md`：面向人类和 Agent 的分支工作台。
 - `branch_manifest.json`：结构化分支候选、评分和风险。
 - `branch_selection.md`：人工选择、合并策略和 canon 写回确认记录。
+- `branch_manifest.agent_tasks.md`：可选平台 agent 任务说明，不写入 JSON。
 
 ## 评分维度
 

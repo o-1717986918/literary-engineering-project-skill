@@ -40,6 +40,9 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 "project_root": str(project),
                 "mode": "scene-loop",
                 "scene": "scenes/scene_0001.yaml",
+                "generate_candidate": True,
+                "agent_tasks": True,
+                "provider": "dry-run",
             },
         )
         self.assertEqual(run.status_code, 200)
@@ -48,7 +51,11 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
 
         state = client.get(f"/workflow/runs/{run_payload['run_id']}", params={"project_root": str(project)})
         self.assertEqual(state.status_code, 200)
-        self.assertEqual(state.json()["run_id"], run_payload["run_id"])
+        state_payload = state.json()
+        self.assertEqual(state_payload["run_id"], run_payload["run_id"])
+        self.assertIn("simulation_agent_tasks", state_payload["artifacts"])
+        self.assertIn("candidate_agent_tasks", state_payload["artifacts"])
+        self.assertTrue((project / state_payload["artifacts"]["simulation_agent_tasks"]).exists())
 
         approval = client.post(
             "/workflow/approve",

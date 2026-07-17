@@ -82,6 +82,7 @@ def run_workflow(
     generate_candidate: bool = False,
     promote_candidate: bool = False,
     agent_review: bool = False,
+    agent_tasks: bool = False,
     provider: str = "auto",
     output_dir: Path | None = None,
     run_id: str | None = None,
@@ -125,7 +126,7 @@ def run_workflow(
         if mode in {"project-seeding", "character-lab", "worldbuilding-lab", "outline-lab"}:
             _run_asset_workflow(root, mode, state, provider, brief)
         if mode in {"scene-loop", "full-cycle"}:
-            _run_scene_loop(root, scene_path, state, overwrite_draft, generate_candidate, promote_candidate, agent_review, provider)
+            _run_scene_loop(root, scene_path, state, overwrite_draft, generate_candidate, promote_candidate, agent_review, agent_tasks, provider)
         if mode in {"chapter-publish", "full-cycle"}:
             _run_chapter_publish(root, chapter_id, target_length, include_blocked, agent_review, provider, state)
     except Exception as exc:
@@ -180,6 +181,7 @@ def _run_scene_loop(
     generate_candidate: bool,
     promote_candidate: bool,
     agent_review: bool,
+    agent_tasks: bool,
     provider: str,
 ) -> None:
     if scene_path is None:
@@ -196,20 +198,20 @@ def _run_scene_loop(
     )
     node(
         "character_simulation",
-        lambda: _simulation_artifact(root, scene_path),
+        lambda: _simulation_artifact(root, scene_path, agent_tasks),
     )
     node(
         "branch_simulation",
-        lambda: _branch_artifact(root, scene_path),
+        lambda: _branch_artifact(root, scene_path, agent_tasks),
     )
     node(
         "scene_composition",
-        lambda: _composition_artifact(root, scene_path),
+        lambda: _composition_artifact(root, scene_path, agent_tasks),
     )
     if generate_candidate:
         node(
             "generate_candidate",
-            lambda: _generation_artifact(root, scene_path, provider),
+            lambda: _generation_artifact(root, scene_path, provider, agent_tasks),
         )
     if promote_candidate:
         node(
@@ -233,7 +235,7 @@ def _run_scene_loop(
         if agent_review:
             node("agent_scene_review", lambda: _agent_scene_review_artifact(root, scene_path, draft_path, provider))
             node("agent_committee", lambda: _agent_committee_artifact(root, scene_id, draft_path, provider))
-        node("state_evolution_patch", lambda: _state_patch_artifact(root, scene_path, draft_path))
+        node("state_evolution_patch", lambda: _state_patch_artifact(root, scene_path, draft_path, agent_tasks))
     else:
         _skip_node(state, "review_ci", {}, "draft missing; review skipped")
         _skip_node(state, "state_evolution_patch", {}, "draft missing; state evolution skipped")
@@ -327,35 +329,47 @@ def _context_artifact(root: Path, scene_path: Path) -> tuple[dict[str, str], str
     return {"context_packet": _rel_str(result.output_path, root)}, f"retrievals={result.retrieval_count}"
 
 
-def _simulation_artifact(root: Path, scene_path: Path) -> tuple[dict[str, str], str]:
-    result = build_roleplay_simulation(root, scene=scene_path, rebuild_context=False)
-    return {"simulation": _rel_str(result.output_path, root)}, f"characters={result.character_count}"
+def _simulation_artifact(root: Path, scene_path: Path, agent_tasks: bool) -> tuple[dict[str, str], str]:
+    result = build_roleplay_simulation(root, scene=scene_path, rebuild_context=False, agent_mode=agent_tasks)
+    artifacts = {"simulation": _rel_str(result.output_path, root)}
+    if agent_tasks:
+        artifacts["simulation_agent_tasks"] = _rel_str(result.output_path, root)
+    return artifacts, f"characters={result.character_count}"
 
 
-def _branch_artifact(root: Path, scene_path: Path) -> tuple[dict[str, str], str]:
-    result = build_branch_simulation(root, scene=scene_path, rebuild_context=False)
-    return {
+def _branch_artifact(root: Path, scene_path: Path, agent_tasks: bool) -> tuple[dict[str, str], str]:
+    result = build_branch_simulation(root, scene=scene_path, rebuild_context=False, agent_tasks=agent_tasks)
+    artifacts = {
         "branch_simulation": _rel_str(result.output_path, root),
         "branch_manifest": _rel_str(result.manifest_path, root),
         "branch_selection": _rel_str(result.selection_path, root),
-    }, f"branches={result.branch_count}; recommended={result.recommended_branch}"
+    }
+    if result.agent_tasks_path:
+        artifacts["branch_agent_tasks"] = _rel_str(result.agent_tasks_path, root)
+    return artifacts, f"branches={result.branch_count}; recommended={result.recommended_branch}"
 
 
-def _composition_artifact(root: Path, scene_path: Path) -> tuple[dict[str, str], str]:
-    result = build_scene_composition(root, scene=scene_path, rebuild_context=False)
-    return {
+def _composition_artifact(root: Path, scene_path: Path, agent_tasks: bool) -> tuple[dict[str, str], str]:
+    result = build_scene_composition(root, scene=scene_path, rebuild_context=False, agent_tasks=agent_tasks)
+    artifacts = {
         "scene_composition": _rel_str(result.output_path, root),
         "scene_composition_json": _rel_str(result.json_path, root),
-    }, f"branch={result.selected_branch}; beats={result.beat_count}; characters={result.character_count}"
+    }
+    if result.agent_tasks_path:
+        artifacts["scene_composition_agent_tasks"] = _rel_str(result.agent_tasks_path, root)
+    return artifacts, f"branch={result.selected_branch}; beats={result.beat_count}; characters={result.character_count}"
 
 
-def _generation_artifact(root: Path, scene_path: Path, provider: str) -> tuple[dict[str, str], str]:
-    result = generate_scene_candidate(root, scene=scene_path, rebuild_context=False, provider=provider)
-    return {
+def _generation_artifact(root: Path, scene_path: Path, provider: str, agent_tasks: bool) -> tuple[dict[str, str], str]:
+    result = generate_scene_candidate(root, scene=scene_path, rebuild_context=False, provider=provider, agent_tasks=agent_tasks)
+    artifacts = {
         "candidate": _rel_str(result.candidate_path, root),
         "candidate_manifest": _rel_str(result.manifest_path, root),
         "prompt_manifest": _rel_str(result.prompt_manifest_path, root),
-    }, f"provider={result.provider}; chars={result.generated_chars}"
+    }
+    if result.agent_tasks_path:
+        artifacts["candidate_agent_tasks"] = _rel_str(result.agent_tasks_path, root)
+    return artifacts, f"provider={result.provider}; chars={result.generated_chars}"
 
 
 def _asset_candidate_artifact(root: Path, asset_type: str, provider: str, brief: str) -> tuple[dict[str, str], str]:
@@ -429,12 +443,15 @@ def _agent_committee_artifact(root: Path, scene_id: str, draft_path: Path, provi
     }, f"recommendation={result.final_recommendation}; reviewers={result.reviewer_count}; provider={provider}"
 
 
-def _state_patch_artifact(root: Path, scene_path: Path, source_path: Path) -> tuple[dict[str, str], str]:
-    result = build_character_state_patch(root, scene=scene_path, source=source_path)
-    return {
+def _state_patch_artifact(root: Path, scene_path: Path, source_path: Path, agent_tasks: bool) -> tuple[dict[str, str], str]:
+    result = build_character_state_patch(root, scene=scene_path, source=source_path, agent_tasks=agent_tasks)
+    artifacts = {
         "state_patch": _rel_str(result.output_path, root),
         "state_patch_json": _rel_str(result.json_path, root),
-    }, f"characters={result.character_count}; unresolved={result.unresolved_count}"
+    }
+    if result.agent_tasks_path:
+        artifacts["state_patch_agent_tasks"] = _rel_str(result.agent_tasks_path, root)
+    return artifacts, f"characters={result.character_count}; unresolved={result.unresolved_count}"
 
 
 def _chapter_artifact(root: Path, chapter_id: str) -> tuple[dict[str, str], str]:

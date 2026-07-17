@@ -25,6 +25,8 @@
 
 循环默认最多执行 4 步，避免一次请求中无限扩张。`auto_execute=false` 时，工具调用只记录为 `planned`，不会产生创作写入。
 
+`run_director_turn(..., agent_tasks=True)`、API `/director/chat` 的 `agent_tasks=true`、以及 CLI `director-chat --agent-tasks` 会把同名开关传给内部 `run_workflow`。这会生成 `.agent_tasks.md` 侧车任务文件，供 Codex/Claude 等平台 Agent 继续执行“判断、填充、审查、是否写回”的非确定性环节；不会把 `[AGENT_TASK: ...]` 写入 JSON、prompt manifest、canon、角色文件、正文草稿或发布包。
+
 ## 审计产物
 
 每轮总监对话新增：

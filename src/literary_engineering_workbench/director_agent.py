@@ -105,6 +105,7 @@ def run_director_turn(
     *,
     provider: str = "auto",
     auto_execute: bool = True,
+    agent_tasks: bool = False,
 ) -> DirectorTurnResult:
     """Route one user-facing creative instruction through the top-level agent."""
 
@@ -129,7 +130,12 @@ def run_director_turn(
         user_prompt=_director_user_prompt(direction, project_status),
         provider=resolved_provider,
         output_dir=run_dir / "agent_decision",
-        metadata={"schema_name": DIRECTOR_SCHEMA, "auto_execute": auto_execute, "requested_provider": provider},
+        metadata={
+            "schema_name": DIRECTOR_SCHEMA,
+            "auto_execute": auto_execute,
+            "agent_tasks": agent_tasks,
+            "requested_provider": provider,
+        },
         dry_run_output=deterministic,
     )
     parsed_path = agent_run.run_dir / "parsed_output.json"
@@ -149,6 +155,7 @@ def run_director_turn(
         provider=resolved_provider,
         requested_provider=provider,
         auto_execute=auto_execute,
+        agent_tasks=agent_tasks,
     )
     workflow_result = tool_loop.workflow_result
     workflow_error = tool_loop.workflow_error
@@ -167,6 +174,7 @@ def run_director_turn(
             "status": status,
             "executed_workflow": workflow if workflow_result else "",
             "auto_execute": auto_execute,
+            "agent_tasks": agent_tasks,
             "provider": resolved_provider,
             "requested_provider": provider,
             "agent_run_dir": _rel_str(agent_run.run_dir, root),
@@ -242,6 +250,7 @@ def _run_director_tool_loop(
     provider: str,
     requested_provider: str,
     auto_execute: bool,
+    agent_tasks: bool,
 ) -> DirectorToolLoopResult:
     loop_path = run_dir / "tool_loop.json"
     started_at = _now()
@@ -250,6 +259,7 @@ def _run_director_tool_loop(
         "run_id": initial_decision.get("run_id", ""),
         "status": "running",
         "auto_execute": auto_execute,
+        "agent_tasks": agent_tasks,
         "max_steps": DIRECTOR_MAX_TOOL_STEPS,
         "started_at": started_at,
         "ended_at": "",
@@ -299,6 +309,7 @@ def _run_director_tool_loop(
             provider=provider,
             step_number=step_number,
             previous_steps=loop["steps"],
+            agent_tasks=agent_tasks,
         )
         if step_workflow_result is not None:
             workflow_result = step_workflow_result
@@ -347,6 +358,7 @@ def _execute_director_tool_call(
     provider: str,
     step_number: int,
     previous_steps: list[dict[str, Any]],
+    agent_tasks: bool,
 ) -> tuple[dict[str, Any], Any, str, dict[str, str]]:
     started_at = _now()
     normalized = _normalize_director_tool_call(tool_call)
@@ -409,6 +421,7 @@ def _execute_director_tool_call(
                     scene=Path("scenes/scene_0001.yaml"),
                     generate_candidate=workflow == "scene-loop",
                     agent_review=True,
+                    agent_tasks=agent_tasks,
                     provider=provider,
                     run_id=workflow_run_id,
                     brief=direction,

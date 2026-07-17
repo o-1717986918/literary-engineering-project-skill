@@ -15,6 +15,12 @@ $env:PYTHONPATH="src"
 python -m literary_engineering_workbench state-evolve work/demo-work --scene scenes/scene_0001.yaml
 ```
 
+生成平台 agent 审查任务：
+
+```powershell
+python -m literary_engineering_workbench state-evolve work/demo-work --scene scenes/scene_0001.yaml --agent-tasks
+```
+
 指定来源产物：
 
 ```powershell
@@ -37,6 +43,7 @@ python -m literary_engineering_workbench state-evolve work/demo-work `
 ```text
 characters/state_patches/{scene_id}_state_patch.md
 characters/state_patches/{scene_id}_state_patch.json
+characters/state_patches/{scene_id}_state_patch.agent_tasks.md
 ```
 
 JSON 包含：
@@ -67,6 +74,7 @@ JSON 包含：
 
 - `state_patch`
 - `state_patch_json`
+- `state_patch_agent_tasks`（使用 `--agent-tasks` 时）
 
 若草稿不存在，该节点跳过，不从模型候选直接写回人物档案。
 

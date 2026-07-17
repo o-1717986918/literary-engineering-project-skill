@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .context_packet import build_context_packet
 from .roleplay_lab import CharacterCard, _load_characters, _read
 
@@ -37,6 +38,7 @@ class SceneCompositionResult:
     project_root: Path
     output_path: Path
     json_path: Path
+    agent_tasks_path: Path | None
     context_path: Path
     scene_id: str
     selected_branch: str
@@ -54,6 +56,7 @@ def build_scene_composition(
     branch_selection: Path | None = None,
     output: Path | None = None,
     json_output: Path | None = None,
+    agent_tasks: bool = False,
 ) -> SceneCompositionResult:
     """Build a scene composition packet and JSON manifest."""
 
@@ -119,16 +122,65 @@ def build_scene_composition(
     }
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     output_path.write_text(_render_markdown(root, scene_path, context_path, payload), encoding="utf-8")
+    agent_tasks_path = None
+    if agent_tasks:
+        agent_tasks_path = _write_composition_agent_tasks(root, scene_path, context_path, output_path, json_path, payload)
 
     return SceneCompositionResult(
         project_root=root,
         output_path=output_path,
         json_path=json_path,
+        agent_tasks_path=agent_tasks_path,
         context_path=context_path,
         scene_id=facts.scene_id,
         selected_branch=str(branch["branch_id"] or "none"),
         character_count=len(active_cards or all_cards),
         beat_count=len(beats),
+    )
+
+
+def _write_composition_agent_tasks(
+    root: Path,
+    scene_path: Path,
+    context_path: Path,
+    output_path: Path,
+    json_path: Path,
+    payload: dict[str, Any],
+) -> Path:
+    source_paths = [scene_path, context_path, output_path, json_path]
+    branch_manifest = str(payload.get("branch_manifest") or "")
+    branch_selection = str(payload.get("branch_selection") or "")
+    if branch_manifest:
+        source_paths.append(root / branch_manifest)
+    if branch_selection:
+        source_paths.append(root / branch_selection)
+    return write_agent_tasks(
+        default_agent_tasks_path(output_path),
+        title=f"compose-scene {payload['scene_id']}",
+        root=root,
+        source_paths=source_paths,
+        notes=[
+            "composition.md 可能进入 generate-scene 的 prompt pack，因此不要把 AGENT_TASK 写回 composition.md。",
+            "composition.json 是机器契约，不能写入 AGENT_TASK 标记。",
+        ],
+        tasks=[
+            (
+                "审查场景编排",
+                """读取 composition.md 与 composition.json，检查 selected_branch、beats、subtext_map、dialogue_intents、sensory_palette 和 prose_seed 是否互相一致。若缺少 branch_manifest 或分支选择来源不可靠，说明是否需要先重跑 branch-simulate。""",
+            ),
+            (
+                "检查人物隐性动因",
+                """逐个角色检查 background_story 是否只作为选择、回避、误判、语气和关系压力的隐性因果存在。标出任何可能把背景故事写成直白说明段落的 prose_seed 或 dialogue intent。""",
+            ),
+            (
+                "检查进入生成条件",
+                """判断当前 composition 是否适合作为 generate-scene 的输入。若适合，列出必须传给正文生成的硬约束；若不适合，提出最小修订步骤。""",
+            ),
+            (
+                "检查写回候选",
+                """审查 writeback_candidates，标出哪些新增事实、人物状态、关系变化和伏笔变化必须在正文和 review 后再次确认。不要直接写入 canon 或 characters/*.yaml。""",
+            ),
+        ],
     )
 
 

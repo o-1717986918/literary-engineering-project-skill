@@ -75,6 +75,35 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("candidate_manifest", state["artifacts"])
         self.assertIn("prompt_manifest", state["artifacts"])
 
+    def test_scene_loop_records_agent_task_sidecars(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+        result = run_workflow(
+            project,
+            mode="scene-loop",
+            scene=Path("scenes/scene_0001.yaml"),
+            run_id="agent-tasks-run",
+            generate_candidate=True,
+            provider="dry-run",
+            agent_tasks=True,
+        )
+
+        self.assertIn(result.status, {"completed", "completed_with_skips"})
+        state = load_workflow_state(project, "agent-tasks-run")
+        artifacts = state["artifacts"]
+        self.assertIn("simulation_agent_tasks", artifacts)
+        self.assertIn("branch_agent_tasks", artifacts)
+        self.assertIn("scene_composition_agent_tasks", artifacts)
+        self.assertIn("candidate_agent_tasks", artifacts)
+        self.assertIn("state_patch_agent_tasks", artifacts)
+        for key in [
+            "branch_agent_tasks",
+            "scene_composition_agent_tasks",
+            "candidate_agent_tasks",
+            "state_patch_agent_tasks",
+        ]:
+            self.assertIn("[AGENT_TASK:", (project / artifacts[key]).read_text(encoding="utf-8"))
+
     def test_scene_loop_can_promote_generated_candidate(self):
         project = self.make_project()
         result = run_workflow(

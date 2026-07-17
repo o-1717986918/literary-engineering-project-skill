@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import re
 
+from .agent_tasks import render_agent_task_block
 from .context_packet import build_context_packet
 
 
@@ -132,8 +133,23 @@ def _bullets(items: list[str]) -> str:
     return "\n".join(f"- {item}" for item in items)
 
 
-def _character_prompt(card: CharacterCard, root: Path) -> str:
+def _character_prompt(card: CharacterCard, root: Path, *, agent_mode: bool = False) -> str:
     rel = card.file.relative_to(root).as_posix()
+    action_task = ""
+    if agent_mode:
+        action_task = (
+            render_agent_task_block(
+                f"""请读取 `{rel}`，提取该角色的 belief / desire / intention / fear / secret / moral_line / background_story，然后以该角色的第一人称逐一回答：
+1. 在当前场景中，我相信什么？（基于 belief）
+2. 我最想避免什么？（基于 fear）
+3. 我会采取什么具体行动？（基于 intention + 场景目标）
+4. 我为什么不会采取另一个更方便剧情的行动？（基于 moral_line + background_story 的行为影响）
+5. 我的行动会给下一场景留下什么代价？
+6. 我的 background_story 如何通过选择、回避、误判或语气间接影响行动，而不是被直接说明？
+将答案以 "- " 列表形式填入下方。"""
+            )
+            + "\n\n"
+        )
     return f"""## Character Agent：{card.name}
 
 来源：`{rel}`
@@ -190,8 +206,68 @@ Secret:
 
 ### 行动提案
 
-- 
+{action_task}-
 """
+
+
+def _agent_task_if(enabled: bool, instruction: str) -> str:
+    if not enabled:
+        return ""
+    return render_agent_task_block(instruction) + "\n\n"
+
+
+def _agent_mode_usage_rule(enabled: bool) -> str:
+    if not enabled:
+        return ""
+    return "- `[AGENT_TASK: ...]` 是给装载本 Skill 的平台 agent 执行的任务说明，不是外部 LLM prompt；补全后可删除或替换为正式推演记录。\n"
+
+
+def _world_agent_task() -> str:
+    return """基于上方每个角色的行动提案，评估：
+1. 这些行动在当前场景（时间、地点、参与者）中会产生什么直接后果？
+2. 哪些行动与 canon 约束冲突？（对照 canon/world_rules.yaml 和 canon/forbidden_changes.yaml，如文件不存在则说明缺失）
+3. 这些行动会如何影响下一场景（next_hooks）？
+将答案填入下方"后果记录"列表。"""
+
+
+def _branch_agent_task() -> str:
+    return """基于角色行动提案和 World Agent 后果记录，补全 Branch A/B/C：
+1. Branch A 优先人物最合理，不追求便利剧情。
+2. Branch B 优先戏剧冲突最强，但不能突破 canon 和人物道德边界。
+3. Branch C 优先文学余味最强，强调选择后的关系余波和主题回声。
+每个分支都要填写行动链、代价、新事实候选和后续钩子。"""
+
+
+def _director_agent_task() -> str:
+    return """基于 Branch A/B/C，补全评分表：
+1. 人物合理性：是否能由 BDI、fear、moral_line、background_story 解释。
+2. Canon 安全：是否触碰硬设定、时间线、适用范围或禁止变化。
+3. 戏剧张力：是否产生可持续冲突。
+4. 文学性：是否有余味、隐性动因和非直白表达。
+5. 后续展开：是否能自然导向 next_hooks。
+风险栏必须写明不可自动合并的原因。"""
+
+
+def _canon_agent_task() -> str:
+    return """审查所有分支：
+1. 标出违背硬设定或缺少依据的分支。
+2. 列出需要人工确认的新 canon。
+3. 列出不允许直接合并的人物状态、关系、地点、组织或规则变化。
+如果缺少 canon 文件或 scene.yaml 中 canon_refs 不足，也要明确写出。"""
+
+
+def _merge_agent_task() -> str:
+    return """基于 Director Agent 评分表，选择推荐分支并给出理由。如果不只选一个，说明保留哪些另一分支的元素。不要把推荐分支当作自动决定；合并前必须列出需要用户确认的事项。"""
+
+
+def _writeback_agent_task() -> str:
+    return """基于推荐分支和 Canon Auditor 结果，整理写回候选：
+1. 新增事实候选。
+2. 人物状态变化。
+3. 关系变化。
+4. 伏笔变化。
+5. 下一场景输入状态。
+所有写回项必须保持候选，不得直接写入 canon 或 characters/*.yaml。"""
 
 
 def build_roleplay_simulation(
@@ -201,6 +277,7 @@ def build_roleplay_simulation(
     query: str = "",
     rebuild_context: bool = False,
     output: Path | None = None,
+    agent_mode: bool = False,
 ) -> SimulationResult:
     root = project_root.resolve()
     if not root.is_dir():
@@ -224,7 +301,7 @@ def build_roleplay_simulation(
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    character_sections = "\n\n".join(_character_prompt(card, root) for card in cards)
+    character_sections = "\n\n".join(_character_prompt(card, root, agent_mode=agent_mode) for card in cards)
     if not character_sections:
         character_sections = "未发现正式人物档案。请先在 `characters/` 下创建非 `_template.yaml` 的人物文件。"
 
@@ -243,6 +320,7 @@ def build_roleplay_simulation(
 - Director Agent 负责比较戏剧张力、主题价值和后续展开空间。
 - Canon Auditor 必须否决违背硬设定的分支。
 - 合并任何分支前必须人工确认。
+{_agent_mode_usage_rule(agent_mode)}
 
 ## 场景摘要
 
@@ -258,13 +336,13 @@ def build_roleplay_simulation(
 
 请基于 canon、地点、资源、时间线和世界规则评估每个角色行动的后果。
 
-### 后果记录
+{_agent_task_if(agent_mode, _world_agent_task())}### 后果记录
 
 - 
 
 ## 分支候选
 
-### Branch A：人物最合理
+{_agent_task_if(agent_mode, _branch_agent_task())}### Branch A：人物最合理
 
 - 行动链：
 - 代价：
@@ -287,7 +365,7 @@ def build_roleplay_simulation(
 
 ## Director Agent：分支评分
 
-| 分支 | 人物合理性 | Canon 安全 | 戏剧张力 | 文学性 | 后续展开 | 风险 | 总评 |
+{_agent_task_if(agent_mode, _director_agent_task())}| 分支 | 人物合理性 | Canon 安全 | 戏剧张力 | 文学性 | 后续展开 | 风险 | 总评 |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
 | A | 0 | 0 | 0 | 0 | 0 |  |  |
 | B | 0 | 0 | 0 | 0 | 0 |  |  |
@@ -295,20 +373,20 @@ def build_roleplay_simulation(
 
 ## Canon Auditor
 
-- 违背硬设定的分支：
+{_agent_task_if(agent_mode, _canon_agent_task())}- 违背硬设定的分支：
 - 需要人工确认的新 canon：
 - 不允许直接合并的变化：
 
 ## 合并建议
 
-- 推荐分支：
+{_agent_task_if(agent_mode, _merge_agent_task())}- 推荐分支：
 - 推荐理由：
 - 需要保留的另一分支元素：
 - 合并前必须确认：
 
 ## 写回候选
 
-- 新增事实候选：
+{_agent_task_if(agent_mode, _writeback_agent_task())}- 新增事实候选：
 - 人物状态变化：
 - 关系变化：
 - 伏笔变化：

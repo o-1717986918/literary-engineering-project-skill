@@ -38,6 +38,27 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         prompt_manifest = json.loads(result.prompt_manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(prompt_manifest["messages"][0]["role"], "system")
         self.assertIn("输出契约", prompt_manifest["messages"][1]["content"])
+        self.assertIsNone(result.agent_tasks_path)
+
+    def test_agent_tasks_sidecar_reviews_prompt_manifest_without_pollution(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+
+        result = generate_scene_candidate(
+            project,
+            scene=Path("scenes/scene_0001.yaml"),
+            rebuild_context=True,
+            provider="dry-run",
+            agent_tasks=True,
+        )
+
+        self.assertIsNotNone(result.agent_tasks_path)
+        assert result.agent_tasks_path is not None
+        tasks = result.agent_tasks_path.read_text(encoding="utf-8")
+        self.assertIn("[AGENT_TASK:", tasks)
+        self.assertIn("审查 prompt manifest", tasks)
+        self.assertNotIn("[AGENT_TASK:", result.prompt_manifest_path.read_text(encoding="utf-8"))
+        self.assertNotIn("[AGENT_TASK:", result.manifest_path.read_text(encoding="utf-8"))
 
     def test_prompt_pack_uses_scene_composition_when_available(self):
         project = self.make_project()

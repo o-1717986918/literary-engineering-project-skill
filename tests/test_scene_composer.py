@@ -44,6 +44,7 @@ class SceneComposerTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("正文种子", report)
         self.assertIn("人物潜台词", report)
         self.assertIn("不得直白交代人物背景故事", report)
+        self.assertIsNone(result.agent_tasks_path)
 
     def test_build_scene_composition_without_branch_manifest_uses_fallback(self):
         project = self.make_project()
@@ -57,6 +58,22 @@ class SceneComposerTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(payload["selection_source"], "fallback")
         self.assertEqual(payload["branch"]["status"], "no_manifest")
         self.assertIn("建议先运行 branch-simulate", "\n".join(payload["revision_targets"]))
+
+    def test_agent_tasks_sidecar_keeps_composition_artifacts_clean(self):
+        project = self.make_project()
+        add_character(project)
+        _write_scene(project)
+        build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+
+        result = build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), agent_tasks=True)
+
+        self.assertIsNotNone(result.agent_tasks_path)
+        assert result.agent_tasks_path is not None
+        tasks = result.agent_tasks_path.read_text(encoding="utf-8")
+        self.assertIn("[AGENT_TASK:", tasks)
+        self.assertIn("composition.md 可能进入 generate-scene", tasks)
+        self.assertNotIn("[AGENT_TASK:", result.output_path.read_text(encoding="utf-8"))
+        self.assertNotIn("[AGENT_TASK:", result.json_path.read_text(encoding="utf-8"))
 
     def test_cli_exposes_and_runs_compose_scene(self):
         project = self.make_project()

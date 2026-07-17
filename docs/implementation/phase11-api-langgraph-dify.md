@@ -23,6 +23,7 @@ python -m literary_engineering_workbench serve-api --host 127.0.0.1 --port 8765 
 Endpoints：
 
 - `GET /health`
+- `POST /director/chat`
 - `POST /workflow/run`
 - `GET /workflow/runs/{run_id}?project_root=...`
 - `GET /workflow/artifact?project_root=...&path=...`
@@ -32,12 +33,14 @@ Endpoints：
 
 ## Dify Workflow 接法
 
-1. Start / User Input：收集 `project_root`、`mode`、`scene`、`chapter_id`，可选收集 `generate_candidate`、`promote_candidate`、`provider`。
-2. HTTP Request：POST `/workflow/run`。
+1. Start / User Input：收集 `project_root`、`creative_direction`、`provider`、`auto_execute`，可选收集 `agent_tasks`。
+2. HTTP Request：POST `/director/chat`，让创作总监自行路由到内部工作流。
 3. If/Else：如果 `blocked=true` 或 `status` 不是 `completed`，进入 Human Input。
 4. HTTP Request：GET `/workflow/artifact` 读取日志。
 5. Human Input：收集 `approve / revise / reject` 和 notes。
 6. HTTP Request：POST `/workflow/approve`。
+
+专业/调试场景仍可直接 POST `/workflow/run`。该请求体支持 `agent_review=true` 和 `agent_tasks=true`；后者会让 scene-loop 产出 `.agent_tasks.md` 侧车任务文件。
 
 `generate_candidate=true` 时，后端会在 scene-loop 的 `scene_composition` 后追加候选生成节点。使用 `provider=http-chat` 前，应在 `serve-api` 所在环境设置 `LEW_MODEL_API_BASE`、`LEW_MODEL_NAME` 和必要时的 `LEW_MODEL_API_KEY`。
 

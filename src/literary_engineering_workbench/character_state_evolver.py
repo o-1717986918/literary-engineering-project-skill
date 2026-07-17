@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .roleplay_lab import CharacterCard, _list_after, _load_characters, _nested_list, _nested_scalar, _read, _scalar
 
 
@@ -17,6 +18,7 @@ class CharacterStatePatchResult:
     project_root: Path
     output_path: Path
     json_path: Path
+    agent_tasks_path: Path | None
     scene_id: str
     source_path: Path
     character_count: int
@@ -29,6 +31,7 @@ def build_character_state_patch(
     source: Path | None = None,
     output: Path | None = None,
     json_output: Path | None = None,
+    agent_tasks: bool = False,
 ) -> CharacterStatePatchResult:
     """Build a reviewable character-state patch from one scene artifact."""
 
@@ -81,14 +84,56 @@ def build_character_state_patch(
     }
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     output_path.write_text(_render_markdown(payload), encoding="utf-8")
+    agent_tasks_path = None
+    if agent_tasks:
+        agent_tasks_path = _write_state_patch_agent_tasks(root, scene_path, source_path, output_path, json_path, payload)
     return CharacterStatePatchResult(
         project_root=root,
         output_path=output_path,
         json_path=json_path,
+        agent_tasks_path=agent_tasks_path,
         scene_id=scene_id,
         source_path=source_path,
         character_count=len(patches),
         unresolved_count=len(unresolved),
+    )
+
+
+def _write_state_patch_agent_tasks(
+    root: Path,
+    scene_path: Path,
+    source_path: Path,
+    output_path: Path,
+    json_path: Path,
+    payload: dict[str, Any],
+) -> Path:
+    return write_agent_tasks(
+        default_agent_tasks_path(output_path),
+        title=f"state-evolve {payload['scene_id']}",
+        root=root,
+        source_paths=[scene_path, source_path, output_path, json_path],
+        notes=[
+            "state_patch.json 是候选写回契约，不能写入 AGENT_TASK 标记。",
+            "状态变化只有在用户批准后才能通过 state-apply 写回 characters/*.yaml。",
+        ],
+        tasks=[
+            (
+                "审查状态变化依据",
+                """逐条检查 proposed_updates 是否能从 source_artifact 的可见正文、候选正文或 composition 中找到依据。删除或标记缺少文本证据的状态变化。""",
+            ),
+            (
+                "审查人物一致性",
+                """对照人物 belief / desire / intention / fear / moral_line / background_story，判断状态变化、弧光变化和关系变化是否自然。特别检查 background_story 是否被误当作明示事实写入。""",
+            ),
+            (
+                "审查写回边界",
+                """确认 state-apply 只会修改 characters/*.yaml 中允许的 state、arc、relationships、memory refs，不会写 canon、plot 或 release。列出必须由用户批准的重大变化。""",
+            ),
+            (
+                "决定下一步",
+                """决定该 patch 应请求用户批准、退回重写、拆分为更小 patch，还是保持候选等待后续场景。不要自动应用。""",
+            ),
+        ],
     )
 
 

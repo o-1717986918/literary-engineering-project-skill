@@ -27,6 +27,7 @@ class DifyDslTests(unittest.TestCase):
         self.assertIn("project_root", text)
         self.assertIn("creative_direction", text)
         self.assertIn("auto_execute", text)
+        self.assertIn("agent_tasks", text)
         self.assertIn("- default: auto", text)
         self.assertIn("- auto", text)
         self.assertIn("http-chat", text)

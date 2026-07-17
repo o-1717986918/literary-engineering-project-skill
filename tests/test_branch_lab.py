@@ -35,6 +35,28 @@ class BranchLabTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(manifest["characters"][0]["background_story"]["reveal_policy"], "implicit_only")
         self.assertIn("不得直接讲述", "\n".join(manifest["branches"][0]["character_tests"]))
         self.assertIn("分支不是 canon", "\n".join(manifest["guardrails"]))
+        self.assertIsNone(result.agent_tasks_path)
+
+    def test_agent_tasks_sidecar_does_not_pollute_manifest(self):
+        project = self.make_project()
+        add_character(project)
+        _write_scene(project)
+
+        result = build_branch_simulation(
+            project,
+            scene=Path("scenes/scene_0001.yaml"),
+            branch_count=3,
+            agent_tasks=True,
+        )
+
+        self.assertIsNotNone(result.agent_tasks_path)
+        assert result.agent_tasks_path is not None
+        self.assertTrue(result.agent_tasks_path.exists())
+        tasks = result.agent_tasks_path.read_text(encoding="utf-8")
+        self.assertIn("[AGENT_TASK:", tasks)
+        self.assertIn("不要自动接受 recommended_branch", tasks)
+        manifest_text = result.manifest_path.read_text(encoding="utf-8")
+        self.assertNotIn("[AGENT_TASK:", manifest_text)
 
     def test_missing_character_marks_branch_as_needs_detail(self):
         project = self.make_project()

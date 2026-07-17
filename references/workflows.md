@@ -242,6 +242,7 @@ The lint only reports project-state issues. It does not edit canon, approve cand
 
 ```powershell
 python -m literary_engineering_workbench simulate-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
+python -m literary_engineering_workbench simulate-scene "<work-dir>" --scene scenes/scene_0001.yaml --agent
 python -m literary_engineering_workbench branch-simulate "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
 python -m literary_engineering_workbench compose-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
 python -m literary_engineering_workbench generate-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
@@ -259,7 +260,11 @@ python -m literary_engineering_workbench state-evolve "<work-dir>" --scene scene
 
 Branches are not canon. The recommended branch is only a scoring hint; the platform agent should evaluate it against story direction, canon, character pressure, and user intent before recording the actual human or tool-layer decision in `branch_selection.md`.
 
+Use `branch-simulate --agent` / `--agent-tasks` to write `branch_manifest.agent_tasks.md`. This sidecar tells the platform agent how to review branch scores and choose or revise a branch without polluting `branch_manifest.json`.
+
 `compose-scene` turns the selected or recommended branch into a creation packet under `drafts/compositions/{scene_id}_composition.md` and `.json`, including scene beats, subtext, dialogue intents, sensory palette, prose seed, revision targets, and writeback candidates. It is a pre-draft planning artifact, not final prose. The platform agent must inspect generated JSON before using it as a prompt pack or writeback source.
+
+Use `compose-scene --agent-tasks` to write `drafts/compositions/{scene_id}_composition.agent_tasks.md`. Keep `[AGENT_TASK: ...]` out of the composition Markdown because it may be read into `generate-scene` prompt packs.
 
 When character `background_story` is present, scene and branch work should convert it into choices, hesitation, avoidance, misreadings, tone, and relationship pressure. Do not turn it into an explanatory background paragraph unless the selected scene explicitly reveals the past.
 
@@ -277,6 +282,8 @@ python -m literary_engineering_workbench generate-scene "<work-dir>" --scene sce
 
 Each generation writes a prompt manifest next to the candidate: `drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json`. It records system/user messages and source files, but not API keys.
 
+Use `generate-scene --agent-tasks` to write `drafts/candidates/{scene_id}-{provider}-{timestamp}.agent_tasks.md`. The platform agent should read both the candidate and `.prompt.json`; the prompt manifest itself must remain pure audit data and must not contain `[AGENT_TASK: ...]`.
+
 Review conclusions:
 
 - `pass`: ready for chapter workspace.
@@ -285,6 +292,8 @@ Review conclusions:
 - `reject`: not exportable.
 
 `state-evolve` builds a reviewable character-state patch under `characters/state_patches/` from a scene draft, generated candidate, or composition artifact. It does not modify `characters/*.yaml`; the platform agent must inspect the patch for hidden-background causality, canon risk, and unintended relationship drift. Major character state changes still require human confirmation before any later writeback.
+
+Use `state-evolve --agent-tasks` to write `characters/state_patches/{scene_id}_state_patch.agent_tasks.md` for platform-agent review while keeping the JSON patch clean.
 
 After a workflow run is approved, apply a character state patch with:
 
@@ -398,6 +407,14 @@ Add schema-gated agent review nodes:
 python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-loop --agent-review
 ```
 
+Generate platform-agent task sidecars throughout the scene loop:
+
+```powershell
+python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-loop --agent-tasks --generate-candidate --provider dry-run
+```
+
+This records `simulation_agent_tasks`, `branch_agent_tasks`, `scene_composition_agent_tasks`, `candidate_agent_tasks`, and `state_patch_agent_tasks` in `workflow_state.json` when the corresponding artifacts exist.
+
 Promote the generated or latest candidate into the review lane:
 
 ```powershell
@@ -465,12 +482,15 @@ Primary endpoints:
 - `GET /config`
 - `POST /config`
 - `POST /assistant/chat`
+- `POST /director/chat`
 - `POST /workflow/run`
 - `GET /workflow/runs/{run_id}?project_root=<work-dir>`
 - `GET /workflow/artifact?project_root=<work-dir>&path=<relative-artifact-path>`
 - `POST /workflow/approve`
 
-Dify should call `/workflow/run`, display the returned log or state, collect `approve / revise / reject` with Human Input, then call `/workflow/approve`. Do not let Dify edit canon files directly.
+For a platform-agent or creative-director UX, call `/director/chat` with `project_root`, `message`, `provider`, `auto_execute`, and optional `agent_tasks`. The director can run delegated workflows and, when `agent_tasks=true`, those workflows write platform-agent task sidecars for later Codex/Claude inspection.
+
+For specialist/debug workflows, call `/workflow/run` directly. Its request body accepts `agent_review=true` for schema-gated model reviews and `agent_tasks=true` for sidecar task directives. Display the returned log or state, collect `approve / revise / reject` with Human Input, then call `/workflow/approve`. Do not let Dify edit canon files directly.
 
 The same service hosts a local front-end console at:
 
@@ -515,10 +535,10 @@ python -m literary_engineering_workbench dify-dsl --out "<work-dir>\\prompts\\di
 
 The DSL starter uses the workbench HTTP contract:
 
-- `POST /workflow/run`
+- `POST /director/chat`
 - `GET /workflow/artifact`
 
-The default DSL declares version `0.6.0` and intentionally keeps only Start, HTTP Request, and End nodes because Dify Human Input / classifier node fields vary by version. If your Dify instance requires a newer declared DSL version, add:
+The default DSL declares version `0.6.0` and intentionally keeps only Start, HTTP Request, and End nodes because Dify Human Input / classifier node fields vary by version. It exposes `auto_execute` and `agent_tasks` as Start variables; set `agent_tasks=true` when you want delegated workflows to produce platform-agent sidecars. If your Dify instance requires a newer declared DSL version, add:
 
 ```powershell
 python -m literary_engineering_workbench dify-dsl --dsl-version "0.7.0"

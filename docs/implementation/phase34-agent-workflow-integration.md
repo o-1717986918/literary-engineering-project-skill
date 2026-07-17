@@ -9,15 +9,17 @@
 - `run-workflow --agent-review`
 - `run-langgraph --agent-review`
 - FastAPI `RunWorkflowRequest.agent_review`
+- FastAPI `RunWorkflowRequest.agent_tasks`
 - FastAPI `/agent/run`
 - FastAPI `/agent/runs/{run_id}`
-- Dify DSL 增加 `agent_review` 输入和 `/workflow/run` body 字段。
+- Dify DSL 增加 `agent_tasks` 输入，并通过 `/director/chat` 交给创作总监透传到内部 workflow。
 
 ## 命令
 
 ```powershell
 $env:PYTHONPATH="src"
 python -m literary_engineering_workbench run-workflow work/demo --mode scene-loop --agent-review
+python -m literary_engineering_workbench run-workflow work/demo --mode scene-loop --agent-tasks --generate-candidate --provider dry-run
 ```
 
 ## 工作流节点
@@ -33,4 +35,4 @@ Chapter publish 在 longform audit 后可追加：
 
 ## 边界
 
-Dify 仍是审稿台和人工审批界面，不是 canon 源。真实模型 key 继续留在本地后端环境变量中。
+Dify 仍是审稿台和人工审批界面，不是 canon 源。真实模型 key 继续留在本地后端环境变量中。`agent_tasks` 只写 `.agent_tasks.md` sidecar，不写入 prompt manifest、canon、角色文件、正文草稿或发布包。

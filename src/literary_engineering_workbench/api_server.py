@@ -59,6 +59,7 @@ class RunWorkflowRequest(BaseModel):
     generate_candidate: bool = False
     promote_candidate: bool = False
     agent_review: bool = False
+    agent_tasks: bool = False
     provider: str = "auto"
     run_id: str = ""
     resume_run_id: str = ""
@@ -115,6 +116,7 @@ class DirectorChatRequest(BaseModel):
     message: str
     provider: str = "auto"
     auto_execute: bool = True
+    agent_tasks: bool = False
     create_project_if_missing: bool = True
     project_parent: str = ""
     project_title: str = ""
@@ -512,6 +514,7 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
                 generate_candidate=payload.generate_candidate,
                 promote_candidate=payload.promote_candidate,
                 agent_review=payload.agent_review,
+                agent_tasks=payload.agent_tasks,
                 provider=payload.provider,
                 run_id=payload.run_id or None,
                 resumed_from=payload.resume_run_id,
@@ -598,6 +601,7 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
                 payload.message,
                 provider=payload.provider,
                 auto_execute=payload.auto_execute,
+                agent_tasks=payload.agent_tasks,
             )
         except FileExistsError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
