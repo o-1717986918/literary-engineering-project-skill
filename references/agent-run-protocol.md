@@ -6,13 +6,13 @@ Use this protocol whenever a tool-layer agent runs a literary engineering task t
 
 1. Classify the workspace.
    - Skill root: contains `SKILL.md`, `AGENTS.md`, `agentread.yaml`, `references/`, `templates/`, `schemas/`, and `src/` or `scripts/`.
-   - Work project: contains `project.yaml`, `canon/`, `characters/`, `plot/`, `style/`, `scenes/`, `drafts/`, `reviews/`, `memory/`.
+   - Work project: contains `project.yaml`, `canon/`, `characters/`, `plot/`, `style/`, `sources/`, `scenes/`, `drafts/`, `reviews/`, `memory/`.
    - Style library: contains `authors/`, `works/`, `profiles/`, or `style_skills/`.
 2. Select exactly one primary route from `agentread.yaml`. Add a secondary route only when the task truly crosses boundaries, such as style learning plus scene drafting.
 3. Read the route references before changing artifacts. Do not read the whole repository by default.
 4. Inspect current project state before planning: `project.yaml`, relevant canon/character/plot/style files, latest reviews, workflow runs, and approval records.
 5. State a short plan to yourself or in the working trace: objective, route, artifacts to inspect, artifacts to create, review gates, and user approval boundary.
-6. Execute deterministic preparation with CLI only when useful: initialize, index, search, build context, lint, compose, export, or generate platform-agent task sidecars.
+6. Execute deterministic preparation with CLI only when useful: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars.
 7. Perform every non-deterministic creative or judgment step as the supervising platform agent. This includes prose, JSON drafting, schema repair, roleplay, branch choice, review findings, style prompts, and promotion recommendations.
 8. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, then inspect the produced artifact. Do not report the task file as completed work by itself.
 9. Validate produced artifacts before acceptance:
@@ -39,6 +39,7 @@ The following must never be delegated to local dry-run, HTTP helper, or CLI outp
 
 - New prose, revision, synopsis, outline, scene, or script text.
 - Character profiles, hidden background stories, relationship graphs, world rules, locations, and organizations.
+- Existing-work reverse extraction into project brief, character, world, outline, timeline, foreshadowing, or style candidates.
 - Style prompts, style effectiveness judgments, back-translation judgments, and mount decisions.
 - JSON creation or repair when the JSON encodes creative judgment.
 - Roleplay, branch simulation, consequence simulation, character-state evolution, and scene composition decisions.

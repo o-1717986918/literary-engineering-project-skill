@@ -36,6 +36,7 @@ Every task must run through the protocol loop before it is considered complete:
 - The local `director-chat` implementation is legacy/experimental. Use it only when the user explicitly wants local orchestration or regression testing.
 - Prefer platform-native reasoning, file editing, review, and subagents for creative work.
 - Every creative generation, LLM-authored JSON/schema draft, simulation, review, branch choice, style prompt, candidate promotion recommendation, and free-form project decision must stay under the supervision of the tool-layer agent that loaded this skill.
+- Existing-work reverse extraction is also platform-agent work: the CLI may import and chunk source text, but the platform agent extracts characters, background stories, world rules, outlines, timelines, foreshadowing, and style notes into candidate files.
 - Formal non-deterministic commands write platform-agent task sidecars plus expected output paths. The platform agent reads those tasks, performs the creative/review judgment, writes the expected artifacts, applies schema/canon/style checks, and decides the next step.
 - Local model-backed commands, HTTP providers, and the local `director-chat` implementation are legacy/debug tools. Use them only when the user explicitly asks for that path.
 
@@ -46,6 +47,7 @@ Every task must run through the protocol loop before it is considered complete:
 - Retrieval, roleplay, branch simulations, model summaries, and style scores are evidence, not canon.
 - LLM-authored JSON is not accepted merely because it parsed. Treat it as a draft until schema validation and tool-layer review accept it as candidate material.
 - New characters, background stories, world rules, locations, organizations, relationships, outlines, major plot turns, and state changes start as candidates.
+- Source-derived facts from existing works start as candidates with evidence references, confidence, contradictions, and unknowns. They must not directly overwrite formal `canon/`, `characters/`, `plot/`, `style/`, drafts, exports, or releases.
 - Promote candidates only after review and explicit user approval unless the user clearly asks for an internal experiment.
 - Character `background_story` is hidden behavioral causality. It should affect action, omission, speech, hesitation, misreading, and pressure, not appear as direct exposition unless the scene is designed to reveal it.
 - Mounted Style Skills have highest priority for expression-level writing choices, but never override canon, character facts, plot causality, safety/legal constraints, or explicit user instructions.
@@ -59,6 +61,7 @@ Every task must run through the protocol loop before it is considered complete:
 ## Common Director Moves
 
 - Broad project idea: create or update project brief, identify first candidate pass, then proceed without asking operational questions.
+- Existing text or complete work: run source ingest when useful, then reverse-extract project brief, characters, world, outline, timeline, foreshadowing, and style notes as candidates for continuation or rewrite.
 - Character work: create candidate profile/background/relationship changes, then review for motive and OOC risk.
 - World work: create candidate rules/locations/organizations, then review for constraints and loopholes.
 - Plot work: create outline/branch candidates, then review scene function and setup/payoff.

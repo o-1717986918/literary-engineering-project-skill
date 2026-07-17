@@ -38,6 +38,7 @@ This repository:
 - artifact contracts;
 - templates;
 - schemas;
+- source import and reverse-extraction contracts;
 - style project and Style Skill mechanics;
 - optional deterministic CLI helpers;
 - optional integration docs for LangGraph, Dify, and FastAPI.
@@ -60,6 +61,7 @@ Keep these as core project value:
 
 - work project file structure;
 - candidate/review/promotion boundary;
+- existing-work import into candidate project files;
 - hidden character background story semantics;
 - context packets and knowledge store;
 - style compiler and Style Skill mount;

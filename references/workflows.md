@@ -29,7 +29,7 @@ Any command that writes creative material, drafts JSON, repairs schema output, s
 
 Before running such a command, the platform agent should choose the task, prompt/context packet, constraints, and approval boundary. After running it, the platform agent must read the task sidecar, write or inspect the expected artifacts, validate schema where relevant, check canon/character/style constraints, and decide whether to revise, keep as candidate, ask the user, or promote after approval.
 
-This rule covers `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, and `run-workflow`.
+This rule covers `source-ingest`, `extract-existing-work`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, and `run-workflow`.
 
 `agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, and `director-chat` are legacy/debug paths. Use them only when the user explicitly asks to test local provider behavior.
 
@@ -83,6 +83,7 @@ Creates:
 - `characters/`
 - `plot/`
 - `style/`
+- `sources/`
 - `scenes/`
 - `drafts/`
 - `reviews/`
@@ -94,6 +95,46 @@ Creates:
 Character files include `background_story`. Use it as an internal cause of behavior, not as direct exposition in final prose.
 
 For long projects, keep each character in a separate `characters/{character_id}.yaml` file and set `importance`. Major characters are loaded into most scene context packets; secondary/cameo characters are loaded only when the scene includes them in `participants`, `referenced_characters`, or `character_refs`. Scene files should therefore list every on-page participant and any off-page character whose memory, threat, relationship, or background pressure materially affects the scene.
+
+## Import Existing Works For Continuation Or Rewrite
+
+Use this when the user provides an existing text, old draft, complete work, script, or pseudo-record source and wants the project to continue, rewrite, adapt, or analyze it.
+
+```powershell
+python -m literary_engineering_workbench protocol source-ingest
+python -m literary_engineering_workbench source-ingest "<work-dir>" `
+  --source "<source-file-or-dir>" `
+  --title "源作品标题" `
+  --work-id "source-work" `
+  --mode continuation
+```
+
+`--source` accepts `.txt`, `.md`, or `.markdown` files and directories. `--text` can be used for short pasted material:
+
+```powershell
+python -m literary_engineering_workbench source-ingest "<work-dir>" --text "源文本片段" --title "旧稿" --work-id old-draft
+```
+
+The command writes:
+
+- `sources/imports/{work_id}/raw/*.txt`
+- `sources/imports/{work_id}/chunks/chunk_0001.md`
+- `sources/imports/{work_id}/source_manifest.json`
+- `sources/imports/{work_id}/source_ingest.md`
+- `sources/imports/{work_id}/extract_project_files.agent_tasks.md`
+
+The platform agent must then read `extract_project_files.agent_tasks.md` and write the expected candidate outputs:
+
+- `sources/imports/{work_id}/extracted/project_brief.md`
+- `characters/candidates/extracted/{work_id}_characters.md`
+- `canon/candidates/extracted/{work_id}_world.md`
+- `plot/candidates/extracted/{work_id}_outline.md`
+- `plot/candidates/extracted/{work_id}_timeline.md`
+- `plot/candidates/extracted/{work_id}_foreshadowing.md`
+- `style/candidates/{work_id}_style_generation_notes.md`
+- `reviews/source_ingest/{work_id}_extraction_review.md`
+
+Every extracted claim should include evidence references, confidence, unknowns, and contradiction notes. Do not copy long source passages into project files. Do not promote extracted settings into formal canon, character files, plot files, or mounted style without review and user approval.
 
 ## Build A Demo Project
 

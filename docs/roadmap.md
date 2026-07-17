@@ -170,6 +170,10 @@
 
 已在 `v0.63.0` 完成产品面重构：前端只保留创作总监、文风学习、全局配置。新增 `style_lab.py` 和 `/style-lab/*` API，以作家为文风项目、作品为子项目，支持作品文本导入、profile 编译、LLM 文风约束提示词生成、Style Skill 构建、提示词有效性评测和挂载到创作项目。挂载后 `style/active_style_skill.json` 成为创作项目 active style，`prompt_pack.py` 会优先注入 `style/mounted/{style_id}/prompt.md`，创作总监状态也会读取 `active_style_skill`，使文风成为表达层最高优先级约束。
 
+## Phase 64：已有作品反推与源文本导入
+
+已在 `v0.64.0` 实现 `source-ingest` / `extract-existing-work`：把用户提供的已有文本、完整作品、旧稿、剧本或伪记录材料导入 `sources/imports/{work_id}/`，生成 raw、chunks、`source_manifest.json`、`source_ingest.md` 和 `extract_project_files.agent_tasks.md`。平台 Agent 读取任务侧车后，反推项目简报、人物/背景故事、世界观、剧情大纲、时间线、伏笔和文风说明候选，分别写入 `sources/imports/{work_id}/extracted/`、`characters/candidates/extracted/`、`canon/candidates/extracted/`、`plot/candidates/extracted/`、`style/candidates/` 和 `reviews/source_ingest/`。源作品提取结果带证据引用和置信度，未经审查与用户批准不得晋升为正式项目资产。
+
 ## Phase 47：前端显式 API Key 配置
 
 已实现前端 API Key 密码输入框、`/config` 明文保存与脱敏响应、空 key 保存保留既有密钥、`model_config.py` 从环境变量或保存的 profile key 读取密钥。
@@ -178,4 +182,4 @@
 
 已实现统一 `provider=auto`，Agent 任务、设定创作、候选审查、创作总监、文风提示词和场景候选生成默认连接真实 `http-chat` 模型；未配置 API Key 时明确报错，只有显式 `dry-run` 才进入离线调试。
 
-下一步：LangGraph 持久化 checkpointer、真实 Dify 导入验证、更细粒度前端审稿台、多候选比较器和更多模型 profile 模板。
+下一步：LangGraph 持久化 checkpointer、真实 Dify 导入验证、更细粒度前端审稿台、多候选比较器、源作品提取候选晋升向导和更多模型 profile 模板。

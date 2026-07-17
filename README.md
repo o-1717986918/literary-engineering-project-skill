@@ -42,6 +42,7 @@ flowchart LR
 - 想让 Codex、Claude 等 Agent 充当创作总监、编辑、设定维护者和审查者的人。
 - 想研究工程化文学创作、AI 叙事系统、多 Agent 创作工作流的人。
 - 想把作家文风学习结果沉淀成可挂载 Style Skill 的人。
+- 想把已有小说、旧稿、剧本或伪记录材料整理成可续写、可改写项目的人。
 
 它不适合：
 
@@ -71,6 +72,7 @@ flowchart LR
 - `characters/`：人物档案、隐藏背景故事、目标、关系、状态演化。
 - `plot/`：章节、场景、伏笔、时间线、分支选择。
 - `style/`：文风 profile、Style Skill、挂载状态。
+- `sources/`：已有文本、完整作品、旧稿、剧本和伪记录材料的导入与反推任务。
 - `scenes/`：场景定义、目标、参与人物和约束。
 - `drafts/`：正文草稿、候选文本、晋升记录。
 - `reviews/`：审查报告、风险、阻塞项、修改建议。
@@ -143,6 +145,27 @@ Agent 应该能够：
 - 为什么角色会说谎、沉默、转移话题或做出不经济选择。
 
 这能帮助人物行为更稳定，也能让剧情发展更有内在压力。
+
+### 6. 已有作品反推与续写基底
+
+如果你已经有一段旧稿、完整小说、剧本、伪记录材料或大量碎片笔记，可以先把它导入项目：
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m literary_engineering_workbench protocol source-ingest
+python -m literary_engineering_workbench source-ingest "<work-dir>" --source "<source-file-or-dir>" --title "源作品" --work-id source-work
+```
+
+导入后，CLI 会生成源文本 raw、chunks、manifest、导入报告和平台 Agent 任务侧车。随后 Codex / Claude 读取任务侧车，反推出：
+
+- 项目简报候选
+- 人物、关系、隐藏背景故事候选
+- 世界观、地点、组织与限制候选
+- 大纲、时间线、伏笔和未解问题候选
+- 可转化为 Style Skill 的文风说明候选
+- 证据强度与晋升风险审查
+
+这些内容默认全部是候选，必须带证据引用和置信度；未经审查与用户批准，不会覆盖正式 canon、人物文件、剧情文件或文风挂载。
 
 ## 快速开始
 
@@ -314,6 +337,7 @@ literary-engineering-project-skill/
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
+- 已有作品反推与源文本导入：已完成 `source-ingest` / `extract-existing-work`。
 - 可选 CLI 工具箱：可运行。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 

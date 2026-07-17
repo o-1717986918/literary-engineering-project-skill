@@ -1,6 +1,6 @@
 ---
 name: literary-engineering-project-skill
-description: Project-type skill for Codex, Claude, and similar tool-layer agents to manage long-form fictional literature projects as engineering workspaces. Use when the agent needs to act as project director, creative director, editor, continuity auditor, style engineer, scene planner, prose generator, reviewer, or release manager for novels, screenplays, pseudo-record texts, web fiction, short-drama scripts, or long-video prompt projects; especially when work involves AGENTS.md/agentread.yaml project onboarding, canon/character/plot/style file maintenance, author style projects, mounted Style Skills, candidate asset review/promotion, hidden character background causality, scene simulation, branch planning, context packets, prompt packs, chapter exports, or optional local CLI tooling. The tool-layer platform provides the LLM, subagents, planning, and conversation; this skill provides the operating manual, file contracts, and deterministic helper commands.
+description: Project-type skill for Codex, Claude, and similar tool-layer agents to manage long-form fictional literature projects as engineering workspaces. Use when the agent needs to act as project director, creative director, editor, continuity auditor, style engineer, source-text analyst, scene planner, prose generator, reviewer, or release manager for novels, screenplays, pseudo-record texts, web fiction, short-drama scripts, or long-video prompt projects; especially when work involves AGENTS.md/agentread.yaml project onboarding, canon/character/plot/style file maintenance, importing existing works for continuation or rewrite, author style projects, mounted Style Skills, candidate asset review/promotion, hidden character background causality, scene simulation, branch planning, context packets, prompt packs, chapter exports, or optional local CLI tooling. The tool-layer platform provides the LLM, subagents, planning, and conversation; this skill provides the operating manual, file contracts, and deterministic helper commands.
 ---
 
 # Literary Engineering Project Skill
@@ -13,7 +13,7 @@ Use this skill to let Codex, Claude, or another capable tool-layer agent manage 
 - Treat this skill as project structure, contracts, procedures, prompts, schemas, and helper CLI.
 - Do not assume the local `director-chat` command is the main interface. It is an optional experimental/local helper.
 - Prefer direct tool-layer reasoning, file edits, review passes, and subagent delegation when the platform supports them.
-- Use the local CLI only when deterministic project operations are useful: initialization, indexing, context packet generation, style compilation, lint, audit, export, and packaging.
+- Use the local CLI only when deterministic project operations are useful: initialization, source import/chunking, indexing, context packet generation, style compilation, lint, audit, export, and packaging.
 
 ## Tool-Layer Participation Gate
 
@@ -22,11 +22,12 @@ The tool-layer agent that loaded this skill must lead every non-deterministic cr
 Require tool-layer planning, prompting, inspection, and acceptance for:
 
 - prose, project briefs, characters, hidden background stories, world rules, outlines, scenes, revisions, and style prompts;
+- source-text reverse extraction for continuation, rewrite, adaptation, or analysis;
 - LLM-authored JSON, schema repair, patch plans, committee reports, review findings, and candidate metadata;
 - roleplay, branch, scene, consequence, and character-state simulations;
 - free routing decisions, project-director decisions, candidate promotion recommendations, release choices, and any user-facing creative judgment.
 
-When using formal local commands such as `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, or `run-workflow`, expect `.agent_tasks.md` files plus expected JSON/Markdown paths. The platform agent should read the task, perform the creative or review judgment, write the expected artifacts, then decide whether to revise, keep as candidate, ask the user, or promote after approval.
+When using formal local commands such as `source-ingest`, `extract-existing-work`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, or `run-workflow`, expect `.agent_tasks.md` files plus expected JSON/Markdown paths. The platform agent should read the task, perform the creative or review judgment, write the expected artifacts, then decide whether to revise, keep as candidate, ask the user, or promote after approval.
 
 Use `agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, or `director-chat` only for explicit legacy regression, local demos, or debugging. Do not route formal creative generation, JSON creation, scene/canon review, style-prompt creation, or second-level project decisions through local dry-run, HTTP chat, or an external agent service.
 
@@ -36,7 +37,7 @@ Never let generated JSON, simulation output, local-director output, model scores
 
 1. Identify the workspace type:
    - **Skill root**: contains this `SKILL.md`, `AGENTS.md`, `agentread.yaml`, `references/`, `templates/`, `schemas/`, and either development `src/` or installed-package `scripts/` helper code.
-   - **Work project**: contains `project.yaml`, `canon/`, `characters/`, `plot/`, `style/`, `scenes/`, `drafts/`, `reviews/`, `memory/`.
+   - **Work project**: contains `project.yaml`, `canon/`, `characters/`, `plot/`, `style/`, `sources/`, `scenes/`, `drafts/`, `reviews/`, `memory/`.
    - **Style library**: contains `authors/{author_id}/`, `works/`, `profiles/`, `style_skills/`.
 2. Read `AGENTS.md` and `agentread.yaml` before changing a work project or this skill.
 3. Select the smallest task route in `agentread.yaml`.
@@ -65,6 +66,7 @@ Before final response, explicitly account for the relevant completion gates: rou
 - Project state is source code; generated prose is an artifact.
 - Canon, character facts, and approved plot decisions are hard constraints.
 - Retrieval results, roleplay output, model summaries, and style matches are evidence, not canon.
+- Source-derived extraction is evidence, not canon. Existing-work imports must write extracted characters, world rules, outlines, timelines, foreshadowing, and style notes to candidate/review locations before any promotion.
 - LLM-authored JSON is a draft artifact until the tool-layer agent validates schema, checks project constraints, and accepts it as a candidate or asks for approval.
 - New characters, world rules, locations, organizations, relationship graphs, outlines, and major plot turns start as candidates.
 - Promote candidates only after review and explicit user approval unless the user clearly asks for an internal experimental branch.
@@ -95,6 +97,7 @@ Do not expose raw schemas, internal file paths, or command chatter unless the us
 
 - New work project: read `references/project-director-playbook.md`, then initialize or propose a work project. Use the CLI `init` only when deterministic scaffolding is useful.
 - Existing project direction: inspect `project.yaml`, recent `reviews/`, `workflow/`, `director/`, and relevant canon/character/plot files. Then act as director.
+- Existing work import: read `references/workflows.md` and `references/artifact-contracts.md`, use `source-ingest` only to store source chunks and task sidecars, then let the platform agent reverse-extract candidate project files with evidence and confidence.
 - Style learning: use author-as-project, work-as-subproject, and Style Skill output. Read `references/project-director-playbook.md` and `references/workflows.md`.
 - Scene work: build context, simulate character behavior, branch plot options, compose a scene packet, generate candidate prose, review, then propose state patches.
 - Review/audit: run canon, character, plot, style, and release checks before treating text as ready.

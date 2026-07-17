@@ -39,6 +39,7 @@ governance:
     - creative generation and revision
     - LLM-authored JSON and schema repair
     - style-prompt creation and evaluation
+    - existing-work reverse extraction into project candidates
     - character, world, outline, and relationship candidate assets
     - roleplay, branch, scene, consequence, and state simulations
     - review findings, committee reports, and patch plans
@@ -64,6 +65,7 @@ route_execution_contract:
     - project_director
     - work_project_initialization
     - style_engineering
+    - source_ingest
     - character_and_world_assets
     - scene_development
     - review_and_audit
@@ -171,6 +173,37 @@ task_routes:
       - corpus authorization or public-domain assumption recorded
       - style prompt created or platform-agent task sidecar handled
       - effectiveness/risk review completed before mounting as priority style
+
+  source_ingest:
+    protocol: source-ingest
+    when:
+      - 用户提供已有文本、完整作品、旧稿、剧本、伪记录材料，希望续写、改写、分析或整理成工程项目
+      - 需要从源作品反推人物、背景故事、世界观、主线大纲、时间线、伏笔或文风说明
+    read:
+      - references/agent-run-protocol.md
+      - references/cli-run-protocol.md
+      - references/artifact-contracts.md
+      - references/workflows.md
+      - docs/modules/source-ingest-engine.md
+      - docs/implementation/phase64-existing-work-ingest.md
+    inspect_if_present:
+      - sources/imports/
+      - canon/
+      - characters/
+      - plot/
+      - style/
+      - reviews/source_ingest/
+    output:
+      - source manifest and chunks
+      - platform-agent extraction task sidecar
+      - extracted project brief candidate
+      - extracted character/world/outline/timeline/foreshadowing/style candidates
+      - source-ingest review report
+    completion_gates:
+      - source manifest and chunks exist
+      - platform agent handled extraction sidecar or listed it as pending
+      - every extracted claim carries evidence references, confidence, unknowns, and contradiction notes when relevant
+      - no extracted item is promoted without review and explicit approval
 
   character_and_world_assets:
     protocol: character-and-world-assets

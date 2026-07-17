@@ -15,6 +15,7 @@ INCLUDE_DIRS = {
     "characters",
     "plot",
     "style",
+    "sources",
     "scenes",
     "drafts",
     "reviews",

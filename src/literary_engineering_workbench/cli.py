@@ -55,6 +55,7 @@ from .scene_composer import build_scene_composition
 from .roleplay_lab import build_roleplay_simulation
 from .scene_draft import build_scene_draft
 from .protocol import protocol_to_json, render_protocol, render_protocol_list, resolve_protocol_route
+from .source_ingest import INGEST_MODES, ingest_existing_work
 from .style_compiler import StyleCompileOptions, compile_style_profile
 from .style_evaluator import STYLE_EVAL_MODES, StyleEvalOptions, evaluate_style
 from .style_lab import (
@@ -130,6 +131,20 @@ def build_parser() -> argparse.ArgumentParser:
     context.add_argument("--top-k", type=int, default=8)
     context.add_argument("--rebuild-index", action="store_true")
     context.add_argument("--out", default="", help="Output markdown path.")
+
+    for command, help_text in (
+        ("source-ingest", "Import an existing work and write a platform-agent reverse extraction task."),
+        ("extract-existing-work", "Alias for source-ingest."),
+    ):
+        source_ingest = sub.add_parser(command, help=help_text)
+        source_ingest.add_argument("project", help="Work project directory.")
+        source_ingest.add_argument("--source", default="", help="Source .txt/.md file or directory.")
+        source_ingest.add_argument("--text", default="", help="Inline source text.")
+        source_ingest.add_argument("--title", default="", help="Source work title.")
+        source_ingest.add_argument("--work-id", default="", help="Stable import id. Defaults to title/source stem.")
+        source_ingest.add_argument("--mode", default="continuation", choices=sorted(INGEST_MODES))
+        source_ingest.add_argument("--chunk-size", type=int, default=6000, help="Character count per source chunk.")
+        source_ingest.add_argument("--overwrite", action="store_true", help="Overwrite an existing import directory.")
 
     style = sub.add_parser("style-profile", help="Compile a literary style profile from a corpus.")
     style.add_argument("corpus", help="Corpus file or directory containing .txt/.md files.")
@@ -687,6 +702,32 @@ def main(argv=None) -> int:
         )
         print(f"context: {result.output_path}")
         print(f"retrievals: {result.retrieval_count}")
+        return 0
+
+    if args.command in {"source-ingest", "extract-existing-work"}:
+        if not args.source and not args.text:
+            parser.error(f"{args.command} requires --source or --text")
+        result = ingest_existing_work(
+            Path(args.project),
+            source=Path(args.source) if args.source else None,
+            text=args.text,
+            title=args.title,
+            work_id=args.work_id,
+            mode=args.mode,
+            chunk_size=args.chunk_size,
+            overwrite=args.overwrite,
+        )
+        print(f"source_import: {result.import_dir}")
+        print(f"work_id: {result.work_id}")
+        print(f"manifest: {result.manifest_path}")
+        print(f"report: {result.report_path}")
+        print(f"agent_task: {result.task_path}")
+        print(f"sources: {result.source_count}")
+        print(f"chunks: {result.chunk_count}")
+        print("candidate_outputs:")
+        for key, value in result.candidate_outputs.items():
+            print(f"- {key}: {value}")
+        print("receiver: platform-agent")
         return 0
 
     if args.command == "style-profile":

@@ -199,7 +199,7 @@ def _metadata_for_source(source: str) -> dict[str, str]:
     }
     if kind == "canon":
         metadata["authority"] = "hard"
-    elif kind in {"characters", "plot", "style", "scenes"}:
+    elif kind in {"characters", "plot", "style", "sources", "scenes"}:
         metadata["authority"] = "structured"
     else:
         metadata["authority"] = "working"
@@ -211,7 +211,7 @@ def _canon_status_for(kind: str) -> str:
         return "confirmed"
     if kind in {"plot", "style", "scenes", "project"}:
         return "planned"
-    if kind in {"drafts", "branches", "reviews", "prompts", "exports", "tests"}:
+    if kind in {"drafts", "branches", "reviews", "prompts", "exports", "tests", "sources"}:
         return "candidate"
     return "working"
 

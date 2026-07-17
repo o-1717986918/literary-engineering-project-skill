@@ -63,3 +63,4 @@
 - `phase61-style-priority-enforcement.md`：文风最高优先级注入
 - `phase62-style-lab-frontend-loop.md`：文风学习前端闭环
 - `phase63-style-lab-regression-package.md`：回归测试、打包与版本
+- `phase64-existing-work-ingest.md`：已有作品反推与源文本导入

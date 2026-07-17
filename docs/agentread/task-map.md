@@ -24,6 +24,16 @@ Read: `docs/modules/style-compiler.md`, `docs/implementation/phase58-author-styl
 
 Output: author style project, work subproject, style profile, LLM-facing prompt, mountable Style Skill, style risk report.
 
+## Source Ingest
+
+Read: `docs/modules/source-ingest-engine.md`, `docs/implementation/phase64-existing-work-ingest.md`, `references/artifact-contracts.md`, `references/workflows.md`.
+
+Use when the user provides an existing text, complete work, old draft, script, or pseudo-record material for continuation, rewrite, adaptation, or analysis.
+
+Output: source manifest, chunks, extraction task sidecar, extracted project brief candidate, extracted character/world/outline/timeline/foreshadowing/style candidates, and source-ingest review report.
+
+Do not promote extracted material without evidence, review, and approval.
+
 ## Character / World / Outline Assets
 
 Read: `docs/implementation/phase37-asset-candidate-schemas.md` through `docs/implementation/phase41-candidate-review-promotion.md`.

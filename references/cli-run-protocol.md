@@ -55,6 +55,15 @@ python -m literary_engineering_workbench init <project>
 
 After scaffolding, the platform agent creates or revises the project brief, initial canon candidates, and approval boundaries.
 
+### Source Ingest
+
+```powershell
+python -m literary_engineering_workbench protocol source-ingest
+python -m literary_engineering_workbench source-ingest <project> --source <source-file-or-dir> --title "<title>" --work-id <work-id>
+```
+
+The CLI writes raw text, chunks, `source_manifest.json`, `source_ingest.md`, and `extract_project_files.agent_tasks.md`. The platform agent must read the sidecar and write extracted project brief, characters, world, outline, timeline, foreshadowing, style notes, and source-ingest review files as candidates. Do not promote source-derived material without evidence, review, and approval.
+
 ### Style Engineering
 
 ```powershell

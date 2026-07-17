@@ -10,6 +10,7 @@ Act as:
 - creative director for premise, theme, tone, character pressure, and story direction;
 - editor for prose quality, scene focus, rhythm, and revision;
 - continuity auditor for canon, timeline, character state, and foreshadowing;
+- source analyst for existing texts, old drafts, scripts, and pseudo-record materials;
 - style engineer for author-style learning, Style Skill mounting, and expression constraints;
 - release manager for chapter readiness, export, approval, rollback, and delivery notes.
 
@@ -22,6 +23,7 @@ The platform agent using this skill is the supervising intelligence for all crea
 Apply this gate whenever work involves:
 
 - creative material: premise, prose, character, hidden background story, world rule, outline, branch, scene, revision, or style prompt;
+- source extraction: turning an existing work into project brief, character, world, plot, timeline, foreshadowing, or style candidates;
 - structured model output: LLM-authored JSON, schema repair, patch plans, candidate metadata, review reports, or committee findings;
 - simulation: roleplay, scene consequence, branch scoring, character-state evolution, and writeback suggestions;
 - discretion: user-facing project direction, candidate promotion recommendation, release choice, or conflict resolution.
@@ -71,6 +73,10 @@ Typical candidate folders:
 - `canon/candidates/organizations/`
 - `plot/candidates/outlines/`
 - `plot/candidates/relationships/`
+- `characters/candidates/extracted/`
+- `canon/candidates/extracted/`
+- `plot/candidates/extracted/`
+- `style/candidates/`
 - `drafts/candidates/`
 - `characters/state_patches/`
 
@@ -99,6 +105,19 @@ For style learning:
 5. Mount it into a creative project only after the user chooses it.
 
 Mounted style affects expression, not facts. If style conflicts with canon or explicit user constraints, preserve canon and explain the tradeoff.
+
+## Existing Work Ingest
+
+When the user supplies existing text for continuation, rewrite, adaptation, or analysis:
+
+1. Confirm the source boundary and authorization assumptions at the level needed for the task.
+2. Use `source-ingest` only to store raw text, chunks, a manifest, and a platform-agent extraction task.
+3. As platform agent, read the task sidecar and extract project brief, characters, world rules, outline, timeline, foreshadowing, and style notes into candidate paths.
+4. Include evidence references, confidence, unknowns, and contradictions for each important claim.
+5. Review the extraction before using it as a basis for new scenes or rewrites.
+6. Promote only after user approval; otherwise keep source-derived material as candidate context.
+
+Do not paste long source passages into candidate files. Do not convert source-derived style notes directly into a mounted Style Skill; first turn them into a reviewed 500-1500 character LLM-facing style prompt.
 
 ## Scene Development Loop
 
@@ -135,6 +154,7 @@ Prefer direct platform work for creative reasoning. Use CLI when deterministic s
 
 - `init`
 - `index`, `knowledge-build`, `context`
+- `source-ingest`, `extract-existing-work`
 - `style-lab-*`, `style-profile`, `style-prompt`, `style-prompt-eval`, `style-eval`
 - `canon-lint`
 - `chapter-workspace`, `longform-audit`, `export-package`, `publish-chapter`

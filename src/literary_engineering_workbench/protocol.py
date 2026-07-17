@@ -190,6 +190,46 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "Do not expose hidden background_story as direct scene exposition by default.",
         ),
     ),
+    "source-ingest": ProtocolRoute(
+        key="source-ingest",
+        title="Source Ingest",
+        purpose="Import an existing text or complete work, then let the platform agent reverse-extract candidate project files for continuation, rewrite, adaptation, or analysis.",
+        read=(
+            "references/agent-run-protocol.md",
+            "references/cli-run-protocol.md",
+            "references/artifact-contracts.md",
+            "references/workflows.md",
+            "docs/modules/source-ingest-engine.md",
+            "docs/implementation/phase64-existing-work-ingest.md",
+        ),
+        preflight=COMMON_PREFLIGHT
+        + (
+            "Confirm source authorization, user-provided material boundary, or public-domain status before exact continuation or style-sensitive reuse.",
+            "Identify whether the target is continuation, rewrite, adaptation, or analysis.",
+            "Inspect existing canon, characters, plot, and style files so extracted items do not overwrite confirmed project state.",
+        ),
+        cli_chain=(
+            "python -m literary_engineering_workbench protocol source-ingest",
+            "python -m literary_engineering_workbench source-ingest <project> --source <source-file-or-dir> --title <title> --mode continuation",
+            "Read sources/imports/<work-id>/extract_project_files.agent_tasks.md and write the expected candidate artifacts.",
+            "Review reviews/source_ingest/<work-id>_extraction_review.md before promoting any extracted candidate.",
+        ),
+        platform_agent_handoffs=(
+            "All extraction of characters, hidden background stories, world rules, outline, timeline, foreshadowing, and style notes.",
+            "Evidence/confidence judgment, contradiction handling, and promotion recommendation.",
+        ),
+        completion_gates=(
+            "Source manifest, chunk files, and extraction task sidecar exist.",
+            "Platform agent has written candidate outputs or they are explicitly listed as pending.",
+            "Each extracted claim carries evidence references, confidence, and unknowns.",
+            "No extracted item is promoted to canon/characters/plot/style without review and approval.",
+        ),
+        forbidden_shortcuts=COMMON_FORBIDDEN
+        + (
+            "Do not copy long passages into evidence notes; use concise references.",
+            "Do not treat source-derived style notes as a mountable Style Skill until they become a reviewed 500-1500 character prompt.",
+        ),
+    ),
     "scene-development": ProtocolRoute(
         key="scene-development",
         title="Scene Development",
@@ -358,6 +398,7 @@ ALIASES.update(
         "project_director": "project-director",
         "work_project_initialization": "work-project-initialization",
         "style_engineering": "style-engineering",
+        "source_ingest": "source-ingest",
         "character_and_world_assets": "character-and-world-assets",
         "scene_development": "scene-development",
         "review_and_audit": "review-and-audit",
