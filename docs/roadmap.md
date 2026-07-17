@@ -1,5 +1,7 @@
 # 路线图
 
+> Project-type Skill override: 本路线图保留原工作台从 Phase 1 到 Phase 63 的实现历史，便于后续 agent 复用 CLI/API/前端/文风实验室等可选组件。当前架构已经切换为“项目型 Skill”：Codex、Claude 等工具层平台负责项目总监、创作总监、模型调用、子 agent 编排和项目文件维护；`director-chat`、`/director/chat`、本地 `provider=auto`、Dify starter 等只作为可选工具或历史集成参考。若本文件与根目录 `SKILL.md`、`AGENTS.md`、`CLAUDE.md`、`agentread.yaml` 或 `references/project-director-playbook.md` 冲突，以后者为准。
+
 ## Phase 1：本地项目初始化器
 
 已实现 `init`，生成作品项目结构。

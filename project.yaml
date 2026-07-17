@@ -1,8 +1,8 @@
 project:
   name: literary-engineering-project-skill
   cn_name: 文学工程项目型 Skill
-  status: copied-refactor
-  version: 0.1.0
+  status: installable-project-skill
+  version: 0.2.0
   objective: >
     将原文学工程工作台转化为供 Codex、Claude 等工具层 agent 使用的大型项目型 Skill。
     工具层 agent 担任项目总监、创作总监、真实 LLM provider 和子 agent 编排者；
@@ -27,7 +27,7 @@ scope:
 recommended_stack:
   director: Codex / Claude / tool-layer agent
   llm_provider: platform-native model and subagents
-  optional_toolkit: local Python package under src/literary_engineering_workbench
+  optional_toolkit: local Python package under src/literary_engineering_workbench; installable Skill package mirrors it under scripts/literary_engineering_workbench
   version_control: Git
   project_state: file-backed work projects
   style_library: local or project-managed style library with mountable Style Skills

@@ -9,6 +9,7 @@ purpose: >
 read_first:
   - SKILL.md
   - AGENTS.md
+  - CLAUDE.md
   - references/project-director-playbook.md
 
 core_references:
@@ -21,8 +22,10 @@ core_references:
 core_project_files:
   skill_entry: SKILL.md
   agent_entry: AGENTS.md
+  claude_entry: CLAUDE.md
   project_router: agentread.yaml
-  optional_toolkit: src/literary_engineering_workbench/
+  optional_toolkit_development: src/literary_engineering_workbench/
+  optional_toolkit_installed: scripts/literary_engineering_workbench/
   templates: templates/
   schemas: schemas/
   docs: docs/
@@ -164,8 +167,10 @@ task_routes:
     read:
       - references/workflows.md
       - references/orchestration.md
+    inspect_if_present:
       - pyproject.toml
       - src/literary_engineering_workbench/cli.py
+      - scripts/literary_engineering_workbench/cli.py
     output:
       - exact command
       - command result summary

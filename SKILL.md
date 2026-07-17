@@ -18,7 +18,7 @@ Use this skill to let Codex, Claude, or another capable tool-layer agent manage 
 ## First Move
 
 1. Identify the workspace type:
-   - **Skill root**: contains this `SKILL.md`, `AGENTS.md`, `agentread.yaml`, `references/`, `src/`, `templates/`, `schemas/`.
+   - **Skill root**: contains this `SKILL.md`, `AGENTS.md`, `agentread.yaml`, `references/`, `templates/`, `schemas/`, and either development `src/` or installed-package `scripts/` helper code.
    - **Work project**: contains `project.yaml`, `canon/`, `characters/`, `plot/`, `style/`, `scenes/`, `drafts/`, `reviews/`, `memory/`.
    - **Style library**: contains `authors/{author_id}/`, `works/`, `profiles/`, `style_skills/`.
 2. Read `AGENTS.md` and `agentread.yaml` before changing a work project or this skill.
@@ -91,4 +91,4 @@ $env:PYTHONPATH = "src"
 python -m unittest discover -s tests -v
 ```
 
-For pure instruction/reference edits, also validate `SKILL.md` frontmatter with the skill validation script when available.
+For an installed package without `src/`, use `$env:PYTHONPATH = "scripts"` and run a CLI smoke check such as `python -m literary_engineering_workbench --help`. For pure instruction/reference edits, also validate `SKILL.md` frontmatter with the skill validation script when available.

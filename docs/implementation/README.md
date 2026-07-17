@@ -1,5 +1,7 @@
 # 实现文档
 
+> Project-type Skill override: 本目录是原本地文学工程工作台的历史实现记录，用于理解可选 CLI、API、LangGraph、Dify 和本地 director-chat 的能力边界。当前发布形态以根目录 `SKILL.md`、`AGENTS.md`、`CLAUDE.md`、`agentread.yaml` 和 `references/project-director-playbook.md` 为准：Codex、Claude 等工具层 agent 才是项目总监、创作总监、真实 LLM provider 与子 agent 编排层；本目录中的“创作总监 Agent”“默认 provider”等说法只代表可选本地工具箱实现，不再覆盖项目型 Skill 的主工作流。
+
 本目录记录从规划到可运行工程的阶段实现。
 
 - `phase1-initializer.md`：`init`

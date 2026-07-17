@@ -2,6 +2,8 @@
 
 本目录保存 Literary Engineering Workbench 的 Dify Workflow 导入示例。
 
+> Project-type Skill note: 当前主路线不是把 Dify 作为项目总监，而是让 Codex、Claude 等工具层 agent 直接担任项目总监、创作总监、模型 provider 和子 agent 编排层。Dify DSL 仅保留为可选本地集成、审批界面或回归示例；如果它与根目录 `SKILL.md`、`AGENTS.md`、`CLAUDE.md`、`agentread.yaml` 或 `references/project-director-playbook.md` 冲突，以项目型 Skill 入口为准。
+
 ## 文件
 
 - `literary-workbench-reviewer.workflow.yml`：Dify Workflow DSL import-safe starter。
@@ -53,12 +55,12 @@ python -m literary_engineering_workbench serve-api `
 
 1. Environment variable `WORKBENCH_API_BASE` 指向可访问的 `serve-api`。
 2. Start 节点包含 `project_root`、`creative_direction`、`provider`、`auto_execute`。
-3. `Run creative director` 节点调用 `POST /director/chat`。
+3. `Run creative director` 节点调用 `POST /director/chat`，仅表示启用本地 workbench director 桥接。
 4. `Read director report` 节点调用 `GET /workflow/artifact` 读取总监报告。
 
 Start 节点的 `provider` 默认 `auto`，会由本地 workbench 全局配置解析到真实 `http-chat` 模型。启动 `serve-api` 的同一环境中需要配置全局模型配置，或设置 `LEW_MODEL_API_BASE`、`LEW_MODEL_NAME` 和 API Key；若只是导入验证，可在 Dify 中显式选择 `dry-run`。
 
-`v0.46.0` 起，Dify 默认只把创作大方向交给 `/director/chat`。总监 Agent 负责选择 `project-seeding`、`character-lab`、`worldbuilding-lab`、`outline-lab` 或 `scene-loop`，并在后端追加 schema-gated Agent 审查和候选资产审查。Dify 仍只负责调用本地 API 和承载人工审稿界面，不保存模型 key，也不成为 canon 来源。
+历史工作台在 `v0.46.0` 起曾把 Dify 默认入口收束到 `/director/chat`。在项目型 Skill 发布形态中，这条链路只作为可选本地演示：平台 agent 可以直接执行 `project-seeding`、`character-lab`、`worldbuilding-lab`、`outline-lab`、`scene-loop` 等文件工作流，并把 Dify 当作外部审批面板或 HTTP 调用器。Dify 不保存模型 key，也不成为 canon 来源。
 
 人物状态写回、候选资产晋升和章节发布不要放进默认 Dify 自动链路，应在人工 `approve` 后由受控命令执行。
 

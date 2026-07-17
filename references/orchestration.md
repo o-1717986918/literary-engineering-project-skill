@@ -120,7 +120,7 @@ Use these endpoints:
 - `GET /workflow/artifact`
 - `POST /workflow/approve`
 
-For user-facing creative direction, call `/director/chat` first. `/workflow/run` and `/asset/*` remain available as specialist/internal endpoints.
+Project-type Skill note: Dify is optional. When Codex or Claude is already supervising the project, let the tool-layer agent hold the user conversation, inspect files, call subagents, and edit artifacts directly. Use `/director/chat` only as a legacy/local bridge when you explicitly want the built-in workbench director to run inside `serve-api`. `/workflow/run`, `/asset/*`, `/style-lab/*`, and artifact endpoints remain useful as deterministic helpers behind a platform-agent-led workflow.
 
 Do not let Dify:
 

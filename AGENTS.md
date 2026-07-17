@@ -17,7 +17,7 @@ Do not read the entire repository by default. Follow the route map in `agentread
 
 - Codex/Claude is the director, planner, LLM provider, conversation layer, and subagent orchestrator.
 - This repository is the skill and toolbox.
-- `src/literary_engineering_workbench/` contains optional helper code, not the primary intelligence layer.
+- `src/literary_engineering_workbench/` in the development copy or `scripts/literary_engineering_workbench/` in the installed skill contains optional helper code, not the primary intelligence layer.
 - The local `director-chat` implementation is legacy/experimental. Use it only when the user explicitly wants local orchestration or regression testing.
 - Prefer platform-native reasoning, file editing, review, and subagents for creative work.
 
