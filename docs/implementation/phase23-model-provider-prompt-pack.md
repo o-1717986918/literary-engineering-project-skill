@@ -33,7 +33,9 @@
 drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json
 ```
 
-该文件记录 system/user messages、场景、上下文包、场景创作编排包、文风 profile 和来源清单，便于复盘模型输入。
+该文件记录 system/user messages、场景、上下文包、场景创作编排包、文风 profile、`generation_standards.style` 和来源清单，便于复盘模型输入。
+
+`generation_standards.style` 是生成前置契约，不是审查后置清单。平台 agent 或 provider 在写正文候选前，应先把 Style Skill / style profile 转译为本场景的叙述距离、句法节奏、意象系统、心理呈现、对白密度和标点停顿策略；这些策略只用于指导写作，不应作为工作流痕迹输出到候选正文。
 
 ### Provider
 

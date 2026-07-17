@@ -18,14 +18,30 @@ DEFAULT_CONTEXT_LIMIT = 18000
 DEFAULT_COMPOSITION_LIMIT = 14000
 DEFAULT_STYLE_LIMIT = 6000
 
+STYLE_GENERATION_STANDARD = """# 文风生成标准（生成前硬约束）
+
+本标准必须在动笔前执行，不能等到审查阶段再补救。平台 agent 或本地 provider 在生成正文候选前，应先把已挂载 Style Skill / style profile 转译为本场景的表达策略；该策略不输出到候选正文，只用于指导写作。
+
+执行顺序：
+
+1. 先读取文风约束提示词，提取本场景可执行的六类表达机制：叙述距离、句法与段落节奏、意象/感官系统、心理呈现方式、对白密度与语气、标点停顿节奏。
+2. 再读取 scene.yaml、context packet 和 composition，确认 canon、人物 BDI、background_story 隐性动因、场景目标和禁止改动项。
+3. 写作时每个段落至少承担一种具体叙事功能：推进行动、改变信息、暴露关系压力、呈现人物选择、加固意象或留下后果；不得只承担“文艺化润色”功能。
+4. 文风要通过叙事机制生效，不靠复用高频词、套用金句、堆叠形容词或复制原文片段。
+5. 文风可以改变句长、停顿、意象密度和对白疏密，但不能突破标准中文标点规范，不能制造密集句号、长逗号链、破折号滥用或机械转折。
+6. 若文风要求与 canon、人物逻辑、场景因果或用户明确要求冲突，保留硬事实，在“需要人工确认”中说明冲突，不要用文风掩盖逻辑问题。
+7. 输出前做内部自检：正文是否先服从了文风机制，是否降低 AI 腔，是否仍保持人物和剧情因果。不要把自检过程、风格分析或工作流痕迹写进正文候选。
+"""
+
 OUTPUT_CONTRACT = """模型输出必须使用以下 Markdown 结构：
 
 ## 正文候选
 
-写入场景正文候选。正文必须遵守 canon、人物 BDI、背景故事隐性动因、场景编排包和文风 profile。
+写入场景正文候选。正文必须先执行“文风生成标准”，再遵守 canon、人物 BDI、背景故事隐性动因、场景编排包和文风 profile。
 正文还必须遵守标准中文标点约束：中文句子使用全角标点，省略号用“……”，破折号用“——”，避免英文标点混入中文正文和连续感叹/疑问符。
 标点必须服务文学节奏：句号用于真实语义落点，逗号承接未完成关系，破折号只用于打断、插入或骤变；不要用密集句号制造伪节奏，不要用长逗号链串接无层级动作，不要滥用“——”，不要靠“但是、然而、于是、然后、突然”机械制造转折。
 正文必须降低 AI 腔：限制“不是……而是……”等机械对照句式，避免抽象总结、解释性心理标签、模板化转折、对称排比、全知说教和结尾金句化。
+不要在正文候选中输出文风分析、生成计划、自检表或工作流痕迹；这些只能作为内部生成标准。
 
 ## 状态变化候选
 
@@ -58,6 +74,7 @@ class PromptPack:
     context_path: Path
     composition_path: Path | None
     style_profile_path: Path | None
+    style_generation_standard: str
     system_prompt: str
     user_prompt: str
     sources: list[dict[str, Any]]
@@ -93,6 +110,7 @@ def build_scene_prompt_pack(
         "context_text": _limit(_read(context_path), DEFAULT_CONTEXT_LIMIT),
         "composition_text": _limit(_read(composition_path), DEFAULT_COMPOSITION_LIMIT) if composition_path else "未找到场景创作编排包。若需要更稳的正文候选，请先运行 compose-scene。",
         "style_profile": _render_style_constraint(root, style_profile_path),
+        "style_generation_standard": _render_style_generation_standard(root, style_profile_path),
         "punctuation_standard": render_punctuation_standard_for_prompt(),
         "anti_ai_style": ANTI_AI_STYLE_PROMPT,
         "output_contract": OUTPUT_CONTRACT.strip(),
@@ -101,7 +119,7 @@ def build_scene_prompt_pack(
     system_template = _load_template(root, "scene_generation_system.md")
     user_template = _load_template(root, "scene_generation_user.md")
     system_prompt = _render_template(system_template, values)
-    user_prompt = _render_template(user_template, values)
+    user_prompt = _ensure_style_generation_standard(_render_template(user_template, values), values["style_generation_standard"])
     sources = _sources(root, scene_path, context_path, composition_path, style_profile_path)
     return PromptPack(
         project_root=root,
@@ -109,6 +127,7 @@ def build_scene_prompt_pack(
         context_path=context_path,
         composition_path=composition_path,
         style_profile_path=style_profile_path,
+        style_generation_standard=values["style_generation_standard"],
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         sources=sources,
@@ -128,6 +147,11 @@ def write_prompt_manifest(pack: PromptPack, output: Path, provider: str, model: 
         "context": _rel(pack.context_path, pack.project_root),
         "composition": _rel(pack.composition_path, pack.project_root) if pack.composition_path else "",
         "style_profile": _rel(pack.style_profile_path, pack.project_root) if pack.style_profile_path else "",
+        "generation_standards": {
+            "style": pack.style_generation_standard,
+            "style_profile_loaded": pack.style_profile_path is not None,
+            "style_profile": _rel(pack.style_profile_path, pack.project_root) if pack.style_profile_path else "",
+        },
         "sources": pack.sources,
         "messages": [
             {"role": "system", "content": pack.system_prompt},
@@ -154,6 +178,12 @@ def _render_template(template: str, values: dict[str, str]) -> str:
     if missing:
         raise KeyError(f"missing prompt variables: {', '.join(missing)}")
     return template.format_map(values).strip() + "\n"
+
+
+def _ensure_style_generation_standard(user_prompt: str, standard: str) -> str:
+    if "## 文风生成标准" in user_prompt or "# 文风生成标准" in user_prompt:
+        return user_prompt
+    return user_prompt.rstrip() + "\n\n## 文风生成标准\n\n" + standard.strip() + "\n"
 
 
 def _sources(
@@ -239,6 +269,17 @@ def _render_style_constraint(root: Path, style_path: Path | None) -> str:
 {text}
 """
     return text
+
+
+def _render_style_generation_standard(root: Path, style_path: Path | None) -> str:
+    if style_path is None:
+        return STYLE_GENERATION_STANDARD + "\n当前状态：未找到已挂载 Style Skill 或 style_prompt。仍必须使用本标准的中性版本：保持叙述距离稳定、句法服务行动和感知、意象来自场景物理细节、心理通过动作和选择呈现，并避免 AI 腔。"
+    return (
+        STYLE_GENERATION_STANDARD
+        + "\n当前状态：已加载文风来源 `"
+        + _rel(style_path, root)
+        + "`。生成前必须先把该文风来源转译为本场景的叙述距离、句法节奏、意象系统、心理呈现、对白策略和标点节奏。"
+    )
 
 
 def _bundle_root() -> Path:

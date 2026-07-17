@@ -41,6 +41,8 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(prompt_manifest["messages"][0]["role"], "system")
         self.assertIn("输出契约", prompt_manifest["messages"][1]["content"])
         self.assertIn("标准中文标点约束", prompt_manifest["messages"][1]["content"])
+        self.assertIn("文风生成标准", prompt_manifest["messages"][1]["content"])
+        self.assertIn("生成前硬约束", prompt_manifest["generation_standards"]["style"])
         self.assertIsNone(result.agent_tasks_path)
 
     def test_agent_tasks_sidecar_reviews_prompt_manifest_without_pollution(self):
@@ -60,6 +62,8 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         tasks = result.agent_tasks_path.read_text(encoding="utf-8")
         self.assertIn("[AGENT_TASK:", tasks)
         self.assertIn("审查 prompt manifest", tasks)
+        self.assertIn("生成前文风标准", tasks)
+        self.assertIn("generation_standards.style", tasks)
         self.assertIn("punctuation-standard.md", tasks)
         self.assertIn("标准中文标点", tasks)
         self.assertNotIn("[AGENT_TASK:", result.prompt_manifest_path.read_text(encoding="utf-8"))
@@ -77,6 +81,20 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(prompt_manifest["composition"], "drafts/compositions/scene_0001_composition.md")
         self.assertIn("场景创作编排", prompt_manifest["messages"][1]["content"])
+
+    def test_prompt_pack_injects_style_generation_standard_into_legacy_project_prompt(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+        (project / "prompts" / "scene_generation_user.md").write_text(
+            "# 场景生成请求：{scene_id}\n\n## 输出契约\n\n{output_contract}\n",
+            encoding="utf-8",
+        )
+
+        result = generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), provider="dry-run")
+        prompt_manifest = json.loads(result.prompt_manifest_path.read_text(encoding="utf-8"))
+
+        self.assertIn("## 文风生成标准", prompt_manifest["messages"][1]["content"])
+        self.assertIn("动笔前执行", prompt_manifest["messages"][1]["content"])
 
     def test_generation_blocks_unselected_composition_by_default(self):
         project = self.make_project()
@@ -117,6 +135,8 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(prompt_manifest["style_profile"], "style/demo-author/style_prompt.md")
         self.assertIn("LLM 文风约束提示词", prompt_manifest["messages"][1]["content"])
+        self.assertTrue(prompt_manifest["generation_standards"]["style_profile_loaded"])
+        self.assertEqual(prompt_manifest["generation_standards"]["style_profile"], "style/demo-author/style_prompt.md")
 
     def test_http_chat_provider_posts_prompt_pack_to_endpoint(self):
         project = self.make_project()

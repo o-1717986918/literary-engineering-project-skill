@@ -20,6 +20,10 @@
 
 {style_profile}
 
+## 文风生成标准
+
+{style_generation_standard}
+
 ## 标点规范约束
 
 {punctuation_standard}

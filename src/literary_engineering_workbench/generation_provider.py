@@ -262,7 +262,11 @@ def _write_generation_agent_tasks(
         tasks=[
             (
                 "审查 prompt manifest",
-                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill 或用户约束。""",
+                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、generation_standards.style、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill、文风生成标准或用户约束。""",
+            ),
+            (
+                "审查生成前文风标准",
+                """检查候选是否像是在生成前执行过 generation_standards.style：叙述距离、句法/段落节奏、意象/感官系统、心理呈现、对白密度与语气、标点停顿节奏是否已经进入正文机制，而不是只在审查阶段被口头声明。""",
             ),
             (
                 "审查候选正文",

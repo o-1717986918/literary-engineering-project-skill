@@ -57,7 +57,9 @@ class StyleLabTests(TempProjectMixin, unittest.TestCase):
             generated = generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), provider="dry-run")
             prompt_manifest = json.loads(generated.prompt_manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(prompt_manifest["style_profile"], f"style/mounted/{skill.style_id}/prompt.md")
+            self.assertEqual(prompt_manifest["generation_standards"]["style_profile"], f"style/mounted/{skill.style_id}/prompt.md")
             self.assertIn("已挂载文风 Style Skill", prompt_manifest["messages"][1]["content"])
+            self.assertIn("文风生成标准", prompt_manifest["messages"][1]["content"])
             self.assertIn("最高优先级", prompt_manifest["messages"][1]["content"])
             review_task = write_platform_scene_review_task(
                 project,

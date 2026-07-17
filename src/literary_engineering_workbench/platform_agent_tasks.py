@@ -124,15 +124,19 @@ def write_platform_scene_generation_task(
         tasks=[
             (
                 "读取创作材料",
-                f"""读取 scene.yaml、context packet、composition packet、style prompt/profile、标点规范和相关 canon/character 文件。确认人物 BDI、hidden background_story、scene goal、output_state、用户约束和标点边界。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+                f"""读取 scene.yaml、context packet、composition packet、prompt manifest、style prompt/profile、标点规范和相关 canon/character 文件。确认人物 BDI、hidden background_story、scene goal、output_state、用户约束、文风生成标准和标点边界。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+            ),
+            (
+                "执行生成前文风标准",
+                """在写候选正文前，先根据 prompt manifest 的 generation_standards.style 和已挂载 style prompt/profile，内部建立本场景的文风执行策略：叙述距离、句法/段落节奏、意象/感官系统、心理呈现、对白密度与语气、标点停顿节奏。该策略只用于指导写作，不得作为分析、自检表或工作流痕迹写入候选正文。""",
             ),
             (
                 "生成候选正文",
-                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选` 和 `## 状态变化候选`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。中文正文必须通过标准标点自检。""",
+                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选` 和 `## 状态变化候选`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。正文必须先执行文风生成标准，再通过标准标点和降低 AI 腔自检。""",
             ),
             (
                 "生成候选 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用和待审查事项。""",
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true 和待审查事项。""",
             ),
             (
                 "后续门禁",
