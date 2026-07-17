@@ -553,8 +553,11 @@ Files:
 - `{chapter_id}_novel.md`
 - `{chapter_id}_screenplay.md`
 - `{chapter_id}_video_prompt_pack.md`
+- optional `{chapter_id}_novel.docx`
+- optional `{chapter_id}_screenplay.docx`
+- optional `{chapter_id}_video_prompt_pack.docx`
 
-Do not treat exported files as canon. Writebacks still require approval.
+DOCX outputs are delivery files generated from the Markdown exports. Do not treat exported files as canon. Writebacks still require approval.
 
 ## Publish Releases
 
@@ -569,7 +572,7 @@ Files:
 - `publish_manifest.json`
 - `release_notes.md`
 - `rollback.md`
-- copied novel, screenplay, and video prompt export files
+- copied novel, screenplay, video prompt, and optional DOCX export files
 - `source_export_manifest.json`
 
 Latest pointer:

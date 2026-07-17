@@ -39,6 +39,7 @@ def publish_chapter(
     rebuild_export: bool = False,
     output_dir: Path | None = None,
     overwrite: bool = False,
+    export_formats: str = "md",
 ) -> PublishChapterResult:
     root = project_root.resolve()
     if not root.is_dir():
@@ -65,7 +66,13 @@ def publish_chapter(
     if approval is None and not allow_unapproved:
         raise RuntimeError("publish requires an approve record; pass approval_run_id or use allow_unapproved for internal release")
 
-    export = build_export_package(root, chapter_id=chapter_id, include_blocked=False, rebuild_chapter=rebuild_export)
+    export = build_export_package(
+        root,
+        chapter_id=chapter_id,
+        include_blocked=False,
+        rebuild_chapter=rebuild_export,
+        formats=export_formats,
+    )
     if export.exported_scene_count <= 0:
         raise RuntimeError(f"chapter has no exported scenes: {chapter_id}")
     if export.skipped_scene_count:
@@ -119,6 +126,7 @@ def publish_chapter(
             "novel": _rel(export.novel_path, root),
             "screenplay": _rel(export.screenplay_path, root),
             "video_prompt_pack": _rel(export.video_prompt_path, root),
+            "docx": {key: _rel(path, root) for key, path in export.docx_outputs.items()},
         },
         "published_outputs": copied_outputs,
         "previous_release": previous_latest,
@@ -174,6 +182,10 @@ def _copy_exports(root: Path, release_dir: Path, export) -> dict[str, str]:
         "video_prompt_pack": export.video_prompt_path,
         "export_manifest": export.manifest_path,
     }
+    for key, source in export.docx_outputs.items():
+        docx_key = f"{key}_docx"
+        sources[docx_key] = source
+        targets[docx_key] = release_dir / source.name
     for key, source in sources.items():
         shutil.copyfile(source, targets[key])
     return {key: _rel(path, root) for key, path in targets.items()}

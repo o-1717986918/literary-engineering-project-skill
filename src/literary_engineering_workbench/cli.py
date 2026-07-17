@@ -27,6 +27,7 @@ from .context_packet import build_context_packet
 from .demo_project import build_demo_project
 from .director_agent import build_director_status, run_director_turn
 from .dify_dsl import DEFAULT_DIFY_DSL_PATH, DifyDslOptions, build_dify_workflow_dsl
+from .docx_export import DOCX_KINDS, export_markdown_to_docx
 from .export_package import build_export_package
 from .generation_provider import GENERATION_PROVIDERS, generate_scene_candidate
 from .init_project import InitOptions, init_work_project
@@ -444,12 +445,20 @@ def build_parser() -> argparse.ArgumentParser:
     longform.add_argument("--json-out", default="", help="Output audit JSON path.")
     longform.add_argument("--graph-out", default="", help="Output lightweight graph JSON path.")
 
-    export = sub.add_parser("export-package", help="Export a chapter as novel, screenplay, and video prompt artifacts.")
+    export = sub.add_parser("export-package", help="Export a chapter as Markdown and optional DOCX artifacts.")
     export.add_argument("project", help="Work project directory.")
     export.add_argument("--chapter-id", default="chapter_0001")
     export.add_argument("--include-blocked", action="store_true", help="Include non-ready scenes with warnings.")
     export.add_argument("--rebuild-chapter", action="store_true", help="Rebuild chapter workspace before export.")
     export.add_argument("--out-dir", default="", help="Output directory. Defaults to exports/{chapter_id}.")
+    export.add_argument("--formats", default="md", help="Comma-separated output formats: md,docx. Defaults to md.")
+
+    export_docx = sub.add_parser("export-docx", help="Export a Markdown/text artifact to an editable DOCX file.")
+    export_docx.add_argument("source", help="Source Markdown or text file.")
+    export_docx.add_argument("--out", default="", help="Output DOCX path. Defaults to source path with .docx suffix.")
+    export_docx.add_argument("--title", default="", help="Document title override.")
+    export_docx.add_argument("--kind", default="novel", choices=sorted(DOCX_KINDS), help="Document style preset.")
+    export_docx.add_argument("--no-overwrite", action="store_true", help="Fail if the output DOCX already exists.")
 
     publish = sub.add_parser("publish-chapter", help="Publish a reviewed and approved chapter release.")
     publish.add_argument("project", help="Work project directory.")
@@ -461,6 +470,7 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument("--rebuild-export", action="store_true", help="Rebuild export package before publishing.")
     publish.add_argument("--out-dir", default="", help="Output release directory. Defaults to releases/{chapter_id}/{release_id}.")
     publish.add_argument("--overwrite", action="store_true", help="Allow replacing an existing release directory.")
+    publish.add_argument("--export-formats", default="md", help="Comma-separated export formats for release: md,docx.")
 
     workflow = sub.add_parser("run-workflow", help="Run a file-backed agent workflow and write state/log artifacts.")
     workflow.add_argument("project", help="Work project directory.")
@@ -1394,21 +1404,46 @@ def main(argv=None) -> int:
 
     if args.command == "export-package":
         out_dir = Path(args.out_dir) if args.out_dir else None
-        result = build_export_package(
-            Path(args.project),
-            chapter_id=args.chapter_id,
-            include_blocked=args.include_blocked,
-            rebuild_chapter=args.rebuild_chapter,
-            output_dir=out_dir,
-        )
+        try:
+            result = build_export_package(
+                Path(args.project),
+                chapter_id=args.chapter_id,
+                include_blocked=args.include_blocked,
+                rebuild_chapter=args.rebuild_chapter,
+                output_dir=out_dir,
+                formats=args.formats,
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
         print(f"chapter: {result.chapter_id}")
         print(f"output_dir: {result.output_dir}")
         print(f"manifest: {result.manifest_path}")
         print(f"novel: {result.novel_path}")
         print(f"screenplay: {result.screenplay_path}")
         print(f"video_prompt_pack: {result.video_prompt_path}")
+        for key, path in result.docx_outputs.items():
+            print(f"{key}_docx: {path}")
         print(f"exported_scenes: {result.exported_scene_count}")
         print(f"skipped_scenes: {result.skipped_scene_count}")
+        return 0
+
+    if args.command == "export-docx":
+        out = Path(args.out) if args.out else None
+        try:
+            result = export_markdown_to_docx(
+                Path(args.source),
+                out,
+                title=args.title,
+                kind=args.kind,
+                overwrite=not args.no_overwrite,
+            )
+        except (FileNotFoundError, FileExistsError, ValueError) as exc:
+            parser.error(str(exc))
+        print(f"source: {result.source_path}")
+        print(f"docx: {result.docx_path}")
+        print(f"title: {result.title}")
+        print(f"paragraphs: {result.paragraph_count}")
+        print(f"warnings: {result.warning_count}")
         return 0
 
     if args.command == "publish-chapter":
@@ -1424,6 +1459,7 @@ def main(argv=None) -> int:
                 rebuild_export=args.rebuild_export,
                 output_dir=out_dir,
                 overwrite=args.overwrite,
+                export_formats=args.export_formats,
             )
         except (RuntimeError, ValueError) as exc:
             parser.error(str(exc))

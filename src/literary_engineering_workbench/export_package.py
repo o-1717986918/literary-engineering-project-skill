@@ -6,9 +6,14 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Sequence
 
 from .chapter_pipeline import build_chapter_workspace
+from .docx_export import export_markdown_to_docx
 from .scene_draft import extract_draft_body
+
+
+EXPORT_FORMATS = {"md", "docx"}
 
 
 @dataclass(frozen=True)
@@ -19,6 +24,8 @@ class ExportPackageResult:
     novel_path: Path
     screenplay_path: Path
     video_prompt_path: Path
+    docx_outputs: dict[str, Path]
+    requested_formats: tuple[str, ...]
     chapter_id: str
     exported_scene_count: int
     skipped_scene_count: int
@@ -30,10 +37,12 @@ def build_export_package(
     include_blocked: bool = False,
     rebuild_chapter: bool = False,
     output_dir: Path | None = None,
+    formats: str | Sequence[str] | None = None,
 ) -> ExportPackageResult:
     root = project_root.resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"project root not found: {root}")
+    requested_formats = normalize_export_formats(formats)
 
     chapter_json = root / "plot" / "chapters" / f"{chapter_id}.json"
     if rebuild_chapter or not chapter_json.exists():
@@ -62,17 +71,28 @@ def build_export_package(
     novel_path.write_text(_render_novel(root, chapter_id, exportable, skipped, include_blocked), encoding="utf-8")
     screenplay_path.write_text(_render_screenplay(root, chapter_id, exportable, skipped, include_blocked), encoding="utf-8")
     video_prompt_path.write_text(_render_video_prompt_pack(root, chapter_id, exportable, skipped, include_blocked), encoding="utf-8")
+    docx_outputs: dict[str, Path] = {}
+    if "docx" in requested_formats:
+        docx_outputs["novel"] = export_markdown_to_docx(novel_path, title=f"{chapter_id} 正文", kind="novel").docx_path
+        docx_outputs["screenplay"] = export_markdown_to_docx(screenplay_path, title=f"{chapter_id} 剧本工作稿", kind="screenplay").docx_path
+        docx_outputs["video_prompt_pack"] = export_markdown_to_docx(
+            video_prompt_path,
+            title=f"{chapter_id} 长视频提示词包",
+            kind="video_prompt_pack",
+        ).docx_path
 
     manifest = {
         "schema": "literary-engineering-workbench/export-package/v0.1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "chapter_id": chapter_id,
         "include_blocked": include_blocked,
+        "requested_formats": list(requested_formats),
         "source_chapter_json": _rel_str(chapter_json, root),
         "outputs": {
             "novel": _rel_str(novel_path, root),
             "screenplay": _rel_str(screenplay_path, root),
             "video_prompt_pack": _rel_str(video_prompt_path, root),
+            "docx": {key: _rel_str(path, root) for key, path in docx_outputs.items()},
         },
         "exported_scenes": [_scene_manifest(root, scene) for scene in exportable],
         "skipped_scenes": [_scene_manifest(root, scene) for scene in skipped],
@@ -87,10 +107,30 @@ def build_export_package(
         novel_path=novel_path,
         screenplay_path=screenplay_path,
         video_prompt_path=video_prompt_path,
+        docx_outputs=docx_outputs,
+        requested_formats=requested_formats,
         chapter_id=chapter_id,
         exported_scene_count=len(exportable),
         skipped_scene_count=len(skipped),
     )
+
+
+def normalize_export_formats(formats: str | Sequence[str] | None) -> tuple[str, ...]:
+    if formats is None:
+        return ("md",)
+    if isinstance(formats, str):
+        items = [item.strip().lower() for item in formats.split(",")]
+    else:
+        items = [str(item).strip().lower() for item in formats]
+    normalized: list[str] = []
+    for item in items:
+        if not item:
+            continue
+        if item not in EXPORT_FORMATS:
+            raise ValueError(f"unsupported export format: {item}; supported: {', '.join(sorted(EXPORT_FORMATS))}")
+        if item not in normalized:
+            normalized.append(item)
+    return tuple(normalized or ["md"])
 
 
 def _render_novel(root: Path, chapter_id: str, scenes: list[dict], skipped: list[dict], include_blocked: bool) -> str:

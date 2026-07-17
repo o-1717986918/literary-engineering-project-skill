@@ -336,6 +336,8 @@ Audits:
 
 ```powershell
 python -m literary_engineering_workbench export-package "<work-dir>" --chapter-id chapter_0001
+python -m literary_engineering_workbench export-package "<work-dir>" --chapter-id chapter_0001 --formats md,docx
+python -m literary_engineering_workbench export-docx "<work-dir>\\exports\\chapter_0001\\chapter_0001_novel.md" --kind novel
 ```
 
 Outputs:
@@ -343,6 +345,7 @@ Outputs:
 - novel chapter draft;
 - screenplay working draft;
 - long-video prompt pack;
+- optional editable DOCX files for the same artifacts;
 - `export_manifest.json`.
 
 By default only `ready` scenes are exported. Use `--include-blocked` only for internal preview.
@@ -351,6 +354,7 @@ By default only `ready` scenes are exported. Use `--include-blocked` only for in
 
 ```powershell
 python -m literary_engineering_workbench publish-chapter "<work-dir>" --chapter-id chapter_0001 --approval-run-id "<approved-run-id>"
+python -m literary_engineering_workbench publish-chapter "<work-dir>" --chapter-id chapter_0001 --approval-run-id "<approved-run-id>" --export-formats md,docx
 ```
 
 Default gates:
@@ -365,6 +369,7 @@ Outputs:
 - `releases/{chapter_id}/{release_id}/publish_manifest.json`
 - `releases/{chapter_id}/{release_id}/release_notes.md`
 - `releases/{chapter_id}/{release_id}/rollback.md`
+- optional published `.docx` delivery files when `--export-formats md,docx` is used
 - `releases/{chapter_id}/latest.json`
 
 Use `--allow-unapproved` only for internal candidate releases.

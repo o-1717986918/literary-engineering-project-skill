@@ -171,14 +171,16 @@ task_routes:
 
   export_and_release:
     when:
-      - 导出小说、剧本、长视频提示词、发布章节、回滚说明
+      - 导出小说、剧本、长视频提示词、DOCX 成品、发布章节、回滚说明
     read:
       - references/artifact-contracts.md
+      - references/file-format-export.md
       - docs/implementation/phase9-export-package.md
       - docs/implementation/phase21-publish-chain.md
       - docs/implementation/phase15-approval-loop.md
     output:
       - export package
+      - DOCX delivery files
       - release manifest
       - release notes
       - rollback notes

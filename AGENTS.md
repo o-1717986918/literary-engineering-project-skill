@@ -44,7 +44,7 @@ Do not read the entire repository by default. Follow the route map in `agentread
 - Plot work: create outline/branch candidates, then review scene function and setup/payoff.
 - Scene work: build context, simulate character behavior, branch, compose, draft candidate prose, review, and propose state patches.
 - Style work: build author style project, compile profile, generate LLM-facing style prompt, package/mount Style Skill.
-- Release work: run readiness, canon, longform, export, and approval checks before delivery.
+- Release work: run readiness, canon, longform, export, DOCX delivery, and approval checks before delivery.
 
 ## Optional CLI
 

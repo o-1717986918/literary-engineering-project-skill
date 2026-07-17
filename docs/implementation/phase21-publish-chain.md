@@ -20,6 +20,7 @@ python -m literary_engineering_workbench publish-chapter work/demo-work --chapte
 - `--rebuild-export`：发布前重建导出包。
 - `--out-dir`：自定义 release 目录。
 - `--overwrite`：允许覆盖已有 release 目录。
+- `--export-formats`：指定发布导出格式，例如 `md,docx`。
 
 ## 默认门禁
 
@@ -46,6 +47,7 @@ releases/{chapter_id}/{release_id}/
 - `{chapter_id}_novel.md`
 - `{chapter_id}_screenplay.md`
 - `{chapter_id}_video_prompt_pack.md`
+- 当 `--export-formats md,docx` 时，包含对应 `.docx` 成品文件。
 - `source_export_manifest.json`
 
 同时更新：

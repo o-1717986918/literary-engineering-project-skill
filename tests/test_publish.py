@@ -53,6 +53,23 @@ class PublishChapterTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(result.status, "published_internal")
         self.assertEqual(manifest["approval"]["decision"], "allow_unapproved")
 
+    def test_publish_can_include_docx_outputs(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+        record_workflow_approval(project, "run-ok", "approve", actor="tester", notes="章节可发布。")
+
+        result = publish_chapter(
+            project,
+            chapter_id="chapter_0001",
+            release_id="release-docx",
+            approval_run_id="run-ok",
+            export_formats="md,docx",
+        )
+
+        manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+        self.assertIn("novel_docx", manifest["published_outputs"])
+        self.assertTrue((result.release_dir / "chapter_0001_novel.docx").exists())
+
     def test_non_ready_chapter_is_blocked(self):
         project = self.make_project()
         record_workflow_approval(project, "run-ok", "approve", actor="tester")

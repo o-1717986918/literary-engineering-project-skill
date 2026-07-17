@@ -1,0 +1,55 @@
+# File Format Export Reference
+
+Use this reference when the user asks for final work delivery in `.docx` or another concrete file format.
+
+## DOCX Export Scope
+
+- Use `export-package --formats md,docx` when exporting a reviewed chapter into the standard novel, screenplay, and video prompt deliverables plus editable Word files.
+- Use `export-docx <source.md>` when the user has a final Markdown/text artifact and wants a single Word document.
+- Keep Markdown exports as auditable source artifacts. DOCX files are delivery artifacts, not canon.
+- Do not write API keys, prompt manifests, `[AGENT_TASK: ...]`, draft review notes, or unapproved candidate metadata into final DOCX files unless the user explicitly requests an internal working copy.
+
+## Migrated Office DOCX Rules
+
+The DOCX layer inherits the useful file-handling principles from `office-academic-skill` without importing its academic/PPT workflow:
+
+- Generate editable `.docx` rather than image-only or flattened documents.
+- Use structured Word headings for titles, chapters, sections, and scene headings.
+- Use real Word numbering for bullet and numbered lists; avoid fake list text when possible.
+- Use Chinese-capable fonts for East Asian text and standard Latin fonts for English/numbers.
+- Do not insert raw line breaks inside a text run; create separate paragraphs.
+- Validate the package structure after generation: content types, relationships, document XML, styles, numbering, settings.
+- Preserve source labels in the manifest rather than embedding internal paths noisily into the final prose.
+
+## Recommended Delivery Flow
+
+1. Run chapter readiness and review gates.
+2. Run:
+
+```powershell
+python -m literary_engineering_workbench export-package "<work-dir>" --chapter-id chapter_0001 --formats md,docx
+```
+
+3. Inspect `exports/{chapter_id}/export_manifest.json`.
+4. Open or inspect generated `.docx` files if visual fidelity matters.
+5. If publishing, run:
+
+```powershell
+python -m literary_engineering_workbench publish-chapter "<work-dir>" --chapter-id chapter_0001 --approval-run-id "<approved-run-id>" --export-formats md,docx
+```
+
+## Current DOCX Presets
+
+- `novel`: chapter/scene headings use Word heading styles and later major sections start on a new page.
+- `screenplay`: preserves scene metadata and dialogue/action text as an editable working draft.
+- `video_prompt_pack`: preserves prompt sections, lists, constraints, and notes as a structured Word document.
+- `report`: generic document preset for review or project reports.
+
+## Quality Gate
+
+Before delivering a DOCX:
+
+- confirm the source Markdown or export manifest exists;
+- confirm `inspect_docx` passes without missing required package parts;
+- ensure final DOCX is not used as canon writeback evidence by itself;
+- report the source file, DOCX path, and unresolved formatting limitations.

@@ -43,6 +43,7 @@ Never let generated JSON, simulation output, local-director output, model scores
    - `references/artifact-contracts.md` before changing file layouts or writing project artifacts.
    - `references/workflows.md` for CLI command recipes.
    - `references/orchestration.md` for LangGraph, Dify, subagents, or external workflow design.
+   - `references/file-format-export.md` before exporting final work artifacts to DOCX or other concrete delivery formats.
 
 ## Operating Rules
 
@@ -78,7 +79,7 @@ Do not expose raw schemas, internal file paths, or command chatter unless the us
 - Style learning: use author-as-project, work-as-subproject, and Style Skill output. Read `references/project-director-playbook.md` and `references/workflows.md`.
 - Scene work: build context, simulate character behavior, branch plot options, compose a scene packet, generate candidate prose, review, then propose state patches.
 - Review/audit: run canon, character, plot, style, and release checks before treating text as ready.
-- Export/release: confirm chapter readiness, longform audit status, and approval records before packaging or release.
+- Export/release: confirm chapter readiness, longform audit status, approval records, and requested delivery formats such as DOCX before packaging or release.
 
 ## Optional CLI
 
