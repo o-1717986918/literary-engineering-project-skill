@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_schema import validate_payload
+from .flow_gates import FlowGateError
+
 
 @dataclass(frozen=True)
 class CandidatePromotionResult:
@@ -29,6 +32,8 @@ def promote_scene_candidate(
     overwrite: bool = False,
     approval_run_id: str = "",
     selection_note: str = "",
+    allow_unreviewed: bool = False,
+    allow_review_notes: bool = False,
 ) -> CandidatePromotionResult:
     """Convert a provider candidate into a standard scene draft workspace."""
 
@@ -53,6 +58,9 @@ def promote_scene_candidate(
     body = _candidate_body(candidate_text)
     if not body:
         raise ValueError(f"candidate has no usable body: {candidate_path}")
+    review_gate = candidate_review_gate(root, scene_id, candidate_path)
+    if not allow_unreviewed:
+        _ensure_candidate_reviewed(review_gate, allow_review_notes=allow_review_notes)
     sections = {
         "new_facts": _candidate_bullets(candidate_text, "新增事实候选"),
         "character_changes": _candidate_bullets(candidate_text, "人物状态变化"),
@@ -83,11 +91,15 @@ def promote_scene_candidate(
         "draft": _rel(draft_path, root),
         "approval_run_id": approval_run_id,
         "selection_note": selection_note,
+        "candidate_review": review_gate,
+        "allow_unreviewed": allow_unreviewed,
+        "allow_review_notes": allow_review_notes,
         "chars": len(draft),
         "writeback_sections": sections,
         "guardrails": [
             "本命令只把候选稿转入草稿审查通道，不确认 canon。",
-            "转正后的草稿仍必须运行 review-scene。",
+            "默认必须先完成针对该候选稿的正式平台 Agent 场景审查。",
+            "转正后的草稿仍必须运行 review-scene 和后续平台 Agent 场景审查。",
             "人物、关系和 canon 写回仍必须走单独审批链路。",
         ],
     }
@@ -116,6 +128,137 @@ def _resolve_candidate(root: Path, scene_id: str, candidate: Path | None) -> Pat
     if not candidates:
         raise FileNotFoundError(f"no candidate found for scene: {scene_id}")
     return candidates[0]
+
+
+def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> dict[str, object]:
+    review_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
+    rel_candidate = _rel(candidate_path, root)
+    gate: dict[str, object] = {
+        "required": True,
+        "review": _rel(review_path, root),
+        "candidate": rel_candidate,
+        "mounted_style_required": _mounted_style_exists(root),
+        "status": "missing",
+        "conclusion": "",
+        "style_adherence": "",
+        "schema_errors": [],
+        "unresolved_notes": [],
+        "source_match": False,
+        "message": "candidate review is missing",
+    }
+    if not review_path.exists():
+        return gate
+    payload = _read_json(review_path)
+    errors, _warnings = validate_payload(payload, "scene_review.v1") if payload else ([{"path": "review", "message": "invalid json", "actual": ""}], [])
+    conclusion = str(payload.get("conclusion") or "").strip().lower()
+    style = payload.get("style_adherence") if isinstance(payload.get("style_adherence"), dict) else {}
+    style_status = str(style.get("status") or "").strip().lower() if isinstance(style, dict) else ""
+    source_match = _review_mentions_candidate(payload, rel_candidate, candidate_path)
+    unresolved = _unresolved_review_notes(payload)
+    style_required = _mounted_style_exists(root)
+    style_passed = not style_required or style_status in {"pass", "pass_with_notes"}
+    passed = not errors and source_match and conclusion == "pass" and style_passed and not unresolved
+    if passed:
+        status = "pass"
+        message = "candidate review passed"
+    elif errors:
+        status = "schema_failed"
+        message = "candidate review JSON does not satisfy scene_review.v1"
+    elif not source_match:
+        status = "stale_or_wrong_source"
+        message = "scene review does not cite this candidate in source_paths/candidate"
+    elif conclusion not in {"pass", "pass_with_notes"}:
+        status = "failed"
+        message = f"candidate review conclusion is {conclusion or 'missing'}"
+    elif not style_passed:
+        status = "style_failed"
+        message = f"mounted style review did not pass for this candidate: style_adherence.status={style_status or 'missing'}"
+    elif unresolved:
+        status = "notes_unresolved"
+        message = "candidate review has pass_with_notes/warnings/revision/style notes that must be revised or explicitly waived"
+    else:
+        status = "failed"
+        message = "candidate review did not pass"
+    gate.update(
+        {
+            "status": status,
+            "conclusion": conclusion,
+            "style_adherence": style_status,
+            "schema_errors": errors,
+            "unresolved_notes": unresolved,
+            "source_match": source_match,
+            "message": message,
+        }
+    )
+    return gate
+
+
+def _ensure_candidate_reviewed(gate: dict[str, object], *, allow_review_notes: bool) -> None:
+    if gate.get("status") == "pass":
+        return
+    if allow_review_notes and gate.get("status") == "notes_unresolved":
+        return
+    message = str(gate.get("message") or "candidate review gate failed")
+    review = str(gate.get("review") or "")
+    candidate = str(gate.get("candidate") or "")
+    raise FlowGateError(
+        "formal candidate review required before promote-candidate: "
+        f"{message}. Run agent-review-scene with --draft {candidate}, have the platform agent write {review}, "
+        "and promote only after conclusion=pass with this candidate listed in source_paths. "
+        "For internal experiments only, pass --allow-unreviewed."
+    )
+
+
+def _review_mentions_candidate(payload: dict[str, object], rel_candidate: str, candidate_path: Path) -> bool:
+    expected = _normalize_review_path(rel_candidate)
+    absolute = _normalize_review_path(str(candidate_path.resolve()))
+    direct_values = [
+        payload.get("candidate"),
+        payload.get("reviewed_candidate"),
+        payload.get("draft"),
+        payload.get("source_candidate"),
+    ]
+    source_paths = payload.get("source_paths")
+    if isinstance(source_paths, list):
+        direct_values.extend(source_paths)
+    for value in direct_values:
+        normalized = _normalize_review_path(str(value or ""))
+        if normalized in {expected, absolute}:
+            return True
+    return False
+
+
+def _unresolved_review_notes(payload: dict[str, object]) -> list[str]:
+    notes: list[str] = []
+    conclusion = str(payload.get("conclusion") or "").strip().lower()
+    if conclusion in {"pass_with_notes", "revise_required", "reject"}:
+        notes.append(f"conclusion={conclusion}")
+    for key in ("blocking_issues", "warnings", "revision_actions", "style_notes"):
+        value = payload.get(key)
+        if isinstance(value, list) and value:
+            notes.append(key)
+    style = payload.get("style_adherence")
+    if isinstance(style, dict):
+        style_status = str(style.get("status") or "").strip().lower()
+        if style_status in {"pass_with_notes", "revise_required", "reject"}:
+            notes.append(f"style_adherence.status={style_status}")
+        for key in ("deviations", "revision_actions"):
+            value = style.get(key)
+            if isinstance(value, list) and value:
+                notes.append(f"style_adherence.{key}")
+    return notes
+
+
+def _normalize_review_path(value: str) -> str:
+    return value.replace("\\", "/").strip().strip("`").lstrip("./")
+
+
+def _mounted_style_exists(root: Path) -> bool:
+    active = root / "style" / "active_style_skill.json"
+    if active.exists():
+        return True
+    mounted = root / "style" / "mounted"
+    return mounted.exists() and any(mounted.iterdir())
 
 
 def _candidate_body(text: str) -> str:
@@ -236,6 +379,14 @@ def _read(path: Path) -> str:
     if not path.exists():
         return ""
     return path.read_text(encoding="utf-8", errors="ignore").strip()
+
+
+def _read_json(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _resolve(root: Path, value: Path | None, default: Path | None = None) -> Path:

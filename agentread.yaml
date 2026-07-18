@@ -302,6 +302,7 @@ task_routes:
       - roleplay simulation, branch manifest, formal branch_selection, and ready composition completed before generation
       - roleplay/branch/composition platform-agent tasks or direct platform-agent records handled before generation
       - prose candidate reviewed for canon, character, style, and punctuation
+      - exact prose candidate passed scene_review.v1 before promote-candidate; stale or missing candidate review blocks promotion
       - mounted Style Skill reviewed through scene_review.v1 style_adherence before promotion, readiness, export, or writeback
       - pass_with_notes, warnings, or revise_required findings resolved through revise-scene or explicit waiver
       - state patch remains candidate until reviewed and approved

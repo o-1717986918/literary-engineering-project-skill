@@ -5,6 +5,7 @@ from pathlib import Path
 from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.candidate_promotion import promote_scene_candidate
 from literary_engineering_workbench.cli import build_parser, main
+from literary_engineering_workbench.flow_gates import FlowGateError
 from literary_engineering_workbench.generation_provider import generate_scene_candidate
 from literary_engineering_workbench.scene_composer import build_scene_composition
 
@@ -21,6 +22,10 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
             rebuild_context=True,
             provider="dry-run",
         )
+
+        with self.assertRaises(FlowGateError):
+            promote_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), candidate=candidate.candidate_path)
+        _write_candidate_review(project, candidate.candidate_path)
 
         result = promote_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), candidate=candidate.candidate_path)
 
@@ -43,6 +48,7 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
         project = self.make_project()
         _prepare_generation_ready(project)
         candidate = generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, provider="dry-run")
+        _write_candidate_review(project, candidate.candidate_path)
 
         self.assertIn("promote-candidate", build_parser().format_help())
         code = main(
@@ -58,6 +64,22 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertTrue((project / "drafts" / "scenes" / "scene_0001.md").exists())
+
+    def test_internal_experiment_can_promote_unreviewed_candidate(self):
+        project = self.make_project()
+        _prepare_generation_ready(project)
+        candidate = generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, provider="dry-run")
+
+        result = promote_scene_candidate(
+            project,
+            scene=Path("scenes/scene_0001.yaml"),
+            candidate=candidate.candidate_path,
+            allow_unreviewed=True,
+        )
+
+        manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+        self.assertTrue(manifest["allow_unreviewed"])
+        self.assertEqual(manifest["candidate_review"]["status"], "missing")
 
 
 def _prepare_generation_ready(project: Path):
@@ -79,6 +101,40 @@ def _select_branch(path: Path, branch_id: str):
 """,
         encoding="utf-8",
     )
+
+
+def _write_candidate_review(project: Path, candidate: Path):
+    review_dir = project / "reviews" / "agent"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    rel_candidate = candidate.resolve().relative_to(project.resolve()).as_posix()
+    payload = {
+        "schema": "literary-engineering-workbench/scene-review-agent/v1",
+        "scene_id": "scene_0001",
+        "conclusion": "pass",
+        "summary": "候选稿已通过 promotion 前正式审查。",
+        "blocking_issues": [],
+        "warnings": [],
+        "revision_actions": [],
+        "character_logic": [{"character": "all", "assessment": "人物行动符合当前约束。"}],
+        "canon_risks": [],
+        "style_notes": [],
+        "style_adherence": {
+            "status": "not_applicable",
+            "style_profile": "n/a",
+            "evidence": [],
+            "deviations": [],
+            "revision_actions": [],
+        },
+        "source_paths": [
+            "scenes/scene_0001.yaml",
+            rel_candidate,
+            "memory/context_packets/scene_0001.md",
+        ],
+        "agent_confidence": "platform-test",
+        "next_gate": "promote_candidate",
+    }
+    (review_dir / "scene_0001_scene_review.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (review_dir / "scene_0001_scene_review.md").write_text("# 候选审查\n\n- 结论：`pass`\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

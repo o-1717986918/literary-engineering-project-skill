@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import re
 
+from .candidate_promotion import candidate_review_gate
 from .flow_gates import branch_selection_status
 
 
@@ -388,6 +389,19 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
             "blocking",
             f"{scene_id} mounted style adherence reviewed",
             f"{scene_id} 已挂载文风，但 scene_review.v1 缺少通过的 style_adherence；当前状态：{style_status or 'missing'}。",
+        )
+    promotion_json = root / "drafts" / "promotions" / f"{scene_id}_promotion.json"
+    if promotion_json.exists():
+        promotion_payload = _read_json(promotion_json)
+        candidate = str(promotion_payload.get("candidate") or "").strip()
+        gate = candidate_review_gate(root, scene_id, root / candidate) if candidate else {"status": "missing", "message": "promotion manifest has no candidate"}
+        _add_gate(
+            gates,
+            f"{scene_id}:promotion-candidate-review",
+            gate.get("status") == "pass",
+            "blocking",
+            f"{scene_id} promoted candidate had a formal pre-promotion review",
+            f"{scene_id} promotion 缺少正式候选审查门禁：{gate.get('message') or gate.get('status') or 'missing'}。",
         )
 
 

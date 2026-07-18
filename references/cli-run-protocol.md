@@ -123,12 +123,14 @@ python -m literary_engineering_workbench branch-simulate <project> --scene scene
 python -m literary_engineering_workbench compose-scene <project> --scene scenes/scene_0001.yaml --agent-tasks
 python -m literary_engineering_workbench route-audit <project> --route scene-development
 python -m literary_engineering_workbench generate-scene <project> --scene scenes/scene_0001.yaml
+python -m literary_engineering_workbench agent-review-scene <project> --scene scenes/scene_0001.yaml --draft drafts/candidates/scene_0001-platform-agent.md
+python -m literary_engineering_workbench promote-candidate <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench review-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench revise-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench state-evolve <project> --scene scenes/scene_0001.yaml --agent-tasks
 ```
 
-The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review character causality, mounted style adherence, and punctuation, then decide whether to revise or request promotion approval. `route-audit --route scene-development` must show that context, RP, branch manifest, formal branch selection, and ready composition gates are complete before formal generation. When `style/active_style_skill.json` exists, the same audit also requires `reviews/agent/{scene_id}_scene_review.json` to contain `style_adherence.status=pass|pass_with_notes`; `not_applicable`, missing, or `revise_required` blocks the route. Use `revise-scene` when `agent-review-scene`, `review-scene`, style adherence, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the platform agent to produce a revision candidate and report without overwriting the formal draft.
+The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review the exact candidate before promotion, then review promoted draft character causality, mounted style adherence, and punctuation. `promote-candidate` now blocks unless `reviews/agent/{scene_id}_scene_review.json` cites the exact candidate path and has a clean `conclusion=pass`; `--allow-unreviewed` and `--allow-review-notes` are internal-experiment waivers. `route-audit --route scene-development` must show that context, RP, branch manifest, formal branch selection, ready composition, and promotion candidate review gates are complete before formal generation or writeback. When `style/active_style_skill.json` exists, the same audit also requires `reviews/agent/{scene_id}_scene_review.json` to contain `style_adherence.status=pass|pass_with_notes`; `not_applicable`, missing, or `revise_required` blocks the route. Use `revise-scene` when `agent-review-scene`, `review-scene`, style adherence, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the platform agent to produce a revision candidate and report without overwriting the formal draft.
 
 ### Review And Audit
 
@@ -151,7 +153,7 @@ python -m literary_engineering_workbench agent-task-status <project>
 python -m literary_engineering_workbench route-audit <project> --route scene-development
 ```
 
-`agent-task-status` scans project `.agent_tasks.md` files, checks whether their expected artifact paths exist, and writes `workflow/agent_task_status.md` / `.json`. `route-audit` writes `workflow/route_audit.md` / `.json` and adds route-specific gates such as word-budget expansion, scene sidecar completion, mounted-style adherence review, chapter readiness, and export readiness. These commands are diagnostic; the platform agent must still complete creative tasks or record why they remain pending.
+`agent-task-status` scans project `.agent_tasks.md` files, checks whether their expected artifact paths exist, and writes `workflow/agent_task_status.md` / `.json`. `route-audit` writes `workflow/route_audit.md` / `.json` and adds route-specific gates such as word-budget expansion, scene sidecar completion, promotion candidate review, mounted-style adherence review, chapter readiness, and export readiness. These commands are diagnostic; the platform agent must still complete creative tasks or record why they remain pending.
 
 ### Export And Release
 

@@ -202,6 +202,10 @@
 
 已在 `v0.71.0` 把文风挂载从“生成前最高优先级约束”扩展为“生成后正式审查门禁”。`scene_review.v1` 新增必填 `style_adherence`，平台 Agent 必须审查挂载 Style Skill 是否真正影响叙述距离、句法节奏、意象/感官路由、心理呈现、对白语气、标点停顿和 AI 腔规避。`route-audit --route scene-development` 在存在 `style/active_style_skill.json` 时会阻塞缺失、`not_applicable` 或 `revise_required` 的文风执行审查，使文风学习、挂载、生成、审查和修订形成闭环。
 
+## Phase 72：候选晋升前正式审查门禁
+
+已在 `v0.72.0` 补齐 `generate-scene` 到 `promote-candidate` 之间的漏审查风险。`promote-candidate` 默认要求 `reviews/agent/{scene_id}_scene_review.json` 已经审查 exact candidate：JSON 必须满足 `scene_review.v1`，`source_paths` / `candidate` / `reviewed_candidate` 必须引用正在晋升的候选路径，`conclusion=pass`，且没有 blocking、warnings、revision_actions、style_notes 或 style_adherence 偏差。`--allow-unreviewed` 与 `--allow-review-notes` 只作为内部实验 waiver，并写入 promotion manifest。`route-audit --route scene-development` 会回查已有 promotion manifest，发现候选晋升前审查缺失或过期时输出 blocking gate。
+
 ## Phase 47：前端显式 API Key 配置
 
 已实现前端 API Key 密码输入框、`/config` 明文保存与脱敏响应、空 key 保存保留既有密钥、`model_config.py` 从环境变量或保存的 profile key 读取密钥。

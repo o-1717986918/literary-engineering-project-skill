@@ -36,7 +36,7 @@ Runner 保留已有草稿，默认不覆盖人工写作成果。
 
 `v0.24.0` 起，若草稿存在，`review_ci` 后会追加 `state_evolution_patch` 节点，输出 `characters/state_patches/{scene_id}_state_patch.md` / `.json`。该节点只生成候选 patch，不写回人物档案。
 
-`v0.25.0` 起，可通过 `--promote-candidate` 在生成候选后追加 `promote_candidate` 节点，把最新或刚生成的候选稿转成 `drafts/scenes/{scene_id}.md`，然后继续进入审查和人物状态 patch。人物状态写回仍由 `state-apply` 在审批后单独执行。
+`v0.25.0` 起，可通过 `--promote-candidate` 在生成候选后追加 `promote_candidate` 节点，把最新或刚生成的候选稿转成 `drafts/scenes/{scene_id}.md`，然后继续进入审查和人物状态 patch。`v0.72.0` 起，该节点默认要求候选稿已经通过 candidate-specific 平台 Agent 场景审查；未写入候选、缺审查或审查未引用 exact candidate 时会延迟或阻塞。人物状态写回仍由 `state-apply` 在审批后单独执行。
 
 `--agent-tasks` 会在 scene-loop 中生成平台 agent 任务说明，并把路径登记进 workflow state：
 

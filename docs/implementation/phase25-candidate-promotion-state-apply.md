@@ -2,7 +2,7 @@
 
 ## 状态
 
-已在 `v0.25.0` 实现 `promote-candidate`、`state-apply`，并让 `run-workflow --promote-candidate` 支持候选稿转入草稿审查通道。
+已在 `v0.25.0` 实现 `promote-candidate`、`state-apply`，并让 `run-workflow --promote-candidate` 支持候选稿转入草稿审查通道。`v0.72.0` 起，`promote-candidate` 默认要求候选稿先通过 candidate-specific 平台 Agent 场景审查。
 
 ## 目标
 
@@ -17,6 +17,8 @@
 
 ```powershell
 $env:PYTHONPATH="src"
+python -m literary_engineering_workbench agent-review-scene work/demo-work --scene scenes/scene_0001.yaml --draft drafts/candidates/scene_0001-platform-agent.md
+# 平台 Agent 填写 reviews/agent/scene_0001_scene_review.json，source_paths 必须包含该候选路径，conclusion=pass。
 python -m literary_engineering_workbench promote-candidate work/demo-work --scene scenes/scene_0001.yaml
 ```
 
@@ -46,8 +48,11 @@ drafts/promotions/{scene_id}_promotion.md
 
 - 它不确认 canon。
 - 它不改 `characters/`。
+- 它默认要求 `reviews/agent/{scene_id}_scene_review.json` 已经审查并引用了正在 promotion 的 exact candidate。
+- `pass_with_notes`、warnings、revision_actions、style_notes 或 style_adherence 偏差默认阻塞 promotion，先走 `revise-scene` 或记录明确 waiver。
 - 草稿仍必须运行 `review-scene`。
 - 已存在草稿时默认拒绝覆盖，除非传入 `--overwrite`。
+- 内部实验可用 `--allow-unreviewed`；接受未解决 notes 的内部实验可用 `--allow-review-notes`。两者都会记录进 promotion manifest。
 
 ## Workflow 接入
 
@@ -64,12 +69,12 @@ python -m literary_engineering_workbench run-workflow work/demo-work `
 
 1. `scene_composition`
 2. `generate_candidate`（可选）
-3. `promote_candidate`（可选）
+3. `promote_candidate`（可选，要求 candidate-specific review gate）
 4. `draft_workspace`
 5. `review_ci`
 6. `state_evolution_patch`
 
-如果 `promote_candidate` 生成了草稿，`draft_workspace` 会保留已有草稿并跳过。workflow state 会记录：
+如果 `promote_candidate` 生成了草稿，`draft_workspace` 会保留已有草稿并跳过。若候选未写入或未通过 candidate-specific review gate，promotion 会延迟或阻塞。workflow state 会记录：
 
 - `promoted_draft`
 - `promotion_manifest`

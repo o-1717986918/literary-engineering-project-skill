@@ -44,7 +44,7 @@ Endpoints：
 
 `generate_candidate=true` 时，后端会在 scene-loop 的 `scene_composition` 后追加候选生成节点。使用 `provider=http-chat` 前，应在 `serve-api` 所在环境设置 `LEW_MODEL_API_BASE`、`LEW_MODEL_NAME` 和必要时的 `LEW_MODEL_API_KEY`。
 
-`promote_candidate=true` 时，后端会把候选稿转入草稿审查通道，再继续执行 `review_ci` 和 `state_evolution_patch`。人物状态写回仍需人工 approve 后单独运行 `state-apply`。
+`promote_candidate=true` 时，后端只会在候选稿已经通过 candidate-specific 平台 Agent 场景审查后把它转入草稿审查通道，再继续执行 `review_ci` 和 `state_evolution_patch`。未写入候选、缺审查、审查未引用 exact candidate 或存在未解决 notes 时，promotion 会延迟或阻塞。人物状态写回仍需人工 approve 后单独运行 `state-apply`。
 
 Dify 不直接写 `canon/`，也不绕过 `review-scene`。
 

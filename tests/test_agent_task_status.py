@@ -153,6 +153,35 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
             any(gate["key"] == "scene_0001:style-adherence-review" and gate["status"] == "pass" for gate in payload["gates"])
         )
 
+    def test_route_audit_reports_promotion_without_candidate_review(self):
+        project = self.make_project()
+        promotion_dir = project / "drafts" / "promotions"
+        candidate_dir = project / "drafts" / "candidates"
+        promotion_dir.mkdir(parents=True, exist_ok=True)
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        (candidate_dir / "scene_0001-platform-agent.md").write_text("## 正文候选\n\n测试。\n", encoding="utf-8")
+        (promotion_dir / "scene_0001_promotion.json").write_text(
+            json.dumps(
+                {
+                    "schema": "literary-engineering-workbench/candidate-promotion/v0.1",
+                    "scene_id": "scene_0001",
+                    "candidate": "drafts/candidates/scene_0001-platform-agent.md",
+                    "draft": "drafts/scenes/scene_0001.md",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = build_route_audit(project, route="scene-development")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:promotion-candidate-review" and gate["status"] == "fail" for gate in payload["gates"])
+        )
+
     def test_cli_exposes_task_status_commands(self):
         help_text = build_parser().format_help()
         self.assertIn("agent-task-status", help_text)

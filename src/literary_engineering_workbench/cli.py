@@ -413,6 +413,8 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("--overwrite", action="store_true", help="Replace an existing scene draft.")
     promote.add_argument("--approval-run-id", default="", help="Optional workflow approve run id used as selection evidence.")
     promote.add_argument("--selection-note", default="", help="Human note explaining why this candidate was selected.")
+    promote.add_argument("--allow-unreviewed", action="store_true", help="Internal experiments only: promote without a formal candidate-specific platform scene review.")
+    promote.add_argument("--allow-review-notes", action="store_true", help="Internal experiments only: promote with unresolved pass_with_notes/warnings after explicit waiver.")
 
     state_evolve = sub.add_parser("state-evolve", help="Create a reviewable character state evolution patch from a scene artifact.")
     state_evolve.add_argument("project", help="Work project directory.")
@@ -544,7 +546,7 @@ def build_parser() -> argparse.ArgumentParser:
     workflow.add_argument("--include-blocked", action="store_true", help="Allow export-package to include non-ready scenes.")
     workflow.add_argument("--overwrite-draft", action="store_true", help="Regenerate draft workspace even when one exists.")
     workflow.add_argument("--generate-candidate", action="store_true", help="Generate a scene candidate after scene composition.")
-    workflow.add_argument("--promote-candidate", action="store_true", help="Promote the generated or latest candidate into drafts/scenes before review.")
+    workflow.add_argument("--promote-candidate", action="store_true", help="Promote the generated or latest candidate only after the formal candidate review gate passes.")
     workflow.add_argument("--agent-review", action="store_true", help="Run schema-gated agent scene/canon review nodes.")
     workflow.add_argument("--agent-tasks", action="store_true", help="Generate platform-agent task sidecars for creative workflow artifacts.")
     workflow.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal workflow writes platform-agent tasks.")
@@ -566,7 +568,7 @@ def build_parser() -> argparse.ArgumentParser:
     langgraph.add_argument("--include-blocked", action="store_true", help="Allow export-package to include non-ready scenes.")
     langgraph.add_argument("--overwrite-draft", action="store_true", help="Regenerate draft workspace even when one exists.")
     langgraph.add_argument("--generate-candidate", action="store_true", help="Generate a scene candidate after scene composition.")
-    langgraph.add_argument("--promote-candidate", action="store_true", help="Promote the generated or latest candidate into drafts/scenes before review.")
+    langgraph.add_argument("--promote-candidate", action="store_true", help="Promote the generated or latest candidate only after the formal candidate review gate passes.")
     langgraph.add_argument("--agent-review", action="store_true", help="Run schema-gated agent scene/canon review nodes.")
     langgraph.add_argument("--provider", default="platform-agent", help="Legacy compatibility only; formal workflow writes platform-agent tasks.")
     langgraph.add_argument("--thread-id", default="", help="External orchestration thread id for LangGraph config.")
@@ -1346,21 +1348,27 @@ def main(argv=None) -> int:
     if args.command == "promote-candidate":
         candidate = Path(args.candidate) if args.candidate else None
         out = Path(args.out) if args.out else None
-        result = promote_scene_candidate(
-            Path(args.project),
-            scene=Path(args.scene),
-            candidate=candidate,
-            output=out,
-            overwrite=args.overwrite,
-            approval_run_id=args.approval_run_id,
-            selection_note=args.selection_note,
-        )
+        try:
+            result = promote_scene_candidate(
+                Path(args.project),
+                scene=Path(args.scene),
+                candidate=candidate,
+                output=out,
+                overwrite=args.overwrite,
+                approval_run_id=args.approval_run_id,
+                selection_note=args.selection_note,
+                allow_unreviewed=args.allow_unreviewed,
+                allow_review_notes=args.allow_review_notes,
+            )
+        except (FileNotFoundError, FileExistsError, RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
         print(f"draft: {result.draft_path}")
         print(f"candidate: {result.candidate_path}")
         print(f"manifest: {result.manifest_path}")
         print(f"report: {result.report_path}")
         print(f"scene: {result.scene_id}")
         print(f"chars: {result.chars}")
+        print(f"approval_run_id: {result.approval_run_id or 'n/a'}")
         return 0
 
     if args.command == "state-evolve":

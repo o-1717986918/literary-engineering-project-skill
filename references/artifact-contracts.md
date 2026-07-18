@@ -314,9 +314,11 @@ workflow/route_audit.md
 workflow/route_audit.json
 ```
 
-These files are diagnostic dashboards. They summarize `.agent_tasks.md` sidecars, expected artifact paths, missing outputs, inferred routes, route-specific gates, and unresolved scene review notes when auditing `scene-development`. They do not create prose, canon, characters, final plot, or approval. A pending sidecar remains pending until the platform agent reads it, writes the expected artifacts, and records the outcome.
+These files are diagnostic dashboards. They summarize `.agent_tasks.md` sidecars, expected artifact paths, missing outputs, inferred routes, route-specific gates, promotion review gates, and unresolved scene review notes when auditing `scene-development`. They do not create prose, canon, characters, final plot, or approval. A pending sidecar remains pending until the platform agent reads it, writes the expected artifacts, and records the outcome.
 
 When auditing `scene-development`, `route-audit` also checks mounted Style Skills. If `style/active_style_skill.json` exists, each scene requires a formal scene review JSON with `style_adherence.status` equal to `pass` or `pass_with_notes`; a missing review, `not_applicable`, or `revise_required` is a blocking gate.
+
+When a promotion manifest exists, `route-audit` also checks whether the promoted candidate had a candidate-specific platform Agent scene review. The review must cite the exact candidate path in `source_paths`, `candidate`, or `reviewed_candidate`, pass `scene_review.v1`, and have no unresolved notes unless the promotion explicitly records an internal waiver.
 
 ## Local Creative Director Runs
 
@@ -592,6 +594,17 @@ drafts/scenes/{scene_id}.md
 ```
 
 Promotion records the selected candidate and creates a standard draft for review. It does not confirm canon or write character files.
+
+Default promotion is blocked until the exact candidate has passed formal platform Agent scene review:
+
+- `reviews/agent/{scene_id}_scene_review.json` must exist.
+- the JSON must satisfy `scene_review.v1`;
+- `source_paths`, `candidate`, or `reviewed_candidate` must cite the candidate path being promoted;
+- `conclusion` must be `pass`;
+- `blocking_issues`, `warnings`, `revision_actions`, `style_notes`, `style_adherence.deviations`, and `style_adherence.revision_actions` must be empty;
+- if a Style Skill is mounted, `style_adherence.status` must be `pass` or, with an explicit waiver, `pass_with_notes`.
+
+Use `--allow-unreviewed` only for internal experiments. Use `--allow-review-notes` only when a platform agent or user explicitly accepts the unresolved `pass_with_notes` items. Both flags must remain visible in the promotion manifest.
 
 ## Scene Draft And Review
 
