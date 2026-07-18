@@ -163,7 +163,7 @@ style/{profile}/style_prompt.agent.json
 style/{profile}/style_prompt.agent_tasks.md
 ```
 
-`style_prompt.md` is the LLM-facing style constraint prompt. It is the final style-learning asset for generation, while `style_metrics.json` and `style-profile.md` are evidence and intermediate artifacts. A reliable mountable `style_prompt.md` must be detailed enough to guide another LLM but short enough to remain executable: 500-1500 non-whitespace content characters after Markdown scaffolding is ignored. Shorter prompts are under-specified; longer prompts are treated as diffuse and must be condensed before default mounting.
+`style_prompt.md` is the LLM-facing style constraint prompt. It is the final style-learning asset for generation, while `style_metrics.json` and `style-profile.md` are evidence and intermediate artifacts. A reliable mountable `style_prompt.md` must be detailed enough to guide another LLM but short enough to remain executable: 500-2500 non-whitespace content characters after Markdown scaffolding is ignored. Shorter prompts are under-specified; longer prompts are treated as diffuse and must be condensed before default mounting.
 
 Content requirements for a mountable style prompt:
 
@@ -175,8 +175,8 @@ Content requirements for a mountable style prompt:
 - imagery and sensory channel rules;
 - psychological presentation and hidden background behavior rules;
 - dialogue, tone, and action rules;
-- AI trace reduction rules covering mechanical contrast frames and dash variants such as `不是……——是……`, abstract summary language, explanatory psychology labels, template transitions, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings;
-- style exception rules that distinguish functional rhetoric from model habits: if high dash density or negative-correction frames are part of the target style, the prompt must define when they are allowed, when they are forbidden, and how a reviewer can tell the difference;
+- AI trace reduction rules covering core banned mechanical contrast frames and dash variants such as `不是……——是……`, plus density-gated risks including organ-rotation, generic placeholders, simile dependency, abstract summary language, explanatory psychology labels, template transitions, scenery syncing, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings;
+- style function extraction rules: if high dash density or negative-correction frames appear in source evidence, the prompt must extract their narrative function into actions, fact order, information gaps, irony, or direct statements; it must not authorize “不是……而是……” / `不是……——是……` as reusable generation templates;
 - explicit avoid/forbidden tendencies;
 - output self-check criteria.
 
@@ -261,7 +261,7 @@ style/candidates/{work_id}_style_generation_notes.md
 reviews/source_ingest/{work_id}_extraction_review.md
 ```
 
-Each extracted claim should carry evidence references, confidence, unknowns, and contradiction notes when relevant. Use chunk ids or raw source labels as evidence references; do not copy long source passages into project files. Source-derived style notes are not a mountable Style Skill until converted into a reviewed 500-1500 character LLM-facing prompt.
+Each extracted claim should carry evidence references, confidence, unknowns, and contradiction notes when relevant. Use chunk ids or raw source labels as evidence references; do not copy long source passages into project files. Source-derived style notes are not a mountable Style Skill until converted into a reviewed 500-2500 character LLM-facing prompt.
 
 None of these outputs may directly overwrite:
 

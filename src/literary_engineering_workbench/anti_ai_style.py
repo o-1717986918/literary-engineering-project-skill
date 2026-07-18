@@ -6,22 +6,145 @@ from dataclasses import dataclass
 import re
 
 
-ANTI_AI_STYLE_PROMPT = """## 降低 AI 腔与模板化痕迹
+ANTI_AI_STYLE_PROMPT = """## 降低 AI 腔与朴素叙述约束
 
-- 默认禁用机械对照句式。未经用户或已挂载 Style Skill 明确授权，不使用“不是……而是……”“并非……而是……”“与其说……不如说……”，也不使用“不是……——是……”“不是……。是……”“不是……，是……”等用破折号、句号或逗号替代“而是”的变体。
-- 若 Style Skill 明确把否定-纠偏结构列为核心修辞，只能在人物认知二分、叙述者纠正读者预期、信息反转或讽刺顿挫确有需要时使用；同一场景原则上最多一次，并且必须让结构承担叙事功能，而不是用来制造“文学感”。
-- 避免抽象总结代替具体叙事。少用“某种意义、答案、真相、命运、存在、本身、这一刻、仿佛、像是”等把场景拔高成泛哲理的表达；优先写动作、物件、空间、视线和信息差。
-- 避免解释性心理标签。不要反复写“他知道/她明白/他意识到”，应把认知变化转化为选择、停顿、误判、回避、语气和动作。
-- 避免模板化转折和收束。少用“然而、于是、然后、突然、最终、此刻”串接段落；让转折来自因果、场景物理变化、人物目标冲突或已埋线索的回响。
-- 避免对称排比腔。不要用连续的“不是 A，而是 B；不是 C，而是 D”或抽象名词排比制造庄重感。文学节奏应来自观察顺序、句长变化和情绪压力。
-- 避免全知解释腔。不要把主题、人物动机、世界观意义直接说透；优先保留可被读者推断的缝隙。
-- 避免结尾金句化。场景收束应落在动作结果、关系变化、信息揭示或悬念上，不用空泛判断句替代戏剧变化。
+- 生硬对照句式一律禁用：不使用“不是……而是……”“并非……而是……”“与其说……不如说……”“不是……不是……而是……”，也不使用“不是……——是……”“不是……。是……”“不是……，是……”等用标点替代“而是”的变体。此类结构不判断为合理修辞；请改为动作、事实顺序、信息差或直接陈述。
+- 叙述标准是“给朋友讲一件事”或“日记里会不会这样写”。过场一句话交代，不恋战；高潮可以多写几句，但细写不等于堆形容词、器官反应或华丽比喻。
+- 器官轮岗、AI 高频套话、万能占位和比喻依赖按密度控制：单个孤例可作为低级复核信号，但总量原则上不超过叙事单元的 2%；超过阈值必须修订。
+- 不用器官轮岗表现情绪：不要轮流写嘴角、眼底、指尖、脊背、胸口、喉咙、胃部。情绪优先通过选择、停顿、动作后果、说话方式和准确细节呈现。
+- 不用 AI 高频套话、万能占位和比喻依赖：少用“有什么东西……”“某种说不清的东西”“像被什么东西……”“仿佛有一只无形的手”等空泛表达。
+- 破折号不能制造文学感。正式正文原则上不用“——”做转折、插入或强调；孤立出现需逐句语义复核，超过 2% 密度或替代转折时必须修订。
+- 一句话尽量少用逗号；若一句话超过三个逗号，通常应拆句或重写。一个意思说完就换行，不要用长逗号链拖成满分作文腔。
+- 不做景物强制同步：人物情绪变化时，风、雨、灯、夜色不要恰好配合情绪变化。
+- 不要重复渲染同一情绪。同一件事说一遍即可，保留人味和准确细节，不用三个形容词或三个比喻撑篇幅。
 - 禁止用正则或批量脚本对正文做语义级“去 AI 腔”改写。脚本只能提示风险或做安全排版规范化；删除“不是”、改写“不是 A——是 B”、替换心理判断等操作必须由平台 agent 逐句语义复核。"""
 
 ANTI_AI_STYLE_SHORT_RULE = (
-    "降低 AI 腔：默认禁用机械“不是……而是……”及“不是……——是……”等变体，"
-    "除非 Style Skill 或用户明确授权其作为功能性修辞；避免抽象总结、解释性心理标签、"
-    "模板化转折、对称排比、全知说教和结尾金句化。不得用脚本批量删除否定或做语义改写。"
+    "降低 AI 腔：禁用“不是……而是……”及“不是……——是”等生硬对照，不判断为合理修辞；"
+    "破折号、器官轮岗、万能占位、比喻依赖和景物强制同步按 2% 左右密度门禁控制。"
+    "按朋友讲事/日记标准写，过场简写，高潮靠准确细节，不得用脚本批量删除否定或做语义改写。"
+)
+
+AI_STYLE_SOFT_DENSITY_LIMIT = 0.02
+
+BANNED_AI_PHRASES: tuple[str, ...] = (
+    "嘴角划过弧度",
+    "嘴角一扯",
+    "勾起嘴角",
+    "嘴角微扬",
+    "嘴角泛起",
+    "笑意不达眼底",
+    "眸色一沉",
+    "眸中闪过",
+    "瞳孔骤缩",
+    "眼底有什么东西翻涌",
+    "眼底一闪而过",
+    "眼眶泛红",
+    "眼圈微红",
+    "睫毛颤了颤",
+    "眉心微蹙",
+    "眉头紧锁",
+    "下颌线绷紧",
+    "喉结滚动",
+    "咬着下唇",
+    "后槽牙咬得咯吱响",
+    "嘴唇翕动",
+    "鼻尖发酸",
+    "额角青筋隐现",
+    "太阳穴突突地跳",
+    "指甲陷入肉里",
+    "指节发白",
+    "指节捏得发白",
+    "攥紧拳头",
+    "拳头攥了又松",
+    "手心全是汗",
+    "掌心掐出月牙形的印子",
+    "手指收紧",
+    "指尖发凉",
+    "指尖微微发颤",
+    "呼吸一滞",
+    "呼吸停了一拍",
+    "心脏漏跳一拍",
+    "心脏像被攥住",
+    "血液凝固",
+    "血液往头顶涌",
+    "浑身僵硬",
+    "僵在原地",
+    "脊背发凉",
+    "脊背窜上一股寒意",
+    "松了一口气",
+    "悬着的心落了地",
+    "绷紧的弦松了",
+    "胸口发闷",
+    "喉咙发紧",
+    "喉咙发堵",
+    "视线模糊",
+    "眼前蒙了一层雾",
+    "深吸一口气",
+    "吐出一口浊气",
+    "胃里翻江倒海",
+    "胃部一紧",
+    "冷得像腊月的冰",
+    "冷得像腊月的枯井",
+    "眼神冷得像淬了冰",
+    "像冰面裂开了一道缝",
+    "话像冰碴子一样",
+    "溅起水花",
+    "暗流涌动",
+    "有什么东西在翻涌",
+    "悲伤溢出",
+    "笑意溢出",
+    "漫上心头",
+    "酸涩漫上来",
+    "有什么东西碎了",
+    "泛起涟漪",
+    "心湖被搅动",
+    "有什么东西",
+    "某种说不清的东西",
+    "谁也说不清",
+    "好像被什么东西攫住了",
+    "仿佛有一只无形的手",
+    "像溺水的人抓住浮木",
+    "像被人掐住了喉咙",
+    "像被什么东西击中了",
+    "仿佛下一瞬就会碎掉",
+    "像绷到极限的弦",
+    "像站在悬崖边上",
+    "仿佛风一吹就会散",
+    "如同潮水般涌来",
+    "连他自己都没察觉",
+    "连他自己都没意识到",
+    "一时之间",
+    "不知为何",
+    "不知过了多久",
+    "说不清是",
+    "不知道是",
+    "分不清是",
+    "几乎就要",
+    "差一点就",
+    "险些",
+    "那是一种",
+    "一滞",
+    "一顿",
+    "一僵",
+    "一怔",
+    "一愣",
+    "一凛",
+    "后来他才明白",
+    "很久以后他才知道",
+    "多年后他依然记得",
+)
+
+BANNED_INTENT_TERMS: tuple[str, ...] = (
+    "笑意",
+    "怒意",
+    "寒意",
+    "暖意",
+    "醉意",
+    "倦意",
+    "悔意",
+    "恨意",
+    "杀意",
 )
 
 
@@ -36,11 +159,34 @@ class AIStyleIssue:
 def lint_ai_style(text: str) -> list[AIStyleIssue]:
     clean = _strip_markdown(text)
     issues: list[AIStyleIssue] = []
-    issues.extend(_contrast_frame_issues(clean))
+    issues.extend(_banned_phrase_issues(clean))
+    contrast_issues = _contrast_frame_issues(clean)
+    issues.extend(contrast_issues)
+    issues.extend(_sentence_shape_issues(clean, skip_dash=bool(contrast_issues)))
     issues.extend(_abstract_summary_issues(clean))
     issues.extend(_explanatory_mind_issues(clean))
     issues.extend(_slogan_ending_issues(clean))
     return issues
+
+
+def _banned_phrase_issues(text: str) -> list[AIStyleIssue]:
+    hits = [phrase for phrase in BANNED_AI_PHRASES for _ in range(text.count(phrase))]
+    intent_hits = [term for term in BANNED_INTENT_TERMS for _ in range(text.count(term))]
+    if intent_hits and len(intent_hits) >= 3:
+        hits.append("X意泛滥：" + "、".join(sorted(set(intent_hits))[:5]))
+    if not hits:
+        return []
+    sample = _first_present_sample(text, [hit for hit in hits if not hit.startswith("X意泛滥")] or [hits[0]])
+    severity, density_note = _soft_density_verdict(len(hits), text)
+    return [
+        AIStyleIssue(
+            "plain-narration-banned-expression",
+            severity,
+            "出现朴素叙述风险词/风险句式，容易显得像 AI 在演小说。"
+            f"此类词组按约 2% 密度门禁处理，{density_note}；请改为普通人会说、日记里会写的准确动作或事实细节。",
+            sample or hits[0],
+        )
+    ]
 
 
 def _contrast_frame_issues(text: str) -> list[AIStyleIssue]:
@@ -59,21 +205,78 @@ def _contrast_frame_issues(text: str) -> list[AIStyleIssue]:
     hits = list(dict.fromkeys(hits))
     if not hits:
         return []
-    severity = "medium" if len(hits) >= 2 else "low"
-    message = (
-        "机械对照/否定纠偏句式密度过高，容易形成 AI 腔；请先判断每处是否承担信息纠偏、讽刺顿挫或人物认知二分功能，"
-        "再由写作 agent 局部修订。不得用脚本直接删除“不是”或批量替换破折号。"
-        if severity == "medium"
-        else "发现一次可能的机械对照/否定纠偏句式。若它承担人物认知、信息反转或已授权文风功能，可保留；否则请改为动作、信息差或句法重心推进。不得用脚本直接删改。"
-    )
     return [
         AIStyleIssue(
             "mechanical-contrast-frame",
-            severity,
-            message,
+            "medium",
+            "发现生硬对照句式。此类“不是……而是……”及其破折号/句号变体不判断为合理修辞；请改为动作、事实顺序、信息差或直接陈述。不得用脚本直接删除“不是”导致语义反转。",
             _sample(text, hits[0]),
         )
     ]
+
+
+def _sentence_shape_issues(text: str, *, skip_dash: bool = False) -> list[AIStyleIssue]:
+    issues: list[AIStyleIssue] = []
+    dash_count = text.count("——")
+    if dash_count and not skip_dash:
+        severity, density_note = _soft_density_verdict(dash_count, text)
+        issues.append(
+            AIStyleIssue(
+                "dash-prohibited-in-plain-narration",
+                severity,
+                "朴素叙述原则上不用破折号。不要用破折号制造文学感、插入感或转折感；"
+                f"{density_note}。请改为换句、换段或删去多余渲染。",
+                _sample(text, "——"),
+            )
+        )
+    for sentence in re.split(r"[。！？!?\n]", text):
+        if sentence.count("，") + sentence.count(",") > 3:
+            issues.append(
+                AIStyleIssue(
+                    "comma-overload-in-sentence",
+                    "medium",
+                    "一句话超过三个逗号，容易形成拖长的作文腔。请拆句、换行或删掉重复渲染。",
+                    sentence.strip()[:100],
+                )
+            )
+            break
+    transition_patterns = [
+        r"也不[^，。！？\n]{1,12}[，,]也不[^，。！？\n]{1,12}[，,]只是",
+        r"很[^，。！？\n]{1,8}[，,]很[^，。！？\n]{1,8}[，,]但(?:确实|的确)",
+        r"(?:到底还是|终究|终于|还是)[^。！？\n]{0,24}",
+        r"(?:不知为何|不知过了多久|说不清是|不知道是|分不清是)[^。！？\n]{0,36}",
+        r"嘴上没说什么[^。！？\n]{0,18}却",
+        r"(?:安静。很安静。|死一般的安静)",
+        r"(?:风|雨|灯|夜色)[^。！？\n]{0,12}(?:恰好|正好|忽然|突然)",
+        r"(?:恰好|正好|忽然|突然)[^。！？\n]{0,12}(?:风|雨|灯|夜色)",
+    ]
+    for pattern in transition_patterns:
+        match = re.search(pattern, text)
+        if match:
+            severity, density_note = _soft_density_verdict(1, text)
+            issues.append(
+                AIStyleIssue(
+                    "plain-narration-template-sentence",
+                    severity,
+                    "发现朴素叙述风险句式模板。"
+                    f"此类模板按约 2% 密度门禁处理，{density_note}；请去掉表演化转折、景物强制同步或重复渲染，改为直接事实和具体动作。",
+                    _sample(text, match.group(0)),
+                )
+            )
+            break
+    simile_count = len(re.findall(r"(?:好像|仿佛|如同|像[^。！？\n]{1,18}(?:一样|似的))", text))
+    if simile_count >= 2:
+        severity, density_note = _soft_density_verdict(simile_count, text)
+        issues.append(
+            AIStyleIssue(
+                "simile-dependency",
+                severity,
+                "比喻依赖偏高。"
+                f"此类表达按约 2% 密度门禁处理，{density_note}；朴素叙述优先使用准确事实和动作，不靠“好像/仿佛/像……一样”撑情绪。",
+                _first_present_sample(text, ["好像", "仿佛", "如同", "像"]),
+            )
+        )
+    return issues
 
 
 def _abstract_summary_issues(text: str) -> list[AIStyleIssue]:
@@ -160,6 +363,19 @@ def _strip_markdown(text: str) -> str:
             continue
         lines.append(raw_line)
     return "\n".join(lines)
+
+
+def _soft_density_verdict(hit_count: int, text: str) -> tuple[str, str]:
+    unit_count = _narrative_unit_count(text)
+    allowed = max(1, int(unit_count * AI_STYLE_SOFT_DENSITY_LIMIT))
+    density = hit_count / max(unit_count, 1)
+    severity = "medium" if hit_count > allowed else "low"
+    return severity, f"当前 {hit_count}/{unit_count} 个叙事单元，约 {density:.1%}，阈值约 {AI_STYLE_SOFT_DENSITY_LIMIT:.0%}"
+
+
+def _narrative_unit_count(text: str) -> int:
+    units = [unit for unit in re.split(r"[。！？!?；;\n]+", text) if unit.strip()]
+    return max(1, len(units))
 
 
 def _sample(text: str, hit: str) -> str:

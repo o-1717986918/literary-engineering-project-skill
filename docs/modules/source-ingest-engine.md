@@ -76,5 +76,5 @@ When executing the sidecar, the platform agent should:
 - Source-derived material is evidence, not canon.
 - Do not overwrite `canon/`, `characters/{id}.yaml`, `plot/outline.md`, `style/active_style_skill.json`, drafts, exports, or releases.
 - Do not copy long source passages into candidate files.
-- Do not treat source-derived style notes as a reliable Style Skill until converted into a reviewed 500-1500 character LLM-facing prompt.
+- Do not treat source-derived style notes as a reliable Style Skill until converted into a reviewed 500-2500 character LLM-facing prompt.
 - For protected or unauthorized sources, use abstract craft analysis and avoid exact imitation or continuation that would imply rights ownership.

@@ -143,7 +143,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         ),
         completion_gates=(
             "Corpus authorization or public-domain assumption recorded.",
-            "Style prompt created or sidecar handled, with 500-1500 non-whitespace content characters and all required high-quality prompt blocks for reliable mounting.",
+            "Style prompt created or sidecar handled, with 500-2500 non-whitespace content characters and all required high-quality prompt blocks for reliable mounting.",
             "Effectiveness/risk review completed before mounting.",
         ),
         forbidden_shortcuts=COMMON_FORBIDDEN
@@ -228,7 +228,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         forbidden_shortcuts=COMMON_FORBIDDEN
         + (
             "Do not copy long passages into evidence notes; use concise references.",
-            "Do not treat source-derived style notes as a mountable Style Skill until they become a reviewed 500-1500 character prompt.",
+            "Do not treat source-derived style notes as a mountable Style Skill until they become a reviewed 500-2500 character prompt.",
         ),
     ),
     "longform-planning": ProtocolRoute(

@@ -119,7 +119,7 @@ When the user supplies existing text for continuation, rewrite, adaptation, or a
 5. Review the extraction before using it as a basis for new scenes or rewrites.
 6. Promote only after user approval; otherwise keep source-derived material as candidate context.
 
-Do not paste long source passages into candidate files. Do not convert source-derived style notes directly into a mounted Style Skill; first turn them into a reviewed 500-1500 character LLM-facing style prompt.
+Do not paste long source passages into candidate files. Do not convert source-derived style notes directly into a mounted Style Skill; first turn them into a reviewed 500-2500 character LLM-facing style prompt.
 
 ## Longform Budget Policy
 

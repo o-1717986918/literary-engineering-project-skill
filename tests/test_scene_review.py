@@ -92,7 +92,8 @@ class SceneReviewTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(review.conclusion, "revise_required")
         self.assertIn("AI Trace Reduction Test", report)
-        self.assertIn("机械对照/否定纠偏句式", report)
+        self.assertIn("生硬对照句式", report)
+        self.assertIn("不判断为合理修辞", report)
         self.assertIn("不得用脚本", report)
 
     def test_ai_trace_flags_dash_contrast_without_prescribing_regex_cleanup(self):
@@ -102,9 +103,33 @@ class SceneReviewTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(len(issues), 1)
         self.assertEqual(issues[0].rule, "mechanical-contrast-frame")
-        self.assertEqual(issues[0].severity, "low")
-        self.assertIn("可保留", issues[0].message)
+        self.assertEqual(issues[0].severity, "medium")
+        self.assertIn("不判断为合理修辞", issues[0].message)
         self.assertIn("不得用脚本", issues[0].message)
+
+    def test_ai_trace_uses_density_gate_for_plain_narration_risk_terms(self):
+        isolated = "她把账本合上。院门外有人敲了两下。她嘴角微扬，又把灯拨暗。"
+
+        isolated_issues = lint_ai_style(isolated)
+
+        self.assertEqual(isolated_issues[0].rule, "plain-narration-banned-expression")
+        self.assertEqual(isolated_issues[0].severity, "low")
+        self.assertIn("2%", isolated_issues[0].message)
+
+        dense = "她嘴角微扬，指节发白，呼吸一滞，胸口发闷。"
+
+        dense_issues = lint_ai_style(dense)
+
+        self.assertEqual(dense_issues[0].rule, "plain-narration-banned-expression")
+        self.assertEqual(dense_issues[0].severity, "medium")
+
+    def test_ai_trace_flags_dash_and_comma_shape(self):
+        text = "她说——你走吧。\n他低头，停下，回身，看了她一眼，把信放回桌上。"
+
+        rules = {issue.rule for issue in lint_ai_style(text)}
+
+        self.assertIn("dash-prohibited-in-plain-narration", rules)
+        self.assertIn("comma-overload-in-sentence", rules)
 
 
 if __name__ == "__main__":

@@ -70,3 +70,4 @@
 - `phase68-task-dashboard-revision-budget-binding.md`：平台 Agent 总控、场景修订闭环与场景库存绑定
 - `phase69-punctuation-docx-office-migration.md`：引号统一与 DOCX 版式规划补强
 - `phase74-generation-style-guardrails.md`：生成层反 AI 腔硬约束与语义清洗边界
+- `phase75-plain-narration-density-gate.md`：朴素叙述约束与 AI 腔密度门禁
