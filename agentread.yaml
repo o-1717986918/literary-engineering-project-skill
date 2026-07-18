@@ -54,6 +54,7 @@ governance:
     - inspect raw and parsed outputs
     - run or perform schema, canon, character, style, and safety review
     - decide revise, keep as candidate, ask user, approve internally, or promote after approval
+    - write creative body text only as the main platform agent; subagents may support with mechanical checks and summaries only
   never_auto_accept:
     - generated JSON
     - simulation recommendations
@@ -98,7 +99,9 @@ route_execution_contract:
     - do not accept CLI output as canon or final creative judgment
     - do not accept generated JSON because it parses
     - do not skip .agent_tasks.md handling when a command writes sidecars
-    - do not promote candidates without review and approval unless the user asks for an internal experiment
+    - do not promote candidates without clean review and approval
+    - do not use debug or bypass flags such as --allow-unreviewed, --allow-review-notes, --include-blocked, --allow-unapproved, --allow-unresolved, --allow-missing-composition, --allow-unselected-composition, --allow-recommended-branch, or --allow-missing-branch during formal Skill-host work
+    - do not delegate creative body-text drafting, rewriting, polishing, expansion, or finalization to subagents
     - do not skip Chinese punctuation review for Chinese prose
     - do not store API keys or provider secrets in work projects
 
@@ -304,7 +307,7 @@ task_routes:
       - prose candidate reviewed for canon, character, style, and punctuation
       - exact prose candidate passed scene_review.v1 before promote-candidate; stale or missing candidate review blocks promotion
       - mounted Style Skill reviewed through scene_review.v1 style_adherence before promotion, readiness, export, or writeback
-      - pass_with_notes, warnings, or revise_required findings resolved through revise-scene or explicit waiver
+      - pass_with_notes, warnings, or revise_required findings resolved through revise-scene and re-review
       - state patch remains candidate until reviewed and approved
 
   review_and_audit:
@@ -386,4 +389,6 @@ do_not_assume:
   - simulation scores are final plot decisions
   - style similarity is originality safety
   - candidates may be promoted without review and approval
+  - debug or unreview instructions may bypass formal review gates
+  - subagents may write prose candidates or final body text
   - API keys may be written into work projects

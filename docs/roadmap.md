@@ -224,6 +224,14 @@
 
 已在 `v0.77.0` 修正批量场景实际使用中暴露的“只做一场完整流程，余下场景直接写 prose”问题。`route-audit --route scene-development` 现在把每个 `scenes/*.yaml` 当作独立账本，逐项阻塞缺失 prose candidate、exact-candidate `scene_review.v1`、promotion manifest、promoted draft 和 `state-evolve` patch 的场景；已有 RP、branch 和 composition gate 继续保留。目标达到 100000+ 字或多卷时，scene-development / export-and-release audit 还会要求先完成 word-budget 及预算 review；当预算状态为 `needs_expansion` 时，预算化大纲、场景库存扩展和对应 review 必须补齐。`SKILL.md`、`AGENTS.md`、`agent-run-protocol`、`cli-run-protocol` 和 `protocol scene-development` 均明确“一条 scene loop 只覆盖一个场景，不能代表整个章节或卷”。
 
+## Phase 78：宿主调试跳审禁令与主 Agent 正文权
+
+已在 `v0.78.0` 增加正式 Skill 宿主约束：宿主不得使用 `--allow-unreviewed`、`--allow-review-notes`、`--include-blocked`、`--allow-unapproved`、`--allow-missing-composition` 等调试/跳审参数绕过 review、approval、composition 或 export gate；这些参数仅保留给维护者在本仓库做回归测试。`route-audit` 会扫描项目 JSON manifest 中的 debug waiver 字段并输出 blocking gate。另新增“主 Agent 正文权”：小说正文、剧本场景、伪记录条目、修订正文和最终交付文本必须由主平台 Agent 亲自写，subagent 只能执行资料整理、证据摘录、schema/格式检查、连续性表、字数库存、风险标注等相对机械工作。
+
+## Phase 79：AgentReview 确定性 Style Lint 证据注入
+
+已在 `v0.79.0` 将 `anti_ai_style.py` 的确定性 lint 接入正式平台 Agent 场景审查：`agent-review-scene` 生成的 `.agent_tasks.md` 会包含 `Style Lint (auto-detected)` 证据块，旧兼容路径 `review_scene_with_agent()` 的 LLM prompt 也会注入同一证据。审查 Agent 必须处理中级及以上风险，尤其是“不是 A——是 B”“不是 A。是 B”等机械对照变体，不得以“合理修辞”跳过，也不得用脚本直接删改正文。dry-run 占位审查会把确定性 lint 风险写入 warnings / revision_actions，避免被误解为质量审查通过。
+
 ## Phase 47：前端显式 API Key 配置
 
 已实现前端 API Key 密码输入框、`/config` 明文保存与脱敏响应、空 key 保存保留既有密钥、`model_config.py` 从环境变量或保存的 profile key 读取密钥。

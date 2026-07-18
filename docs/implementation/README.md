@@ -73,3 +73,5 @@
 - `phase75-plain-narration-density-gate.md`：朴素叙述约束与 AI 腔密度门禁
 - `phase76-supervisor-execution-discipline.md`：Supervisor Agent 执行纪律与 sidecar 闭环
 - `phase77-batch-scene-ledger-gates.md`：批量场景逐场景账本门禁
+- `phase78-host-debug-ban-main-agent-prose.md`：宿主调试跳审禁令与主 Agent 正文权
+- `phase79-agent-review-style-lint-evidence.md`：AgentReview 确定性 Style Lint 证据注入

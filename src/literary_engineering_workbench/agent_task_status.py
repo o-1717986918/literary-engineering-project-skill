@@ -15,6 +15,24 @@ from .flow_gates import branch_selection_status
 BACKTICK_RE = re.compile(r"`([^`]+)`")
 EXPECTED_HINT_RE = re.compile(r"(完成后写入|创建或覆盖|expected_|写入候选|写入正式|输出到|输出至)")
 IGNORED_PARTS = {".git", "__pycache__", ".pytest_cache", "node_modules", ".venv", "venv"}
+DEBUG_WAIVER_KEYS = {
+    "allow_unreviewed",
+    "allow_review_notes",
+    "allow_unapproved",
+    "allow_unresolved",
+    "allow_missing_composition",
+    "allow_unselected_composition",
+    "allow_missing_branch",
+    "allow_recommended_branch",
+    "include_blocked",
+}
+DEBUG_WAIVER_DECISIONS = {
+    "allow_unreviewed",
+    "allow_review_notes",
+    "allow_unapproved",
+    "allow_unresolved",
+    "include_blocked",
+}
 
 
 @dataclass(frozen=True)
@@ -246,9 +264,18 @@ def _route_gates(root: Path, route: str, records: list[AgentTaskRecord]) -> list
     gates: list[dict[str, str]] = []
     pending = [record for record in records if record.status in {"pending", "partial", "unknown"}]
     missing_expected = sum(len(record.missing_expected_paths) for record in records)
+    debug_waivers = _debug_waiver_hits(root)
     _add_gate(gates, "project-root", (root / "project.yaml").exists(), "blocking", "project.yaml exists", "不是标准 work project；若扫描 skill root，可忽略本项。")
     _add_gate(gates, "agent-sidecars-handled", not pending, "blocking", "all .agent_tasks.md sidecars handled", f"仍有 {len(pending)} 个 sidecar 未完整处理。")
     _add_gate(gates, "expected-artifacts-exist", missing_expected == 0, "blocking", "all expected artifacts exist", f"仍缺 {missing_expected} 个预期产物。")
+    _add_gate(
+        gates,
+        "debug-waiver-flags",
+        not debug_waivers,
+        "blocking",
+        "no debug waiver flags found",
+        f"检测到正式 Skill 宿主禁用的调试/跳审字段：{'; '.join(debug_waivers[:8])}。不要用 allow/unreview/include-blocked 类参数跳过 review；补齐正式门禁。",
+    )
     if route == "longform-planning":
         _add_longform_budget_gates(gates, root, force=True)
     if route == "scene-development":
@@ -337,6 +364,43 @@ def _project_target_words(root: Path) -> int:
             except ValueError:
                 continue
     return max(values) if values else 0
+
+
+def _debug_waiver_hits(root: Path) -> list[str]:
+    hits: list[str] = []
+    for path in sorted(root.rglob("*.json")):
+        if any(part in IGNORED_PARTS for part in path.parts):
+            continue
+        payload = _read_json(path)
+        if not payload:
+            continue
+        hits.extend(_scan_debug_waivers(payload, _rel(path, root), ()))
+    return _unique(hits)
+
+
+def _scan_debug_waivers(value: object, source: str, trail: tuple[str, ...]) -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_text = str(key)
+            next_trail = trail + (key_text,)
+            if key_text in DEBUG_WAIVER_KEYS and _truthy_debug_flag(item):
+                hits.append(f"{source}:{'.'.join(next_trail)}={item}")
+            if key_text == "decision" and str(item).strip().lower() in DEBUG_WAIVER_DECISIONS:
+                hits.append(f"{source}:{'.'.join(next_trail)}={item}")
+            hits.extend(_scan_debug_waivers(item, source, next_trail))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            hits.extend(_scan_debug_waivers(item, source, trail + (str(index),)))
+    return hits
+
+
+def _truthy_debug_flag(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return str(value).strip().lower() in {"true", "yes", "1", "allow", "allowed", "enabled"}
 
 
 def _add_gate(gates: list[dict[str, str]], key: str, passed: bool, severity: str, passed_message: str, failed_message: str) -> None:

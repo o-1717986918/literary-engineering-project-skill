@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 
 from .agent_tasks import write_agent_tasks
+from .anti_ai_style import render_ai_style_lint_block
 from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, ASSET_TYPES
 from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
 from .style_prompt import STYLE_PROMPT_LENGTH_RULE, STYLE_PROMPT_QUALITY_RULE
@@ -42,6 +43,7 @@ def write_platform_scene_review_task(
     if context_path.exists():
         source_paths.append(context_path)
     _extend_unique(source_paths, _style_source_paths(root))
+    style_lint_block = render_ai_style_lint_block(_read_optional(draft_path))
     task_path = json_output.with_suffix(".agent_tasks.md")
     write_agent_tasks(
         task_path,
@@ -62,6 +64,12 @@ def write_platform_scene_review_task(
             (
                 "进行语义审查",
                 f"""以平台 agent 的文学判断审查人物行为逻辑、背景故事隐性因果、canon 风险、剧情推进、文风执行、套路化/同质化风险、标点规范和需要修订的动作。标点审查规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+            ),
+            (
+                "处理确定性 Style Lint 证据",
+                f"""{style_lint_block}
+
+以上 Style Lint 是审查前由代码自动检出的证据。若存在 medium 或更高风险，必须在 JSON 的 blocking_issues、warnings、revision_actions 或 style_notes 中处理，不得仅用“整体可读”“属于合理修辞”带过。若认为某个 low 风险可保留，必须在 Markdown 报告说明语义理由。禁止用批量脚本直接删除否定、破折号或心理表达。""",
             ),
             (
                 "执行挂载文风门禁",
@@ -623,6 +631,10 @@ def _resolve_optional(root: Path, path: Path | None) -> Path | None:
     if path is None:
         return None
     return path if path.is_absolute() else root / path
+
+
+def _read_optional(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
 def _safe_label(value: str) -> str:

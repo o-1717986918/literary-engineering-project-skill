@@ -9,6 +9,7 @@ from literary_engineering_workbench.agent_json_builder import plan_agent_patch
 from literary_engineering_workbench.agent_scene_review import review_scene_with_agent
 from literary_engineering_workbench.cli import build_parser, main
 from literary_engineering_workbench.demo_project import build_demo_project
+from literary_engineering_workbench.platform_agent_tasks import write_platform_scene_review_task
 from literary_engineering_workbench.style_compiler import StyleCompileOptions, compile_style_profile
 from literary_engineering_workbench.style_prompt_agent import build_agent_style_prompt
 from literary_engineering_workbench.style_prompt import (
@@ -35,6 +36,48 @@ class AgenticWorkflowTests(TempProjectMixin, unittest.TestCase):
         scene_payload = json.loads(scene_review.json_path.read_text(encoding="utf-8"))
         self.assertEqual(scene_payload["schema"], "literary-engineering-workbench/scene-review-agent/v1")
         self.assertIn(scene_payload["conclusion"], {"pass", "pass_with_notes", "revise_required", "reject"})
+
+    def test_agent_scene_review_injects_deterministic_ai_style_lint(self):
+        project = self.make_project()
+        draft = make_reviewed_passing_scene(project)
+        text = draft.read_text(encoding="utf-8")
+        text = text.replace(
+            "林舟站在旧楼门口，听见楼道深处的电流声断断续续。",
+            "不是C营的——是那个E营的年轻人，他把袖章藏在雨衣里面。",
+        )
+        draft.write_text(text, encoding="utf-8")
+
+        scene_review = review_scene_with_agent(project, scene=Path("scenes/scene_0001.yaml"), draft=draft, provider="dry-run")
+
+        input_payload = json.loads((scene_review.run_dir / "input.prompt.json").read_text(encoding="utf-8"))
+        user_prompt = input_payload["messages"][1]["content"]
+        self.assertIn("Style Lint (auto-detected)", user_prompt)
+        self.assertIn("mechanical-contrast-frame", user_prompt)
+        self.assertIn("不判断为合理修辞", user_prompt)
+        scene_payload = json.loads(scene_review.json_path.read_text(encoding="utf-8"))
+        self.assertEqual(scene_payload["conclusion"], "revise_required")
+        self.assertIn("Style lint: mechanical-contrast-frame", "\n".join(scene_payload["warnings"]))
+
+    def test_platform_scene_review_task_includes_style_lint_evidence(self):
+        project = self.make_project()
+        draft = make_reviewed_passing_scene(project)
+        text = draft.read_text(encoding="utf-8")
+        text = text.replace(
+            "林舟站在旧楼门口，听见楼道深处的电流声断断续续。",
+            "不是C营的——是那个E营的年轻人，他把袖章藏在雨衣里面。",
+        )
+        draft.write_text(text, encoding="utf-8")
+
+        task = write_platform_scene_review_task(
+            project,
+            scene_path=project / "scenes" / "scene_0001.yaml",
+            draft_path=draft,
+        )
+
+        task_text = task.task_path.read_text(encoding="utf-8")
+        self.assertIn("Style Lint (auto-detected)", task_text)
+        self.assertIn("mechanical-contrast-frame", task_text)
+        self.assertIn("不得仅用“整体可读”“属于合理修辞”带过", task_text)
 
     def test_agent_patch_plan_and_committee(self):
         project = self.make_project()

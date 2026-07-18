@@ -26,6 +26,8 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("Probe documented commands", text)
         self.assertIn("agent-review-scene is a sidecar generator", text)
         self.assertIn("scene_review.v1", text)
+        self.assertIn("Do not use debug/bypass flags", text)
+        self.assertIn("main platform agent", text)
 
     def test_cli_exposes_protocol_command(self):
         help_text = build_parser().format_help()

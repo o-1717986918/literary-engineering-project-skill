@@ -81,6 +81,8 @@ def render_agent_tasks_document(
             "- 先读取 Source Artifacts，再执行下列任务。",
             "- 不要因为任务名称包含 agent / review / style / JSON 就判断自己不能做；如需 CLI 辅助，先运行 `--help` 或 `protocol <route>`，失败后记录真实错误。",
             "- 若本任务要求写 review JSON、候选正文、修订报告、分支选择或状态补丁，当前平台 agent 应直接完成这些产物；不要等待“外部 agent”。",
+            "- 若本任务要求写候选正文、修订正文、正文草稿或可交付正文，必须由当前主平台 agent 亲自完成；subagent 只能做资料整理、上下文摘录、schema/格式检查、连续性清单、风险标注等相对机械工作，不得代写正文。",
+            "- 正式 Skill 宿主不得使用 `--allow-unreviewed`、`--allow-review-notes`、`--include-blocked`、`--allow-unapproved` 等调试/跳审参数绕过 review；遇到阻塞门禁时补齐 review、revision、approval 或 route-audit。",
             "- 任何新增事实、人物状态变化、分支选择和发布判断都保持候选状态。",
             "- 不要把本文件中的任务标记写入 JSON、prompt manifest、正稿、canon 或发布包。",
             "- 如发现任务与 canon、角色事实、文风挂载或用户约束冲突，先记录冲突并请求确认。",

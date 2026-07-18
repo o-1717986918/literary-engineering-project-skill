@@ -104,7 +104,7 @@ python -m literary_engineering_workbench style-lab-mount <project> <style-skill>
 
 The platform agent must write or approve the LLM-facing style prompt and judge its effectiveness. Exact imitation is limited to public-domain or authorized corpora.
 
-`style-lab-compile` and `style-prompt-eval` write `.agent_tasks.md` sidecars; they do not finish the creative/evaluative step by themselves. Before `style-lab-build-skill`, the platform agent must create `style_prompt.md` and `style_prompt.agent.json`; the prompt must be a detailed but executable 500-2500 non-whitespace content characters and include the required high-quality prompt blocks. Before default `style-lab-mount`, at least one `style_eval_*.json` effectiveness/risk review must exist and pass the mount readiness gate. Use `--allow-unreviewed` only for an internal experiment.
+`style-lab-compile` and `style-prompt-eval` write `.agent_tasks.md` sidecars; they do not finish the creative/evaluative step by themselves. Before `style-lab-build-skill`, the platform agent must create `style_prompt.md` and `style_prompt.agent.json`; the prompt must be a detailed but executable 500-2500 non-whitespace content characters and include the required high-quality prompt blocks. Before default `style-lab-mount`, at least one `style_eval_*.json` effectiveness/risk review must exist and pass the mount readiness gate. Formal Skill hosts must not use `--allow-unreviewed` to bypass style readiness.
 
 ### Character And World Assets
 
@@ -131,14 +131,14 @@ python -m literary_engineering_workbench compose-scene <project> --scene scenes/
 python -m literary_engineering_workbench route-audit <project> --route scene-development
 python -m literary_engineering_workbench generate-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench agent-review-scene <project> --scene scenes/scene_0001.yaml --draft drafts/candidates/scene_0001-platform-agent.md
-# Read reviews/agent/scene_0001_scene_review.agent_tasks.md, then write the expected scene_review.v1 JSON and Markdown report yourself as platform agent.
+# Read reviews/agent/scene_0001_scene_review.agent_tasks.md, including Style Lint evidence, then write the expected scene_review.v1 JSON and Markdown report yourself as platform agent.
 python -m literary_engineering_workbench promote-candidate <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench review-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench revise-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench state-evolve <project> --scene scenes/scene_0001.yaml --agent-tasks
 ```
 
-The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review the exact candidate before promotion, then review promoted draft character causality, mounted style adherence, punctuation, and state-patch consequences. `agent-review-scene` must be tried, not guessed about: it generates the review task and expected report paths; the supervising platform agent performs the review and writes `scene_review.v1`. `promote-candidate` blocks unless `reviews/agent/{scene_id}_scene_review.json` cites the exact candidate path and has a clean `conclusion=pass`; `--allow-unreviewed` and `--allow-review-notes` are internal-experiment waivers. `route-audit --route scene-development` is the per-scene ledger and must show that each scene has context, RP, branch manifest, formal branch selection, ready composition, prose candidate, exact-candidate review, promotion manifest, promoted draft, and state patch before chapter/export readiness. When `style/active_style_skill.json` exists, formal chapter readiness and export require `style_adherence.status=pass`; `pass_with_notes`, `not_applicable`, missing, or `revise_required` blocks readiness/export until revised or explicitly waived. Use `revise-scene` when `agent-review-scene`, `review-scene`, style adherence, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the platform agent to produce a revision candidate and report without overwriting the formal draft.
+The main platform agent must handle every task sidecar, formally record branch selection before composition/generation, personally draft the prose candidate, review the exact candidate before promotion, then review promoted draft character causality, mounted style adherence, punctuation, deterministic Style Lint evidence, and state-patch consequences. Subagents may provide only bounded mechanical support such as evidence summaries, issue lists, schema checks, continuity tables, and word-count inventories; they must not draft, rewrite, polish, expand, or finalize body text. `agent-review-scene` must be tried, not guessed about: it generates the review task, `Style Lint (auto-detected)` evidence, and expected report paths; the supervising platform agent performs the review and writes `scene_review.v1`, explicitly handling medium-or-higher lint findings. `promote-candidate` blocks unless `reviews/agent/{scene_id}_scene_review.json` cites the exact candidate path and has a clean `conclusion=pass`; formal Skill hosts must not use `--allow-unreviewed` or `--allow-review-notes`. `route-audit --route scene-development` is the per-scene ledger and must show that each scene has context, RP, branch manifest, formal branch selection, ready composition, prose candidate, exact-candidate review, promotion manifest, promoted draft, and state patch before chapter/export readiness. When `style/active_style_skill.json` exists, formal chapter readiness and export require `style_adherence.status=pass`; `pass_with_notes`, `not_applicable`, missing, or `revise_required` blocks readiness/export until revised and re-reviewed. Use `revise-scene` when `agent-review-scene`, `review-scene`, style adherence, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the main platform agent to produce a revision candidate and report without overwriting the formal draft.
 
 ### Review And Audit
 
@@ -172,9 +172,9 @@ python -m literary_engineering_workbench export-package <project> --chapter-id c
 python -m literary_engineering_workbench publish-chapter <project> --chapter-id chapter_0001 --approval-run-id <id>
 ```
 
-Before delivery, confirm readiness, approvals, canon audit, punctuation, target format, and rollback notes. `export-package` rebuilds or verifies the chapter workspace before packaging and blocks non-ready scenes by default; `--include-blocked` is only for internal previews.
+Before delivery, confirm readiness, approvals, canon audit, punctuation, target format, and rollback notes. `export-package` rebuilds or verifies the chapter workspace before packaging and blocks non-ready scenes by default; formal Skill hosts must not use `--include-blocked`.
 
-If `export-package` blocks, do not write a custom export script and call it final. Run `chapter-workspace` / `route-audit`, resolve missing scene reviews or sidecars, or explicitly label the output as an internal preview with the waiver reason.
+If `export-package` blocks, do not write a custom export script, use debug flags, or call the output final. Run `chapter-workspace` / `route-audit`, resolve missing scene reviews or sidecars, then export through the formal path.
 
 ## Completion Gate
 

@@ -63,7 +63,7 @@ When creating new material:
 2. Include source intent, assumptions, conflicts, and approval needs.
 3. Review it with at least one independent lens: canon, character logic, plot function, style, or prose.
 4. Treat generated JSON and helper recommendations as evidence, not acceptance.
-5. Promote only after explicit user approval or when the user asks for an internal experimental branch.
+5. Promote only after clean review and explicit user approval; do not use debug or unreview instructions to skip gates.
 
 Typical candidate folders:
 

@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.77.0`
+- 当前版本：`0.79.0`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -111,6 +111,10 @@ context packet
 `v0.76.0` 起，Supervisor Agent 执行纪律被写成硬规则：遇到文档中的 CLI 或 agent sidecar 步骤，必须先 `--help`、`protocol <route>` 或尝试最小安全命令，不能事前判断“我做不了”。`agent-review-scene` 明确为 sidecar 生成器：命令生成任务文件后，当前平台 Agent 必须读取任务并写入 `scene_review.v1` JSON/Markdown；`export-package` 等官方门禁若阻塞，不能用自写脚本绕过并称为最终交付，只能修 gate 或标记为内部预览。
 
 `v0.77.0` 起，批量场景开发增加“逐场景账本”硬门禁：一条完整 scene loop 只覆盖一个场景，不能用做过 `scene_0075` 来代表 `scene_0076-0099`。`route-audit --route scene-development` 会逐个场景检查 context、RP、branch、composition、prose candidate、exact-candidate AgentReview、promotion、promoted draft 和 state patch；10 万字以上项目还会在场景开发/导出前检查 word-budget 是否完成。
+
+`v0.78.0` 起，正式 Skill 宿主禁用调试/跳审参数：`--allow-unreviewed`、`--allow-review-notes`、`--include-blocked`、`--allow-unapproved` 等只保留给维护者回归测试，不能作为项目运行指令。`route-audit` 会扫描 manifest 中的 debug waiver 字段并阻塞正式路线。同时，正文创作权收束到主平台 Agent：subagent 只能做资料摘要、连续性表、schema/标点/风险检查等机械支持，不得代写、改写、扩写或最终化正文。
+
+`v0.79.0` 起，平台 Agent 场景审查会自动注入确定性 `Style Lint (auto-detected)` 证据：在审查 Agent 做文学判断前，先由 `anti_ai_style.py` 抓取“不是 A——是 B”等机械对照变体、破折号/模板句式/AI 腔风险，再要求审查 JSON 和 Markdown 明确处理这些证据。这样审查不再只依赖同一个 LLM 的语义直觉，也避免用正则脚本直接改坏正文。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 
@@ -443,7 +447,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.77.0`。
+- 当前版本：`0.79.0`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -458,6 +462,7 @@ literary-engineering-project-skill/
 - DOCX/Markdown 交付清洗与章节强门禁：已阻止“世界状态变化”等工作台痕迹进入最终 DOCX；导出前默认重建章节工作台，非 ready 场景会阻塞正式导出。
 - Supervisor Agent 执行纪律：已要求文档命令先试再判断，`.agent_tasks.md` 必须由当前平台 Agent 执行，`agent-review-scene` 不得被误判为外部模型依赖，官方 gate 失败不得用自写脚本冒充正式交付。
 - 批量场景账本门禁：已要求 scene-development 按每个 scene 检查候选、候选专属审查、promotion、正式草稿和 state-evolve patch，避免只跑一场 RP/review 后批量直写正文。
+- 正式宿主禁用调试跳审：已禁止 Skill 宿主用 allow/unreview/include-blocked 类参数绕过 review，并要求创作正文只能由主平台 Agent 完成。
 - 可选 CLI 工具箱：可运行。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 

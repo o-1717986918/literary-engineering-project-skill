@@ -226,7 +226,7 @@ workflow/asset_promotions/{candidate_id}_promotion.json
 workflow/asset_promotions/{candidate_id}_promotion.md
 ```
 
-Default promotion requires an `approve` record whose `run_id` is the candidate id or an explicitly supplied approval id. `--allow-unapproved` is for internal experiments only.
+Default promotion requires an `approve` record whose `run_id` is the candidate id or an explicitly supplied approval id. `--allow-unapproved` is maintainer/debug-only; formal Skill hosts must not use it.
 
 ## Source Imports And Reverse Extraction
 
@@ -321,7 +321,7 @@ When auditing `scene-development`, `route-audit` checks every `scenes/*.yaml` in
 
 When auditing `scene-development`, `route-audit` also checks mounted Style Skills. If `style/active_style_skill.json` exists, each scene requires a formal scene review JSON with `style_adherence.status` equal to clean `pass`; `pass_with_notes`, a missing review, `not_applicable`, or `revise_required` is a blocking gate until revised or explicitly waived in an internal manifest.
 
-When a promotion manifest exists, `route-audit` also checks whether the promoted candidate had a candidate-specific platform Agent scene review. The review must cite the exact candidate path in `source_paths`, `candidate`, or `reviewed_candidate`, pass `scene_review.v1`, and have no unresolved notes unless the promotion explicitly records an internal waiver.
+When a promotion manifest exists, `route-audit` also checks whether the promoted candidate had a candidate-specific platform Agent scene review. The review must cite the exact candidate path in `source_paths`, `candidate`, or `reviewed_candidate`, pass `scene_review.v1`, and have no unresolved notes. Manifests that use debug waiver fields such as `allow_unreviewed`, `allow_review_notes`, `allow_unapproved`, or `include_blocked` are blocked for formal Skill-host routes.
 
 ## Local Creative Director Runs
 
@@ -552,7 +552,7 @@ drafts/candidates/{scene_id}-platform-agent.prompt.json
 drafts/candidates/{scene_id}-platform-agent.agent_tasks.md
 ```
 
-The prompt manifest records rendered messages, source files, and generation standards for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. Formal prompt manifests require a ready composition with `selection_source=selection` and `ready_for_generation=true`; missing or unselected composition is allowed only with an explicit internal-experiment waiver. Generated prose candidates require platform-agent review before promotion; run `agent-review-scene --draft <candidate>` or write an equivalent exact-candidate review, then read the generated sidecar and fill the expected `scene_review.v1` JSON/Markdown. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
+The prompt manifest records rendered messages, source files, and generation standards for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. Formal prompt manifests require a ready composition with `selection_source=selection` and `ready_for_generation=true`; missing or unselected composition blocks formal generation. Generated prose candidates require platform-agent review before promotion; run `agent-review-scene --draft <candidate>` or write an equivalent exact-candidate review, then read the generated sidecar and fill the expected `scene_review.v1` JSON/Markdown. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
 
 Generation standards include:
 
@@ -561,7 +561,7 @@ Generation standards include:
 - `review_notes`
 - `hard_constraints`
 
-If `review_notes` contains a prior `pass_with_notes`, the next writing pass must apply local revision actions or record a specific waiver reason before promotion, chapter readiness, export, or writeback.
+If `review_notes` contains a prior `pass_with_notes`, the next writing pass must apply local revision actions and return to review before promotion, chapter readiness, export, or writeback.
 
 ## Scene Revision
 
@@ -580,7 +580,7 @@ drafts/revisions/{scene_id}_revision_report.md
 drafts/revisions/{scene_id}_revision.json
 ```
 
-`revise-scene` is the formal notes-resolution loop for a reviewed scene. It reads the scene file, draft body, context packet, AgentReview JSON or static review, mounted style, canon, punctuation standard, and word budget. The platform agent then writes a revised candidate and a report that lists which review notes were applied, which were waived, whether target words improved, and what still needs approval.
+`revise-scene` is the formal notes-resolution loop for a reviewed scene. It reads the scene file, draft body, context packet, AgentReview JSON or static review, mounted style, canon, punctuation standard, and word budget. The main platform agent then writes a revised candidate and a report that lists which review notes were applied, what still needs approval, and why the result is ready for re-review. Subagents may list issues or evidence, but must not write the revised body text.
 
 The revision candidate is not final prose by itself. It may replace `drafts/scenes/{scene_id}.md` only after review and approval or an explicit command path that records promotion/writeback. The revision report must not be exported as story text.
 
@@ -605,9 +605,9 @@ Default promotion is blocked until the exact candidate has passed formal platfor
 - `source_paths`, `candidate`, or `reviewed_candidate` must cite the candidate path being promoted;
 - `conclusion` must be `pass`;
 - `blocking_issues`, `warnings`, `revision_actions`, `style_notes`, `style_adherence.deviations`, and `style_adherence.revision_actions` must be empty;
-- if a Style Skill is mounted, `style_adherence.status` must be clean `pass`; unresolved `pass_with_notes` requires `revise-scene` or an explicit internal waiver before promotion.
+- if a Style Skill is mounted, `style_adherence.status` must be clean `pass`; unresolved `pass_with_notes` requires `revise-scene` and re-review before promotion.
 
-Use `--allow-unreviewed` only for internal experiments. Use `--allow-review-notes` only when a platform agent or user explicitly accepts the unresolved `pass_with_notes` items. Both flags must remain visible in the promotion manifest.
+`--allow-unreviewed` and `--allow-review-notes` are maintainer/debug-only. A formal Skill host must not use them, even if the user asks to “unreview” or skip review; complete the exact-candidate review or revision loop instead. If these flags appear in a project manifest, `route-audit` should block formal readiness.
 
 ## Scene Draft And Review
 
@@ -632,7 +632,7 @@ Required draft sections:
 - `### 伏笔变化`
 - `### 需要人工确认`
 
-The draft body is subject to `Punctuation Standard Test` in `review-scene`. Fix accidental English punctuation in Chinese sentences, wrong ellipses, wrong dashes, repeated exclamation/question marks, and Chinese punctuation spacing before chapter readiness. A `pass_with_notes` review requires notes resolution: run `revise-scene` or otherwise apply local notes, then record an explicit acceptance/waiver reason before chapter readiness, export, or writeback.
+The draft body is subject to `Punctuation Standard Test` in `review-scene`. Fix accidental English punctuation in Chinese sentences, wrong ellipses, wrong dashes, repeated exclamation/question marks, and Chinese punctuation spacing before chapter readiness. A `pass_with_notes` review requires notes resolution: run `revise-scene` or otherwise apply local notes, then re-review before chapter readiness, export, or writeback.
 
 ## Character State Patches
 
@@ -768,7 +768,7 @@ Files:
 
 DOCX outputs are delivery files generated from the Markdown exports. Layout JSON records the chosen document preset, source structure, fonts, styles, lists, tables, and quality gates. Inspection JSON records package structure, paragraph/table counts, style ids, numbering, East Asian font presence, page setup, and warnings. Do not treat exported files as canon. Writebacks still require approval. Final Chinese prose exports should preserve the standard punctuation gate result or record an explicit exception; the export layer normalizes corner/vertical quote variants to `“”` / `‘’` as delivery hygiene.
 
-`export-package` rebuilds or verifies the chapter workspace before packaging and blocks by default when any scene is non-ready. Use `--include-blocked` only for internal previews; final release should have zero skipped scenes and no residual workbench trace warnings.
+`export-package` rebuilds or verifies the chapter workspace before packaging and blocks by default when any scene is non-ready. `--include-blocked` is maintainer/debug-only; formal Skill hosts must not use it. Final release should have zero skipped scenes and no residual workbench trace warnings.
 
 ## Publish Releases
 

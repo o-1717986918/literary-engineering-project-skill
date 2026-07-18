@@ -205,7 +205,7 @@ def _ensure_candidate_reviewed(gate: dict[str, object], *, allow_review_notes: b
         "formal candidate review required before promote-candidate: "
         f"{message}. Run agent-review-scene with --draft {candidate}, have the platform agent write {review}, "
         "and promote only after conclusion=pass with this candidate listed in source_paths. "
-        "For internal experiments only, pass --allow-unreviewed."
+        "Formal Skill hosts must not use --allow-unreviewed to bypass this gate; that flag is maintainer/debug-only."
     )
 
 

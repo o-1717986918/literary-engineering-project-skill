@@ -205,6 +205,27 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
             any(gate["key"] == "longform-required:word-budget-json" and gate["status"] == "fail" for gate in payload["gates"])
         )
 
+    def test_route_audit_blocks_debug_review_bypass_flags(self):
+        project = self.make_project()
+        add_character(project)
+        make_reviewed_passing_scene(project)
+        _write_roleplay_receipt(project)
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        _select_branch(branch.selection_path, branch.recommended_branch)
+        build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+        _promote_candidate_and_patch_state(project)
+        promotion = project / "drafts" / "promotions" / "scene_0001_promotion.json"
+        payload = json.loads(promotion.read_text(encoding="utf-8"))
+        payload["allow_unreviewed"] = True
+        promotion.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        result = build_route_audit(project, route="scene-development")
+        audit = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "debug-waiver-flags" and gate["status"] == "fail" for gate in audit["gates"])
+        )
+
     def test_cli_exposes_task_status_commands(self):
         help_text = build_parser().format_help()
         self.assertIn("agent-task-status", help_text)

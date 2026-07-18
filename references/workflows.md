@@ -246,7 +246,7 @@ python -m literary_engineering_workbench style-lab-mount "<work-dir>" --style-id
 
 `style-prompt-eval` and `/style-lab/evaluate` likewise write a platform-agent task for the back-translation / outline-expansion candidate. After the platform agent writes the expected candidate and manifest, run deterministic `style-eval` or provide an equivalent `style_eval_*.json` review before mounting.
 
-`style-lab-mount` requires readiness evidence by default: `prompt.md`, a prompt detail length of 500-2500 non-whitespace content characters, required style-prompt content blocks, `style_prompt.agent.json`, and at least one accepted `evaluation_results/*/style_eval_*.json`. Use `--allow-unreviewed` only for internal experiments, and record that the mounted style is not ready for release-grade writing.
+`style-lab-mount` requires readiness evidence by default: `prompt.md`, a prompt detail length of 500-2500 non-whitespace content characters, required style-prompt content blocks, `style_prompt.agent.json`, and at least one accepted `evaluation_results/*/style_eval_*.json`. Formal Skill hosts must not use `--allow-unreviewed`; complete style readiness instead.
 
 Mounted style skills are stored in the creative project under `style/mounted/{style_id}/` with `style/active_style_skill.json` as the active pointer. During generation, the mounted `prompt.md` is the highest-priority expression constraint, while canon, character facts, plot causality, safety boundaries, and explicit user constraints still take precedence.
 
@@ -323,7 +323,7 @@ python -m literary_engineering_workbench review-candidate-asset "<work-dir>" "<c
 python -m literary_engineering_workbench promote-character-candidate "<work-dir>" "<candidate-id-or-path>" --approval-run-id "<candidate-id>"
 ```
 
-For internal experiments only, pass `--allow-unapproved`. Candidate assets are written under `characters/candidates/`, `canon/candidates/`, and `plot/candidates/`; they are not canon until promoted. The platform agent should inspect every generated candidate and review report before asking for approval or using it in later planning.
+Candidate assets are written under `characters/candidates/`, `canon/candidates/`, and `plot/candidates/`; they are not canon until promoted. The platform agent should inspect every generated candidate and review report before asking for approval or using it in later planning. Formal Skill hosts must not use `--allow-unapproved`.
 
 Validate or repair an agent run:
 
@@ -385,13 +385,13 @@ Branches are not canon. The recommended branch is only a scoring hint; the platf
 
 Use `branch-simulate --agent` / `--agent-tasks` to write `branch_manifest.agent_tasks.md`. This sidecar tells the platform agent how to review branch scores and choose or revise a branch without polluting `branch_manifest.json`.
 
-`compose-scene` turns the formally selected branch into a creation packet under `drafts/compositions/{scene_id}_composition.md` and `.json`, including scene beats, subtext, dialogue intents, sensory palette, prose seed, revision targets, and writeback candidates. Formal composition now requires `branch_manifest.json` plus `branch_selection.md` with `decision: selected` and `selected_branch`; missing branch simulation is blocked instead of silently using fallback. The recommended branch is never used by default; `--allow-recommended-branch` and `--allow-missing-branch` are internal-experiment flags and produce composition artifacts that are not ready for formal generation.
+`compose-scene` turns the formally selected branch into a creation packet under `drafts/compositions/{scene_id}_composition.md` and `.json`, including scene beats, subtext, dialogue intents, sensory palette, prose seed, revision targets, and writeback candidates. Formal composition now requires `branch_manifest.json` plus `branch_selection.md` with `decision: selected` and `selected_branch`; missing branch simulation is blocked instead of silently using fallback. The recommended branch is never used by default; formal Skill hosts must not use `--allow-recommended-branch` or `--allow-missing-branch`.
 
 Use `compose-scene --agent-tasks` to write `drafts/compositions/{scene_id}_composition.agent_tasks.md`. Keep `[AGENT_TASK: ...]` out of the composition Markdown because it may be read into `generate-scene` prompt packs.
 
 When character `background_story` is present, scene and branch work should convert it into choices, hesitation, avoidance, misreadings, tone, and relationship pressure. Do not turn it into an explanatory background paragraph unless the selected scene explicitly reveals the past.
 
-`generate-scene` writes a prompt manifest and `drafts/candidates/{scene_id}-platform-agent.agent_tasks.md`. It does not call a local provider, does not overwrite `drafts/scenes/`, and does not write canon. Formal generation requires a composition packet with `selection_source: selection`; missing, unselected, fallback, or recommended-only composition packets are blocked unless an internal-experiment flag such as `--allow-missing-composition` or `--allow-unselected-composition` is explicitly passed. The platform agent reads the prompt manifest, writes the expected candidate Markdown and manifest JSON, then reviews the exact candidate before promotion.
+`generate-scene` writes a prompt manifest and `drafts/candidates/{scene_id}-platform-agent.agent_tasks.md`. It does not call a local provider, does not overwrite `drafts/scenes/`, and does not write canon. Formal generation requires a composition packet with `selection_source: selection`; missing, unselected, fallback, or recommended-only composition packets are blocked. Formal Skill hosts must not use `--allow-missing-composition` or `--allow-unselected-composition`. The main platform agent reads the prompt manifest, writes the expected candidate Markdown and manifest JSON, then reviews the exact candidate before promotion.
 
 The prompt manifest includes `generation_standards.style`, `generation_standards.word_budget`, `generation_standards.review_notes`, and `generation_standards.hard_constraints`. These are generation-time contracts, not merely review checklists: before drafting, the platform agent should translate the mounted Style Skill / style profile into concrete scene tactics, apply any `pass_with_notes` revision actions, honor longform budget load, and follow the hard-constraint priority order. Do not output that plan in the candidate; use it to reduce review failures before they happen.
 
@@ -401,18 +401,18 @@ After a batch, run `route-audit --route scene-development`. The audit is the per
 
 Generated candidates and promoted drafts should also pass the AI trace reduction gate. `review-scene` reports mechanical “不是……而是……” frames, dash variants such as “不是……——是……”, organ-rotation, generic placeholders, simile dependency, abstract summary language, explanatory psychology labels, template transitions, scenery syncing, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings under `AI Trace Reduction Test`. Mechanical contrast frames are core banned frames and must not be judged as reasonable rhetoric; other risk phrase families use an approximately 2% narrative-unit density gate, where isolated hits are review signals and dense hits require revision. Do not run regex cleanup that deletes negation or rewrites contrast frames; the platform agent must decide sentence by sentence how to preserve meaning while removing model habits.
 
-`revise-scene` reads the scene file, draft, context packet, AgentReview notes, mounted style, canon, punctuation standard, and word budget, then writes a revision prompt manifest plus `drafts/revisions/{scene_id}_revision.agent_tasks.md`. The platform agent fills the expected revision candidate and revision report. This is the formal path for resolving `pass_with_notes`, warnings, local prose defects, or under-length scene bodies without silently overwriting `drafts/scenes/{scene_id}.md`.
+`revise-scene` reads the scene file, draft, context packet, AgentReview notes, mounted style, canon, punctuation standard, and word budget, then writes a revision prompt manifest plus `drafts/revisions/{scene_id}_revision.agent_tasks.md`. The main platform agent fills the expected revision candidate and revision report; subagents may only provide issue lists and evidence. This is the formal path for resolving `pass_with_notes`, warnings, local prose defects, or under-length scene bodies without silently overwriting `drafts/scenes/{scene_id}.md`.
 
-`promote-candidate` turns a selected, reviewed model candidate into `drafts/scenes/{scene_id}.md` and writes `drafts/promotions/{scene_id}_promotion.md` / `.json`. By default it blocks missing, stale, or unresolved candidate reviews. It does not confirm canon and does not write characters. `--allow-unreviewed` and `--allow-review-notes` are internal-experiment waiver flags and are recorded in the promotion manifest.
+`promote-candidate` turns a selected, reviewed model candidate into `drafts/scenes/{scene_id}.md` and writes `drafts/promotions/{scene_id}_promotion.md` / `.json`. By default it blocks missing, stale, or unresolved candidate reviews. It does not confirm canon and does not write characters. Formal Skill hosts must not use `--allow-unreviewed` or `--allow-review-notes`; if these appear in a manifest, route-audit blocks formal readiness.
 
-If any official command blocks a scene, chapter, or export because review gates are missing, do not bypass the gate with a custom script and label the result final. Run `agent-task-status`, `route-audit`, `agent-review-scene`, `revise-scene`, or `chapter-workspace` as appropriate; only use ad hoc output as an explicitly labeled internal preview with the waiver reason recorded.
+If any official command blocks a scene, chapter, or export because review gates are missing, do not bypass the gate with a custom script, debug flag, or unreview instruction and label the result final. Run `agent-task-status`, `route-audit`, `agent-review-scene`, `revise-scene`, or `chapter-workspace` as appropriate.
 
 The prompt manifest records system/user messages and source files for the platform agent. It must remain pure audit data and must not contain `[AGENT_TASK: ...]`.
 
 Review conclusions:
 
 - `pass`: ready for chapter workspace.
-- `pass_with_notes`: usable only after local notes are applied by the writing agent, or after the platform agent/user records a specific acceptance/waiver reason.
+- `pass_with_notes`: usable only after local notes are applied by the writing agent and the result is re-reviewed to clean `pass`.
 - `revise_required`: not exportable.
 - `reject`: not exportable.
 
@@ -438,7 +438,7 @@ Scene states:
 
 - `ready`: draft exists, context/RP/branch/selection/composition flow gates are complete, static review is clean `pass`, platform Agent scene review JSON exists, schema passes, the review cites the current draft path, conclusion is clean `pass`, no warnings/revision/style notes remain, and mounted Style Skill adherence is clean `pass`.
 - `needs_flow_gates`: prose may exist, but context, roleplay reading receipt, branch manifest, formal `branch_selection.md`, or ready composition is missing.
-- `needs_revision`: `pass_with_notes`, warnings, revision actions, style notes, or style adherence deviations still need `revise-scene` or an explicit waiver before readiness/export.
+- `needs_revision`: `pass_with_notes`, warnings, revision actions, style notes, or style adherence deviations still need `revise-scene` and re-review before readiness/export.
 - `needs_draft`: no usable body.
 - `needs_review`: body exists but review missing.
 - `needs_agent_review`: static review exists but formal platform Agent scene review JSON is missing.
@@ -478,7 +478,7 @@ Outputs:
 - optional DOCX inspection JSON files;
 - `export_manifest.json`.
 
-By default only `ready` scenes are exported, and the command blocks when any chapter scene is non-ready or the chapter workspace is stale. Use `--include-blocked` only for internal preview.
+By default only `ready` scenes are exported, and the command blocks when any chapter scene is non-ready or the chapter workspace is stale. Formal Skill hosts must not use `--include-blocked`.
 
 Final exported prose and screenplay files are cleaned delivery artifacts. They should not expose scene workbench sections, scene IDs such as `scene_0001`, chapter IDs such as `chapter_0001`, scene file paths, context packet paths, writeback candidates, canon notes, prompt manifests, review status, workflow IDs, or “导出规则” text. Audit and provenance remain in `export_manifest.json`, release manifests, review files, and workflow logs.
 
@@ -508,7 +508,7 @@ Outputs:
 - optional published `.docx` delivery files when `--export-formats md,docx` is used
 - `releases/{chapter_id}/latest.json`
 
-Use `--allow-unapproved` only for internal candidate releases.
+Formal Skill hosts must not use `--allow-unapproved`; publish only after approval.
 
 ## Workflow Runner
 

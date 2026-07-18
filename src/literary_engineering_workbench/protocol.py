@@ -37,7 +37,9 @@ COMMON_FORBIDDEN = (
     "Do not accept generated JSON merely because it parses.",
     "Do not skip .agent_tasks.md handling when a command writes sidecars; the current platform agent must read the task and fill expected artifacts.",
     "Do not declare a documented CLI/tool step impossible without probing it or recording a real command failure.",
-    "Do not promote candidates without review and approval unless the user explicitly asks for an internal experiment.",
+    "Do not promote candidates without clean review and approval.",
+    "Do not use debug/bypass flags such as --allow-unreviewed, --allow-review-notes, --include-blocked, --allow-unapproved, --allow-unresolved, --allow-missing-composition, --allow-unselected-composition, --allow-recommended-branch, or --allow-missing-branch during formal Skill-host work.",
+    "Do not delegate creative body-text drafting, rewriting, polishing, expansion, or finalization to subagents; the main platform agent must write正文.",
     "Do not bypass failed readiness/export gates with a custom script and present the result as final release output.",
     "Do not store API keys or provider secrets in work projects.",
 )
@@ -321,7 +323,8 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         ),
         platform_agent_handoffs=(
             "Roleplay answers, branch selection, consequence reasoning, and scene composition judgment.",
-            "Prose drafting, AgentReview notes resolution, formal revision candidate generation, and scene review. agent-review-scene is a sidecar generator; the platform agent performs the review.",
+            "Main-agent prose drafting, AgentReview notes resolution, formal revision candidate generation, and scene review. agent-review-scene is a sidecar generator; the platform agent performs the review.",
+            "Subagents may provide retrieval summaries, issue lists, schema checks, continuity tables, and word-count inventories only; they must not draft or revise body text.",
             "Character state patch interpretation and promotion recommendation.",
         ),
         completion_gates=(
@@ -329,12 +332,12 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "Roleplay simulation exists, includes a platform-agent reading receipt, and has no unresolved AGENT_TASK directives.",
             "Branch manifest exists and branch_selection.md records decision: selected plus selected_branch before composition or generation.",
             "Composition exists with selection_source=selection and ready_for_generation=true before generate-scene or state writeback.",
-            "Prose candidate exists for each target scene; direct drafts without a candidate/promotion trail are internal experiments only.",
+            "Prose candidate exists for each target scene and was written by the main platform agent, not a subagent.",
             "Prose candidate reviewed for canon, character, style, and punctuation.",
             "agent-review-scene was run or an equivalent exact-candidate platform review was written with a concrete reason for any CLI skip.",
             "Exact candidate path is cited in a passing scene_review.v1 JSON before promote-candidate.",
             "promote-candidate wrote the promotion manifest and promoted draft for each formal scene.",
-            "Any pass_with_notes, warning, or revise_required finding is resolved through revise-scene or a recorded waiver.",
+            "Any pass_with_notes, warning, or revise_required finding is resolved through revise-scene and re-review.",
             "state-evolve wrote a state patch for each formal scene; state-apply remains approval-gated.",
             "route-audit --route scene-development passes or lists every missing per-scene gate before chapter/export readiness.",
         ),
@@ -420,11 +423,11 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "Approval record verified or pending approval stated.",
             "Requested file formats generated and inspected; DOCX exports include layout and inspection companion files.",
             "Release notes and rollback notes prepared.",
-            "If official export was blocked, any workaround is labeled internal preview unless missing gates were resolved.",
+            "If official export was blocked, do not use debug flags or custom scripts as a workaround; resolve missing gates first.",
         ),
         forbidden_shortcuts=COMMON_FORBIDDEN
         + (
-            "Do not export as final when approval or blocking review is missing unless the user asks for an internal draft package.",
+            "Do not export as final when approval or blocking review is missing.",
         ),
     ),
     "optional-cli": ProtocolRoute(

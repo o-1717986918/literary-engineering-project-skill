@@ -72,6 +72,8 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("任务已准备好", tasks)
         self.assertIn("不表示任务完成", tasks)
         self.assertIn("不要因为任务名称包含 agent / review / style / JSON 就判断自己不能做", tasks)
+        self.assertIn("必须由当前主平台 agent 亲自完成", tasks)
+        self.assertIn("不得使用 `--allow-unreviewed`", tasks)
         self.assertIn("审查 prompt manifest", tasks)
         self.assertIn("生成前文风标准", tasks)
         self.assertIn("generation_standards.style", tasks)

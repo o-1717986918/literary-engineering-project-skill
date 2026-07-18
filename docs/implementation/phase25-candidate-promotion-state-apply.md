@@ -49,10 +49,10 @@ drafts/promotions/{scene_id}_promotion.md
 - 它不确认 canon。
 - 它不改 `characters/`。
 - 它默认要求 `reviews/agent/{scene_id}_scene_review.json` 已经审查并引用了正在 promotion 的 exact candidate。
-- `pass_with_notes`、warnings、revision_actions、style_notes 或 style_adherence 偏差默认阻塞 promotion，先走 `revise-scene` 或记录明确 waiver。
+- `pass_with_notes`、warnings、revision_actions、style_notes 或 style_adherence 偏差默认阻塞 promotion，正式链路先走 `revise-scene` 并 re-review。
 - 草稿仍必须运行 `review-scene`。
 - 已存在草稿时默认拒绝覆盖，除非传入 `--overwrite`。
-- 内部实验可用 `--allow-unreviewed`；接受未解决 notes 的内部实验可用 `--allow-review-notes`。两者都会记录进 promotion manifest。
+- `--allow-unreviewed` 与 `--allow-review-notes` 仅保留给维护者调试/回归测试；正式 Skill 宿主不得使用，且 route-audit 会把这些 manifest 标记为阻塞。
 
 ## Workflow 接入
 
@@ -91,11 +91,13 @@ python -m literary_engineering_workbench state-apply work/demo-work `
   --approval-run-id scene-0001-pass-1
 ```
 
-默认要求 `workflow/approvals/index.jsonl` 中存在 `decision=approve` 的审批记录。内部实验可用：
+默认要求 `workflow/approvals/index.jsonl` 中存在 `decision=approve` 的审批记录。维护者调试/回归测试可用：
 
 ```powershell
 python -m literary_engineering_workbench state-apply work/demo-work --allow-unapproved
 ```
+
+正式 Skill 宿主不得用 `--allow-unapproved` 跳过审批。
 
 输出：
 

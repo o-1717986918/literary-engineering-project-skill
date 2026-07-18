@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .anti_ai_style import lint_ai_style, render_ai_style_lint_block
 from .agent_provider import run_agent_task
 from .agent_schema import validate_agent_run
 
@@ -87,11 +88,13 @@ def review_scene_with_agent(
 def _system_prompt() -> str:
     return """You are a literary engineering scene review agent.
 
-Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, mounted style adherence, punctuation rhythm, and revision actions. Output JSON only using schema scene_review.v1, including a structured style_adherence object."""
+Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, mounted style adherence, punctuation rhythm, deterministic Style Lint evidence, and revision actions. Output JSON only using schema scene_review.v1, including a structured style_adherence object."""
 
 
 def _user_prompt(scene_text: str, draft_text: str, context_text: str, style_text: str, source_paths: list[str]) -> str:
     return f"""Source paths: {source_paths}
+
+{render_ai_style_lint_block(draft_text)}
 
 ## Scene YAML
 
@@ -121,13 +124,21 @@ def _user_prompt(scene_text: str, draft_text: str, context_text: str, style_text
 
 def _dry_scene_review(scene_id: str, draft_text: str, source_paths: list[str]) -> dict[str, object]:
     has_body = bool(draft_text.strip()) and "<!-- 在这里写入场景正文。 -->" not in draft_text
-    conclusion = "pass_with_notes" if has_body else "revise_required"
+    lint_issues = lint_ai_style(draft_text) if has_body else []
+    blocking_lint = [issue for issue in lint_issues if issue.severity not in {"low"}]
+    conclusion = "revise_required" if not has_body or blocking_lint else "pass_with_notes"
     warnings = [] if has_body else ["场景草稿缺少可审查正文，需先补正文或提升生成候选。"]
+    warnings.extend(f"Style lint: {issue.rule} - {issue.message}" for issue in blocking_lint)
     style_source = _style_source_label(source_paths)
     style_status = "pass_with_notes" if style_source and has_body else ("revise_required" if style_source else "not_applicable")
     style_revision_actions = (
         ["真实平台审查需确认挂载文风已经影响叙述距离、句法节奏、意象系统、对白语气和标点停顿。"] if style_source else []
     )
+    lint_revision_actions = [
+        f"按确定性 Style Lint 逐句复核 `{issue.sample}`，修订 {issue.rule}，不得用脚本直接删改造成语义反转。"
+        for issue in blocking_lint
+        if issue.sample
+    ]
     return {
         "schema": "literary-engineering-workbench/scene-review-agent/v1",
         "scene_id": scene_id,
@@ -135,7 +146,7 @@ def _dry_scene_review(scene_id: str, draft_text: str, source_paths: list[str]) -
         "summary": "dry-run scene reviewer preserved the review contract and source trace.",
         "blocking_issues": [],
         "warnings": warnings,
-        "revision_actions": ["保留人工确认点；不要把候选事实直接写入 canon。"],
+        "revision_actions": ["保留人工确认点；不要把候选事实直接写入 canon。"] + lint_revision_actions,
         "character_logic": [
             {
                 "character": "all",
@@ -143,7 +154,10 @@ def _dry_scene_review(scene_id: str, draft_text: str, source_paths: list[str]) -
             }
         ],
         "canon_risks": [],
-        "style_notes": ["后续真实模型审查应核对 style_prompt.md 是否影响句法、叙述距离和意象调度。"],
+        "style_notes": [
+            "后续真实模型审查应核对 style_prompt.md 是否影响句法、叙述距离和意象调度。",
+            *[f"确定性 Style Lint 检出 {issue.rule}: {issue.sample}" for issue in lint_issues],
+        ],
         "style_adherence": {
             "status": style_status,
             "style_profile": style_source or "n/a",

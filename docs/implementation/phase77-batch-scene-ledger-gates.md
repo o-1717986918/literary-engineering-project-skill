@@ -21,7 +21,7 @@
   - `state-evolve` patch JSON/Markdown
 - 对 100000+ 字或多卷项目，`scene-development` 与 `export-and-release` audit 增加 word-budget gate。
 - 当 word budget status 为 `needs_expansion` 时，预算化大纲、场景库存扩展、budget review 和 scene inventory review 均为阻塞项。
-- `export-and-release` audit 对未生成 `state-apply` 报告的 state patch 给出 warning，提醒最终发布前审批写回或记录 internal-preview waiver。
+- `export-and-release` audit 对未生成 `state-apply` 报告的 state patch 给出 warning，提醒最终发布前审批写回；正式 Skill 宿主不得用 internal-preview / unreview 指令跳过。
 
 ## 文档同步
 

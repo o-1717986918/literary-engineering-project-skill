@@ -156,6 +156,35 @@ class AIStyleIssue:
     sample: str = ""
 
 
+def render_ai_style_lint_block(text: str, *, max_issues: int = 12, max_sample_chars: int = 120) -> str:
+    """Render deterministic AI-style lint evidence for platform-agent review prompts."""
+
+    issues = lint_ai_style(text)
+    lines = [
+        "## Style Lint (auto-detected)",
+        "",
+        f"规则摘要：{ANTI_AI_STYLE_SHORT_RULE}",
+        "",
+        "本区块由确定性代码在审查前生成，是审查证据，不是自动改稿指令。"
+        "中级及以上风险必须进入 blocking_issues、warnings 或 revision_actions；"
+        "低级风险至少需要语义复核。不得把“不是 A——是 B”等变体判断为合理修辞，也不得用脚本直接删改正文造成语义反转。",
+        "",
+    ]
+    if not text.strip():
+        lines.append("- [medium] draft-missing: 未读取到可审查正文，必须先补齐 draft 后再做正式审查。")
+        return "\n".join(lines).rstrip() + "\n"
+    if not issues:
+        lines.append("- 未检出确定性 AI 腔 / 生硬对照 / 标点节奏风险；仍需平台 agent 做语义审查。")
+        return "\n".join(lines).rstrip() + "\n"
+    for issue in issues[:max_issues]:
+        lines.append(f"- [{issue.severity}] {issue.rule}: {issue.message}")
+        if issue.sample:
+            lines.append(f"  样本：`{_sanitize_sample(issue.sample, max_sample_chars)}`")
+    if len(issues) > max_issues:
+        lines.append(f"- 另有 {len(issues) - max_issues} 项未展开；审查时需回到 draft 全文复核。")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def lint_ai_style(text: str) -> list[AIStyleIssue]:
     clean = _strip_markdown(text)
     issues: list[AIStyleIssue] = []
@@ -393,3 +422,10 @@ def _first_present_sample(text: str, terms: list[str]) -> str:
         return ""
     _, term = min(positions)
     return _sample(text, term)
+
+
+def _sanitize_sample(value: str, max_chars: int) -> str:
+    text = re.sub(r"\s+", " ", value).strip().replace("`", "'")
+    if len(text) <= max_chars:
+        return text
+    return text[: max(0, max_chars - 1)].rstrip() + "..."

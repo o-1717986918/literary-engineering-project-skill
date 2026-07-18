@@ -27,7 +27,7 @@ Use this protocol whenever a tool-layer agent runs a literary engineering task t
    - Chinese prose: `references/punctuation-standard.md`.
    - Release/export: readiness, approval, and target format checks.
 14. If a prose review returns `pass_with_notes`, warnings, or local fixes, run or emulate `revise-scene` and review the revision candidate before promotion, chapter readiness, export, or writeback.
-15. Decide the artifact status: revise, keep as candidate, ask user, approve internally for experiment, or promote after explicit user approval.
+15. Decide the artifact status: revise, keep as candidate, ask user, or promote after explicit user approval and clean review.
 16. Finish with an audit summary: files changed, candidate-only files, promoted files, checks run, blocked items, reading receipt, and next high-level creative choices.
 
 ## Platform Agent Responsibilities
@@ -35,7 +35,8 @@ Use this protocol whenever a tool-layer agent runs a literary engineering task t
 - Maintain conversation-level creative intent and project memory.
 - Choose the route and avoid operational questions when the next action is clear.
 - Keep generated work separate from canon until reviewed and approved.
-- Use subagents for independent passes when useful: character logic, world constraints, plot alternatives, style review, canon audit, or prose revision.
+- Use subagents only for bounded support passes when useful: character logic checks, world constraints, plot alternatives, style-risk lists, canon audit, retrieval summaries, schema checks, word-count inventories, or issue tables.
+- The main platform agent must personally write creative body text. Subagents must not draft, rewrite, polish, expand, or finalize prose, screenplay, pseudo-record entries, or final deliverable text.
 - Resolve disagreements between CLI reports, simulations, and generated candidates through project constraints and user intent.
 
 ## Non-Deterministic Work Gate
@@ -55,7 +56,7 @@ Local tools may prepare inputs and task files for those actions, but the supervi
 
 ## Command Attempt Rule
 
-If a route names a command, the supervising agent should assume it can try that command with the local shell/tooling unless a real error proves otherwise. In particular, do not skip `agent-review-scene`, `agent-canon-review`, `agent-task-status`, `route-audit`, `promote-candidate`, `chapter-workspace`, or `export-package` because they sound model-backed or environment-dependent. Run `--help` first if uncertain. Many `agent-*` commands only generate sidecars and expected output paths; the platform agent then performs the judgment and writes the artifacts.
+If a route names a command, the supervising agent should assume it can try that command with the local shell/tooling unless a real error proves otherwise. In particular, do not skip `agent-review-scene`, `agent-canon-review`, `agent-task-status`, `route-audit`, `promote-candidate`, `chapter-workspace`, or `export-package` because they sound model-backed or environment-dependent. Run `--help` first if uncertain. Many `agent-*` commands only generate sidecars, deterministic evidence such as `Style Lint (auto-detected)`, and expected output paths; the platform agent then performs the judgment and writes the artifacts.
 
 If the command errors, the correct response is not “the skill cannot do it”; the correct response is: record the command, stderr/exception, whether `PYTHONPATH` or path arguments were wrong, and the next safe workaround. Only after an actual failure should the agent choose an emulation path.
 
@@ -70,7 +71,7 @@ Before final response, check:
 - All `.agent_tasks.md` outputs handled or explicitly listed as pending.
 - `agent-task-status` or route-specific `route-audit` used when route completion state was ambiguous.
 - Reading receipt recorded or summarized.
-- Review notes resolved through revision or explicit waiver before readiness/export/writeback.
+- Review notes resolved through revision and re-review before readiness/export/writeback.
 - Generated JSON/prose/reviews are marked candidate, reviewed, approved, or pending.
 - Canon, character, style, punctuation, and release/export gates applied when relevant.
 - User approval requirement is recorded for promotions or final release.
@@ -81,7 +82,8 @@ Before final response, check:
 
 - Do not accept generated JSON because it parses.
 - Do not accept branch scores, simulation scores, local director choices, or model ratings as final decisions.
-- Do not promote candidates without review and approval unless the user explicitly requested an internal experiment.
+- Do not promote candidates without clean review and approval.
+- Do not use debug/bypass flags such as `--allow-unreviewed`, `--allow-review-notes`, `--include-blocked`, `--allow-unapproved`, `--allow-unresolved`, `--allow-missing-composition`, `--allow-unselected-composition`, `--allow-recommended-branch`, or `--allow-missing-branch` during formal Skill-host work.
 - Do not batch-write scenes while skipping RP, branch simulation, composition, exact-candidate review, promotion, or state patch for most scenes.
 - Do not declare a documented CLI/tool step impossible without probing it or recording a real command failure.
 - Do not bypass failed readiness/export gates with a custom script and present the result as final release output.

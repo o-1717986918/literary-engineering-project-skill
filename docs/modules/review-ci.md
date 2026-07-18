@@ -30,4 +30,4 @@
 - Agent Review JSON 中的 `revision_actions` / `warnings` / `style_notes` / `style_adherence.revision_actions` 必须具体、可执行。
 - 下一轮 `generate-scene` 的 prompt manifest 会把这些 notes 注入 `generation_standards.review_notes`。
 - 写作 agent 必须执行局部小修，或在“需要人工确认”中逐条说明无法执行/接受豁免的理由。
-- 章节 ready、导出和写回前，必须确认 notes 已处理并重新达到 clean `pass`，或已有明确内部 waiver 记录。
+- 章节 ready、导出和写回前，必须确认 notes 已处理并重新达到 clean `pass`；正式 Skill 宿主不得用 waiver 或 unreview 指令跳过。
