@@ -116,6 +116,17 @@ python -m literary_engineering_workbench route-audit <project> --route longform-
 
 ```powershell
 python -m literary_engineering_workbench protocol style-engineering
+python -m literary_engineering_workbench task-next <project> --route style-engineering
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
+# Execute style prompt / evaluation task, submit artifacts, then complete.
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
+```
+
+The preferred formal control for project-local style profiles is the task registry above. Underlying commands include:
+
+```powershell
+python -m literary_engineering_workbench protocol style-engineering
 python -m literary_engineering_workbench style-lab-author <style-library> <author-id>
 python -m literary_engineering_workbench style-lab-work <style-library> <author-id> <work-id>
 python -m literary_engineering_workbench style-lab-import <style-library> <author-id> <work-id> <source-text>
@@ -126,7 +137,7 @@ python -m literary_engineering_workbench style-lab-mount <project> <style-skill>
 
 The platform agent must write or approve the LLM-facing style prompt and judge its effectiveness. Exact imitation is limited to public-domain or authorized corpora.
 
-`style-lab-compile` and `style-prompt-eval` write `.agent_tasks.md` sidecars; they do not finish the creative/evaluative step by themselves. Before `style-lab-build-skill`, the platform agent must create `style_prompt.md` and `style_prompt.agent.json`; the prompt must be a detailed but executable 500-2500 non-whitespace content characters and include the required high-quality prompt blocks. Before default `style-lab-mount`, at least one `style_eval_*.json` effectiveness/risk review must exist and pass the mount readiness gate. Formal Skill hosts must not use `--allow-unreviewed` to bypass style readiness.
+`style-lab-compile`, `style-prompt`, and `style-prompt-eval` write `.agent_tasks.md` sidecars; they do not finish the creative/evaluative step by themselves. Before `style-lab-build-skill`, the platform agent must create `style_prompt.md` and `style_prompt.agent.json`; the prompt must be a detailed but executable 500-2500 non-whitespace content characters and include the required high-quality prompt blocks. Before default `style-lab-mount`, at least one `style_eval_*.json` effectiveness/risk review must exist and pass the mount readiness gate. Under `task-next --route style-engineering`, style prompt sidecar completion, prompt quality, and accepted style evaluation are formal route gates. Formal Skill hosts must not use `--allow-unreviewed` to bypass style readiness.
 
 ### Character And World Assets
 

@@ -12,6 +12,8 @@ from literary_engineering_workbench.task_registry import (
     submit_task,
 )
 from literary_engineering_workbench.source_ingest import ingest_existing_work
+from literary_engineering_workbench.style_compiler import StyleCompileOptions, compile_style_profile
+from literary_engineering_workbench.platform_agent_tasks import write_platform_style_prompt_task
 from literary_engineering_workbench.word_budget import build_word_budget
 
 from helpers import TempProjectMixin, write_formal_candidate_artifacts
@@ -461,6 +463,76 @@ class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(ready.status, "ready")
 
+    def test_task_next_style_engineering_issues_prompt_task_for_profile(self):
+        project = self.make_project()
+        profile_dir = _compile_style_profile(project)
+
+        result = issue_next_task(project, route="style-engineering")
+
+        self.assertEqual(result.status, "issued")
+        self.assertEqual(result.current_state, "style-prompt-task-file")
+        payload = json.loads(result.task_json_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["route"], "style-engineering")
+        self.assertIn("style-prompt", payload["command"])
+        self.assertIn("style/demo-author/style_prompt.agent_tasks.md", payload["expected_outputs"])
+        self.assertIn("docs/modules/style-compiler.md", payload["required_reading"])
+
+    def test_style_engineering_blocks_short_style_prompt(self):
+        project = self.make_project()
+        profile_dir = _compile_style_profile(project)
+        task = write_platform_style_prompt_task(profile_dir)
+        (profile_dir / "style_prompt.md").write_text("太短。\n", encoding="utf-8")
+        (profile_dir / "style_prompt.agent.json").write_text("{}\n", encoding="utf-8")
+        write_agent_completion_marker(task.task_path, root=project, handled_by="platform-agent-test")
+
+        issued = issue_next_task(project, route="style-engineering")
+
+        self.assertEqual(issued.current_state, "style-prompt-quality")
+        with self.assertRaises(ValueError) as ctx:
+            complete_task(project, issued.task_id)
+        self.assertIn("style_prompt.md detail length must be 500-2500", str(ctx.exception))
+
+    def test_style_engineering_route_ready_after_prompt_and_eval(self):
+        project = self.make_project()
+        profile_dir = _compile_style_profile(project)
+        task = write_platform_style_prompt_task(profile_dir)
+        _write_valid_style_prompt(profile_dir)
+        write_agent_completion_marker(task.task_path, root=project, handled_by="platform-agent-test")
+        eval_dir = profile_dir / "evaluation_results" / "back-translation"
+        eval_dir.mkdir(parents=True, exist_ok=True)
+        (eval_dir / "style_eval_ready.json").write_text(
+            json.dumps(
+                {
+                    "schema": "literary-engineering-workbench/style-eval/v0.1",
+                    "mode": "back-translation",
+                    "overall_score": 78,
+                    "risk_level": "normal",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        ready = issue_next_task(project, route="style-engineering")
+
+        self.assertEqual(ready.status, "ready")
+
+    def test_style_engineering_requires_accepted_eval_after_prompt(self):
+        project = self.make_project()
+        profile_dir = _compile_style_profile(project)
+        task = write_platform_style_prompt_task(profile_dir)
+        _write_valid_style_prompt(profile_dir)
+        write_agent_completion_marker(task.task_path, root=project, handled_by="platform-agent-test")
+
+        issued = issue_next_task(project, route="style-engineering")
+
+        self.assertEqual(issued.current_state, "style-eval-readiness")
+        with self.assertRaises(ValueError) as ctx:
+            complete_task(project, issued.task_id)
+        self.assertIn("accepted style_eval_*.json missing", str(ctx.exception))
+
 
 def _write_registry_task(
     project: Path,
@@ -560,6 +632,89 @@ def _write_source_extraction_outputs(project: Path, manifest_path: Path, *, conc
             path.write_text(f"# Source Ingest Review\n\n- 结论：`{conclusion}`\n", encoding="utf-8")
         else:
             path.write_text(f"# {key}\n\n- evidence_refs: chunk_0001\n- confidence: test\n", encoding="utf-8")
+
+
+def _compile_style_profile(project: Path) -> Path:
+    corpus = project / "corpus"
+    corpus.mkdir(exist_ok=True)
+    (corpus / "sample.txt").write_text(
+        "雨落在旧城。人们沉默地走过桥。灯影在河面上摇晃。"
+        "林舟没有解释，只把信折好，放进旧书里。",
+        encoding="utf-8",
+    )
+    return compile_style_profile(
+        StyleCompileOptions(
+            corpus=corpus,
+            output_dir=project / "style" / "demo-author",
+            name="测试文风",
+            author="测试作者",
+            source_note="测试语料",
+        )
+    ).output_dir
+
+
+def _write_valid_style_prompt(profile_dir: Path) -> None:
+    text = """# LLM 文风约束提示词
+
+## 使用身份与适用边界
+
+你是长篇虚构文本生成 LLM。本文风只约束表达层，不确认 canon，不新增人物事实，不替剧情解决因果问题。文风优先级高于普通润色建议，但低于用户明确要求、世界规则、人物事实和安全边界。
+
+## 核心风格机制
+
+风格来自叙述距离、信息分配、句法重心、意象回环和心理呈现，不来自复用高频词。每个段落必须承担推进事件、暴露关系、改变注意力或加深主题中的一种功能。
+
+## 叙述距离与视角
+
+叙述距离保持稳定。人物的判断通过迟疑、回避、误判、沉默、动作折返和对白遮掩呈现，少写解释性心理标签。
+
+## 句法与节奏
+
+句法跟随人物注意力和场景压力变化。紧张处可以短，但不能连续碎句；舒缓处可以长，但逗号必须承接未完成动作、感知、心理或因果关系。
+
+## 标点节奏
+
+中文正文使用全角标点。句号用于真实语义、镜头或心理落点；逗号用于未完成关系；分号用于层级并列。原则上不用破折号，不能用破折号替代转折。
+
+## 意象与感官调度
+
+意象从场景物理空间和人物处境中生长，重复意象必须带来关系或认知变化。感官描写优先服务行动和信息差。
+
+## 心理呈现与行为因果
+
+心理变化通过行为、背景故事的隐性影响、选择、停顿、回避和误判表现。不要把背景故事直接讲成说明段。
+
+## 对白与语气
+
+对白要有信息差和关系压力。角色说话应带目标、遮掩、误会或试探，不能朗读设定。
+
+## AI腔控制
+
+机械“不是……而是……”“并非……而是……”以及“不是……——是……”是核心禁区，不判断为合理修辞。器官轮岗、万能占位、比喻依赖、抽象总结、模板转折和景物强制同步按约 2% 叙事单元密度控制。
+
+## 禁止倾向
+
+不得摘抄原文，不得把风格简化为几个固定词，不得把候选事实写成 canon，不得用密集句号、破折号或金句收尾伪装文学性。
+
+## 输出自检
+
+检查叙述距离是否稳定，意象是否服务人物状态，标点是否服务节奏，AI腔风险是否低于密度门禁，文本是否仍服从项目事实。
+"""
+    (profile_dir / "style_prompt.md").write_text(text, encoding="utf-8")
+    (profile_dir / "style_prompt.agent.json").write_text(
+        json.dumps(
+            {
+                "schema": "literary-engineering-workbench/style-prompt-agent/v1",
+                "prompt_markdown": "style_prompt.md",
+                "constraints": ["测试可挂载文风约束"],
+                "source_paths": ["style-profile.md", "style_metrics.json"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def _rel(project: Path, value: Path | str) -> str:

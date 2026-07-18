@@ -1,6 +1,6 @@
 # Phase 84：CLI 中介 Agent 工作流内核
 
-版本：`v0.84.3`
+版本：`v0.84.4`
 
 ## 目标
 
@@ -135,6 +135,7 @@ CLI 只负责：
 1. `scene-development`
 2. `longform-planning`
 3. `source-ingest`
+4. `style-engineering`
 
 `workflow-state --route longform-planning` 现在会输出 Longform State，包含：
 
@@ -174,6 +175,28 @@ CLI 只负责：
 
 这一步修复“已有作品导入了，但平台 Agent 没有真正反推标准项目文件”的漏洞。source-derived 内容仍保持候选性质，不能直接覆盖正式 canon、characters、plot、drafts、exports 或 releases。
 
+## v0.84.4 Style-engineering 接入
+
+`style-engineering` 已成为第四条 registered route。它面向项目内 `style/{profile}/` profile 目录；项目根 `style/style-profile.md` 占位文件会被跳过，避免误报。
+
+`workflow-state --route style-engineering` 会扫描 `style/**/style-profile.md`，并为每个 profile 生成状态：
+
+1. `style-profile`
+2. `style-prompt-task-file`
+3. `style-prompt-agent-task`
+4. `style-prompt-quality`
+5. `style-eval-readiness`
+
+关键门禁：
+
+1. `style-profile.md` 与 `style_metrics.json` 必须存在。
+2. `style_prompt.agent_tasks.md` 必须由 `style-prompt` 或等价正式任务生成。
+3. 平台 Agent 必须写出 `style_prompt.md` 与 `style_prompt.agent.json`，并创建 `style_prompt.agent_completion.json`。
+4. `style_prompt.md` 必须通过 `style_prompt_quality_report()`：500-2500 非空白 detail chars，且包含身份/边界、核心风格机制、叙述距离、句法/节奏、标点、意象/感官、心理/行为、对白、AI 腔控制、禁止倾向和输出自检。
+5. 至少一个 `evaluation_results/*/style_eval_*.json` 被接受：`overall_score >= 45`，且 `risk_level` 不是 `high_copy_risk` 或 `low_similarity`。
+
+这一步修复“文风 profile 已生成，但实际挂载的 prompt 过短、过泛或未评测”的漏洞。统计 profile、style_metrics 和 dry-run 文档都不能代替可执行的 LLM-facing style prompt。
+
 ## 测试
 
 新增：
@@ -202,6 +225,10 @@ CLI 只负责：
 - source-ingest extraction 缺候选输出时，`task-complete` 阻塞。
 - source-ingest extraction review 为 `pass_with_notes` 时，`task-complete` 阻塞。
 - source-ingest 候选输出、completion marker 和 clean review 全部存在后，`task-next --route source-ingest` 返回 ready。
+- `task-next --route style-engineering` 能对项目内 style profile 发 style-prompt-task-file。
+- style prompt 过短、缺结构块或缺 completion marker 时，`task-complete` 阻塞。
+- style prompt 未产生 accepted style eval 时，`task-complete` 阻塞。
+- style prompt、agent JSON、completion marker 和 accepted style eval 全部存在后，`task-next --route style-engineering` 返回 ready。
 - `task-complete` 拒绝非 clean pass 的静态 review。
 - `task-complete` 拒绝损坏的 state patch JSON。
 - context 完成后 `task-next` 推进到 roleplay-simulation。

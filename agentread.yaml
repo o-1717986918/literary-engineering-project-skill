@@ -166,6 +166,8 @@ task_routes:
       - references/artifact-contracts.md
       - references/workflows.md
       - docs/modules/style-compiler.md
+      - docs/modules/cli-mediated-agent-workflow.md
+      - docs/implementation/phase26-style-prompt-effectiveness.md
       - docs/implementation/phase58-author-style-projects.md
       - docs/implementation/phase59-style-skill-package.md
       - docs/implementation/phase60-style-skill-mount.md
@@ -179,8 +181,12 @@ task_routes:
       - style risk/effectiveness review
     completion_gates:
       - corpus authorization or public-domain assumption recorded
-      - style prompt created or platform-agent task sidecar handled
-      - effectiveness/risk review completed before mounting as priority style
+      - formal project-local style profile work uses task-next/task-open/task-submit/task-complete with route style-engineering until ready
+      - style_prompt.agent_tasks.md exists and has style_prompt.agent_completion.json
+      - platform agent wrote style_prompt.md and style_prompt.agent.json
+      - style_prompt.md is 500-2500 non-whitespace detail characters and includes all required high-quality prompt blocks
+      - at least one style_eval_*.json is accepted before building or mounting as priority style
+      - style skill mount does not use allow_unreviewed in formal Skill-host work
 
   source_ingest:
     protocol: source-ingest

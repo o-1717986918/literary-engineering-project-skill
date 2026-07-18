@@ -11,6 +11,7 @@ import re
 from .agent_tasks import agent_task_completion_status
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .flow_gates import branch_selection_status
+from .style_prompt import style_prompt_quality_report
 from .word_budget import scene_word_budget_contract
 
 
@@ -42,26 +43,31 @@ def build_workflow_state(
     scenes = _scene_states(root) if normalized_route in {"scene-development", "overall"} else []
     longform = _longform_state(root) if normalized_route in {"longform-planning", "overall"} else {}
     source_ingests = _source_ingest_states(root) if normalized_route in {"source-ingest", "overall"} else []
+    styles = _style_engineering_states(root) if normalized_route in {"style-engineering", "overall"} else []
     longform_blocked = 1 if longform and longform.get("status") != "ready" else 0
     longform_ready = 1 if longform and longform.get("status") == "ready" else 0
     summary = {
         "route": normalized_route,
         "scene_count": len(scenes),
         "source_ingest_count": len(source_ingests),
+        "style_profile_count": len(styles),
         "ready_count": (
             sum(1 for scene in scenes if scene["status"] == "ready")
             + longform_ready
             + sum(1 for item in source_ingests if item["status"] == "ready")
+            + sum(1 for item in styles if item["status"] == "ready")
         ),
         "blocked_count": (
             sum(1 for scene in scenes if scene["status"] != "ready")
             + longform_blocked
             + sum(1 for item in source_ingests if item["status"] != "ready")
+            + sum(1 for item in styles if item["status"] != "ready")
         ),
         "next_action_count": (
             sum(1 for scene in scenes if scene.get("next_action"))
             + (1 if longform and longform.get("next_action") else 0)
             + sum(1 for item in source_ingests if item.get("next_action"))
+            + sum(1 for item in styles if item.get("next_action"))
         ),
         "longform_status": longform.get("status", "") if isinstance(longform, dict) else "",
     }
@@ -74,6 +80,7 @@ def build_workflow_state(
         "scenes": scenes,
         "longform": longform,
         "source_ingests": source_ingests,
+        "styles": styles,
         "rules": [
             "This state ledger is advisory plus auditable; command-level gates remain authoritative.",
             "A step is pass only when the formal CLI artifact and its platform-agent completion marker both exist where required.",
@@ -282,6 +289,143 @@ def _source_extraction_step(root: Path, task_path: Path, candidate_paths: list[P
 def _source_candidate_outputs(manifest: dict[str, object]) -> dict[str, str]:
     outputs = manifest.get("candidate_outputs") if isinstance(manifest.get("candidate_outputs"), dict) else {}
     return {str(key): str(value) for key, value in outputs.items() if str(value).strip()}
+
+
+def _style_engineering_states(root: Path) -> list[dict[str, object]]:
+    style_root = root / "style"
+    if not style_root.exists():
+        return []
+    states: list[dict[str, object]] = []
+    for profile in sorted(style_root.glob("**/style-profile.md")):
+        try:
+            parts = profile.relative_to(style_root).parts
+        except ValueError:
+            parts = profile.parts
+        if profile.parent == style_root:
+            continue
+        if "mounted" in parts:
+            continue
+        states.append(_style_engineering_state(root, profile.parent))
+    return states
+
+
+def _style_engineering_state(root: Path, profile_dir: Path) -> dict[str, object]:
+    profile_id = _rel(profile_dir, root)
+    task_path = profile_dir / "style_prompt.agent_tasks.md"
+    prompt_path = profile_dir / "style_prompt.md"
+    agent_json = profile_dir / "style_prompt.agent.json"
+    steps = [
+        _style_profile_step(root, profile_dir),
+        _file_step("style-prompt-task-file", task_path, "run style-prompt on this profile to create platform-agent prompt sidecar"),
+        _style_prompt_agent_step(root, task_path, prompt_path, agent_json),
+        _style_prompt_quality_step(root, prompt_path),
+        _style_eval_readiness_step(root, profile_dir),
+    ]
+    first_open = next((step for step in steps if step["status"] != "pass"), None)
+    return {
+        "target_id": _slug_profile_id(profile_id),
+        "profile_id": _slug_profile_id(profile_id),
+        "profile_dir": profile_id,
+        "status": "ready" if first_open is None else "blocked",
+        "current_step": first_open["key"] if first_open else "ready",
+        "next_action": first_open["next_action"] if first_open else "",
+        "steps": steps,
+    }
+
+
+def _style_profile_step(root: Path, profile_dir: Path) -> dict[str, object]:
+    profile = profile_dir / "style-profile.md"
+    metrics = profile_dir / "style_metrics.json"
+    missing = [_rel(path, root) for path in (profile, metrics) if not path.exists()]
+    if missing:
+        return {
+            "key": "style-profile",
+            "status": "missing",
+            "path": _rel(profile_dir, root),
+            "message": "missing " + ", ".join(missing),
+            "next_action": "run style-profile / style-lab-compile to create style-profile.md and style_metrics.json",
+        }
+    return {
+        "key": "style-profile",
+        "status": "pass",
+        "path": _rel(profile_dir, root),
+        "message": "style profile and metrics exist",
+        "next_action": "",
+    }
+
+
+def _style_prompt_agent_step(root: Path, task_path: Path, prompt_path: Path, agent_json: Path) -> dict[str, object]:
+    state = agent_task_completion_status(task_path, root=root)
+    missing = [_rel(path, root) for path in (prompt_path, agent_json) if not path.exists()]
+    complete = state.get("complete") is True and not missing
+    message = str(state.get("message") or "")
+    if missing:
+        message = (message + "; " if message else "") + "missing " + ", ".join(missing)
+    return {
+        "key": "style-prompt-agent-task",
+        "status": "pass" if complete else str(state.get("status") or "pending"),
+        "path": _rel(task_path, root),
+        "completion": state.get("completion", ""),
+        "message": message,
+        "next_action": "" if complete else "complete style_prompt.agent_tasks.md, style_prompt.md, style_prompt.agent.json, and completion marker",
+    }
+
+
+def _style_prompt_quality_step(root: Path, prompt_path: Path) -> dict[str, object]:
+    if not prompt_path.exists():
+        return {
+            "key": "style-prompt-quality",
+            "status": "missing",
+            "path": _rel(prompt_path, root),
+            "message": "style_prompt.md missing",
+            "next_action": "write style_prompt.md through platform-agent task",
+        }
+    report = style_prompt_quality_report(_read(prompt_path))
+    passed = bool(report.get("length_ok")) and bool(report.get("structure_ok"))
+    missing = ", ".join(str(item) for item in report.get("missing_blocks", []))
+    message = f"detail_chars={report.get('detail_chars')}; missing_blocks={missing or 'none'}"
+    return {
+        "key": "style-prompt-quality",
+        "status": "pass" if passed else "blocked",
+        "path": _rel(prompt_path, root),
+        "message": message,
+        "next_action": "" if passed else "revise style_prompt.md to 500-2500 detail chars with all required prompt blocks",
+    }
+
+
+def _style_eval_readiness_step(root: Path, profile_dir: Path) -> dict[str, object]:
+    evals = _accepted_style_evals(profile_dir)
+    if evals:
+        return {
+            "key": "style-eval-readiness",
+            "status": "pass",
+            "path": _rel(profile_dir / "evaluation_results", root),
+            "message": f"accepted_evaluations={len(evals)}",
+            "next_action": "",
+        }
+    all_evals = sorted((profile_dir / "evaluation_results").glob("*/style_eval_*.json"))
+    return {
+        "key": "style-eval-readiness",
+        "status": "missing" if not all_evals else "blocked",
+        "path": _rel(profile_dir / "evaluation_results", root),
+        "message": "no accepted style_eval JSON found",
+        "next_action": "run style-prompt-eval/style-eval and create at least one accepted style_eval JSON before building or mounting a Style Skill",
+    }
+
+
+def _accepted_style_evals(profile_dir: Path) -> list[dict[str, object]]:
+    accepted: list[dict[str, object]] = []
+    for path in sorted((profile_dir / "evaluation_results").glob("*/style_eval_*.json")):
+        payload = _read_json(path)
+        risk = str(payload.get("risk_level") or "")
+        try:
+            score = float(payload.get("overall_score") or 0)
+        except (TypeError, ValueError):
+            score = 0.0
+        if risk in {"high_copy_risk", "low_similarity"} or score < 45:
+            continue
+        accepted.append({"path": str(path), "overall_score": score, "risk_level": risk})
+    return accepted
 
 
 def _scene_state(root: Path, scene_path: Path) -> dict[str, object]:
@@ -530,6 +674,15 @@ def _render_markdown(payload: dict[str, object]) -> str:
             lines.append(
                 f"| {item.get('work_id', '')} | {item.get('status', '')} | {item.get('current_step', '')} | {item.get('next_action', '')} |"
             )
+    styles = payload.get("styles") if isinstance(payload.get("styles"), list) else []
+    if styles:
+        lines.extend(["", "## Style Engineering State", "", "| profile | 状态 | 当前步骤 | 下一步 |", "| --- | --- | --- | --- |"])
+        for item in styles:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"| {item.get('profile_dir', '')} | {item.get('status', '')} | {item.get('current_step', '')} | {item.get('next_action', '')} |"
+            )
     lines.extend(["", "## Details", ""])
     for scene in payload.get("scenes", []):
         if not isinstance(scene, dict):
@@ -558,6 +711,13 @@ def _rel(path: Path, root: Path) -> str:
 
 def _normalize_route(route: str) -> str:
     return route.strip().lower().replace("_", "-")
+
+
+def _slug_profile_id(value: str) -> str:
+    text = value.strip().lower().replace("\\", "/").replace("/", "-").replace("_", "-")
+    text = re.sub(r"[^a-z0-9\u4e00-\u9fff-]+", "-", text)
+    text = re.sub(r"-{2,}", "-", text).strip("-")
+    return text or "style-profile"
 
 
 def _now() -> str:

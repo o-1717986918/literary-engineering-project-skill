@@ -44,7 +44,7 @@ CLI 不负责：
 
 ## 3. 最小命令闭环
 
-当前支持 `scene-development`、`longform-planning` 与 `source-ingest` 三条正式路线。`scene-development` 是逐场景样板；`longform-planning` 用来确保长篇字数预算、预算化大纲和分场景库存不会被生成环节跳过；`source-ingest` 用来确保已有作品导入后的反推设定、候选资产和 review 不会被跳过。
+当前支持 `scene-development`、`longform-planning`、`source-ingest` 与 `style-engineering` 四条正式路线。`scene-development` 是逐场景样板；`longform-planning` 用来确保长篇字数预算、预算化大纲和分场景库存不会被生成环节跳过；`source-ingest` 用来确保已有作品导入后的反推设定、候选资产和 review 不会被跳过；`style-engineering` 用来确保文风 profile 真正转化为可挂载、可评测的 LLM-facing prompt。
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -81,6 +81,17 @@ python -m literary_engineering_workbench task-submit <project> --task-id <task-i
 python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
 ```
 
+项目内文风 profile 的正式 readiness 也使用同一套控制面：
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m literary_engineering_workbench task-next <project> --route style-engineering
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
+# 平台 Agent 写 style_prompt.md / style_prompt.agent.json，并完成 style eval
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
+```
+
 `task-next` 会写出：
 
 1. `workflow/tasks/{task_id}.task.json`
@@ -104,6 +115,8 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 从 `v0.84.2` 起，`task_registry.py` 使用 route registry 分发表、选择器、任务构建器和门禁函数。`longform-planning` 已接入同一生命周期：`word-budget-file`、`budget-agent-task`、`budget-review`、`scene-inventory-agent-task`、`scene-inventory-review`。预算 sidecar 的 completion marker 不能单独放行；预算化大纲候选、分场景库存候选和对应 clean `pass` review 也必须存在。
 
 从 `v0.84.3` 起，`source-ingest` 已接入同一生命周期：`source-manifest`、`extraction-agent-task`、`extraction-review`。已有作品导入只负责源文本、chunk 和 extraction sidecar；反推出的项目简报、人物/背景、世界观、大纲、时间线、伏笔、文风 notes 和 extraction review 必须由平台 Agent 写入候选区。completion marker、候选文件和 clean `pass` review 缺一项都不能 ready。
+
+从 `v0.84.4` 起，`style-engineering` 已接入同一生命周期：`style-profile`、`style-prompt-task-file`、`style-prompt-agent-task`、`style-prompt-quality`、`style-eval-readiness`。项目根 `style/style-profile.md` 占位文件不会被误当成 profile；真正的 profile 目录必须完成 sidecar、prompt、agent JSON、质量检查和 accepted style eval 后才 ready。
 
 ## 4. Scene-development 样板状态
 
@@ -180,6 +193,33 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 
 这条路线专门堵住“导入了已有文本但没有真正反推项目文件”的漏洞。所有 source-derived 内容仍是 candidate，必须带 evidence_refs、confidence、unknowns 和 contradiction notes，不得直接覆盖正式 canon / characters / plot / drafts。
 
+## 4.3 Style-engineering 状态
+
+项目内文风路线顺序：
+
+1. `style-profile`
+2. `style-prompt-task-file`
+3. `style-prompt-agent-task`
+4. `style-prompt-quality`
+5. `style-eval-readiness`
+
+对应硬产物：
+
+1. `style/{profile}/style-profile.md`
+2. `style/{profile}/style_metrics.json`
+3. `style/{profile}/style_prompt.agent_tasks.md`
+4. `style/{profile}/style_prompt.agent_completion.json`
+5. `style/{profile}/style_prompt.md`
+6. `style/{profile}/style_prompt.agent.json`
+7. `style/{profile}/evaluation_results/*/style_eval_*.json` 至少一个 accepted
+
+质量门禁：
+
+1. `style_prompt.md` 必须是供 LLM 写作时直接使用的文风约束提示词，不是风格评论。
+2. 正文非空白 detail chars 必须在 500-2500 之间。
+3. 必须包含身份/边界、核心机制、叙述距离、句法节奏、标点、意象感官、心理/行为、对白、AI 腔控制、禁止倾向和输出自检。
+4. accepted eval 要求 `overall_score >= 45`，且 `risk_level` 不能是 `high_copy_risk` 或 `low_similarity`。
+
 ## 5. Task 包必须包含什么
 
 每个 `agent-task.v1` 至少包含：
@@ -243,4 +283,4 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 2. Context Broker：让 `task-open` 输出稳定的 context trace。
 3. Reader Experience Contract：让字数和章节义务进入 `task-open` 与 `task-complete`。
 4. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
-5. 继续横向接入 `style-engineering`、`character-and-world-assets`、`review-and-audit`、`export-and-release`。
+5. 继续横向接入 `character-and-world-assets`、`review-and-audit`、`export-and-release`。

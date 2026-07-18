@@ -262,4 +262,6 @@
 
 `v0.84.3` 已接入 `source-ingest`。已有作品导入后，状态机会要求平台 Agent 完成 source extraction sidecar、项目简报/人物背景/世界观/大纲/时间线/伏笔/文风 notes 候选、completion marker 和 clean `pass` extraction review。这样“导入了文本但没有真正反推标准项目文件”的问题进入正式闭环。
 
-下一步规划：Phase 85-90 将继续推进 Prompt Registry、Context Broker、完整持续状态机、Reader Experience Contract、最小项目总控面板和失败模式回归测试，并继续横向接入 `style-engineering`、`character-and-world-assets`、`review-and-audit`、`export-and-release`。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。
+`v0.84.4` 已接入 `style-engineering`。项目内文风 profile 会进入状态机：`style-prompt` sidecar、平台 Agent 写出的 500-2500 字结构化 `style_prompt.md`、`style_prompt.agent.json`、completion marker 和 accepted `style_eval_*.json` 缺一项都不能 ready。这样“有统计 profile 但没有可靠可挂载文风提示词”的问题进入正式闭环。
+
+下一步规划：Phase 85-90 将继续推进 Prompt Registry、Context Broker、完整持续状态机、Reader Experience Contract、最小项目总控面板和失败模式回归测试，并继续横向接入 `character-and-world-assets`、`review-and-audit`、`export-and-release`。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。

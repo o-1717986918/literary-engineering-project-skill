@@ -14,6 +14,7 @@ from .anti_ai_style import style_lint_gate, style_lint_gate_message
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .draft_text import final_body_from_draft_path
 from .flow_gates import FlowGateError, branch_selection_status, ensure_composition_ready_for_generation
+from .style_prompt import style_prompt_quality_report
 from .word_budget import ensure_scene_word_budget_ready, word_budget_adherence_for_body
 from .workflow_state import build_workflow_state
 
@@ -21,7 +22,7 @@ from .workflow_state import build_workflow_state
 TASK_SCHEMA = "literary-engineering-workbench/agent-task/v1"
 SUBMISSION_SCHEMA = "literary-engineering-workbench/agent-submission/v1"
 EVENT_SCHEMA = "literary-engineering-workbench/workflow-event/v1"
-SUPPORTED_ROUTES = {"scene-development", "longform-planning", "source-ingest"}
+SUPPORTED_ROUTES = {"scene-development", "longform-planning", "source-ingest", "style-engineering"}
 
 
 @dataclass(frozen=True)
@@ -351,6 +352,13 @@ def _route_definition(route: str) -> RouteDefinition:
             build_task=_build_source_ingest_task_payload,
             validate_task=_source_ingest_state_gate_validation,
         ),
+        "style-engineering": RouteDefinition(
+            route="style-engineering",
+            ready_message="style-engineering route has no pending style profile",
+            select_work_item=_select_style_engineering_state,
+            build_task=_build_style_engineering_task_payload,
+            validate_task=_style_engineering_state_gate_validation,
+        ),
     }
     try:
         return definitions[normalized]
@@ -516,6 +524,65 @@ def _build_source_ingest_task_payload(root: Path, route: str, state: dict[str, o
             "Do not treat extracted claims as confirmed facts without evidence_refs, confidence, unknowns, contradiction notes, review, and approval.",
             "Do not skip extract_project_files.agent_tasks.md after source-ingest creates it.",
             "Do not copy long source passages into extraction reports.",
+            "Do not treat this task as complete until task-submit and task-complete have succeeded.",
+        ],
+        "next_allowed_states": blueprint["next_allowed_states"],
+    }
+
+
+def _build_style_engineering_task_payload(root: Path, route: str, state: dict[str, object]) -> dict[str, object]:
+    profile_id = str(state.get("profile_id") or state.get("target_id") or "")
+    profile_dir = str(state.get("profile_dir") or "")
+    current_state = str(state.get("current_step") or "")
+    next_action = str(state.get("next_action") or "")
+    blueprint = _style_engineering_blueprint_for_state(root, profile_id, profile_dir, current_state, next_action)
+    task_id = _task_id(route, profile_id or "style-profile", current_state)
+    expected_outputs = _unique([_normalize_rel(item) for item in blueprint["expected_outputs"]])
+    source_paths = _unique([_normalize_rel(item) for item in blueprint["source_paths"]])
+    now = _now()
+    return {
+        "schema": TASK_SCHEMA,
+        "task_id": task_id,
+        "status": "issued",
+        "created_at": now,
+        "route": route,
+        "scene_id": profile_id,
+        "target_id": profile_id,
+        "profile_id": profile_id,
+        "profile_dir": profile_dir,
+        "current_state": current_state,
+        "task_type": blueprint["task_type"],
+        "prompt_asset_id": blueprint["prompt_asset_id"],
+        "command": blueprint["command"],
+        "required_reading": blueprint.get(
+            "required_reading",
+            [
+                "SKILL.md",
+                "AGENTS.md",
+                "agentread.yaml",
+                "references/agent-run-protocol.md",
+                "references/cli-run-protocol.md",
+                "references/workflows.md",
+                "docs/modules/style-compiler.md",
+                "docs/implementation/phase26-style-prompt-effectiveness.md",
+            ],
+        ),
+        "source_paths": source_paths,
+        "context_trace": blueprint.get("context_trace", ""),
+        "hard_constraints": blueprint["hard_constraints"],
+        "style_constraints": blueprint["style_constraints"],
+        "word_count_target": 0,
+        "word_count_min": 0,
+        "word_count_max": 0,
+        "expected_outputs": expected_outputs,
+        "submission_command": f"python -m literary_engineering_workbench task-submit <project> --task-id {task_id} --from <artifact>",
+        "completion_command": f"python -m literary_engineering_workbench task-complete <project> --task-id {task_id}",
+        "validation_gates": blueprint["validation_gates"],
+        "forbidden_shortcuts": [
+            "Do not mount a Style Skill from an under-specified prompt.",
+            "Do not use --allow-unreviewed for formal Skill-host work.",
+            "Do not treat style metrics or a dry profile report as an LLM-facing prompt.",
+            "Do not pursue exact author imitation unless the corpus is public-domain, authorized, or user-owned.",
             "Do not treat this task as complete until task-submit and task-complete have succeeded.",
         ],
         "next_allowed_states": blueprint["next_allowed_states"],
@@ -954,6 +1021,103 @@ def _source_ingest_blueprint_for_state(root: Path, work_id: str, import_dir: str
     return table.get(current_state, default)
 
 
+def _style_engineering_blueprint_for_state(root: Path, profile_id: str, profile_dir: str, current_state: str, next_action: str) -> dict[str, object]:
+    profile = f"{profile_dir}/style-profile.md"
+    metrics = f"{profile_dir}/style_metrics.json"
+    corpus_manifest = f"{profile_dir}/corpus_manifest.yaml"
+    task = f"{profile_dir}/style_prompt.agent_tasks.md"
+    prompt = f"{profile_dir}/style_prompt.md"
+    agent_json = f"{profile_dir}/style_prompt.agent.json"
+    completion = f"{profile_dir}/style_prompt.agent_completion.json"
+    eval_dir = f"{profile_dir}/evaluation_results"
+    table: dict[str, dict[str, object]] = {
+        "style-profile": {
+            "task_type": "deterministic-cli-or-repair",
+            "prompt_asset_id": "route.style-engineering.profile.v1",
+            "command": "python -m literary_engineering_workbench style-profile <corpus> --out-dir <profile-dir> --name <name>",
+            "source_paths": [profile_dir],
+            "expected_outputs": [profile, metrics],
+            "hard_constraints": ["Compile or repair style-profile.md and style_metrics.json before prompt generation."],
+            "style_constraints": [],
+            "validation_gates": ["style profile exists", "style metrics exists"],
+            "next_allowed_states": ["style-prompt-task-file"],
+        },
+        "style-prompt-task-file": {
+            "task_type": "deterministic-cli",
+            "prompt_asset_id": "route.style-engineering.prompt.prepare.v1",
+            "command": f"python -m literary_engineering_workbench style-prompt <project>/{profile_dir}",
+            "source_paths": [profile, metrics, corpus_manifest],
+            "expected_outputs": [task],
+            "hard_constraints": [
+                "Run style-prompt to create a platform-agent style prompt task sidecar.",
+                "The command prepares the task; the platform agent still writes style_prompt.md and style_prompt.agent.json.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["style_prompt.agent_tasks.md exists"],
+            "next_allowed_states": ["style-prompt-agent-task"],
+        },
+        "style-prompt-agent-task": {
+            "task_type": "platform-agent-style-prompt",
+            "prompt_asset_id": "route.style-engineering.prompt.execute.v1",
+            "command": "",
+            "source_paths": [profile, metrics, corpus_manifest, task],
+            "expected_outputs": [prompt, agent_json, completion],
+            "hard_constraints": [
+                "Read style_prompt.agent_tasks.md and write a detailed executable LLM-facing style prompt.",
+                "style_prompt.md must be 500-2500 non-whitespace detail characters.",
+                "style_prompt.md must include all required blocks: identity/boundary, mechanism, narrative distance, rhythm, punctuation, imagery, psychology/behavior, dialogue, AI-trace controls, forbidden tendencies, and self-check.",
+            ],
+            "style_constraints": [
+                "Do not authorize mechanical contrast frames or dash variants as style.",
+                "Public-domain or authorized corpora may support closer imitation; otherwise extract high-level craft only.",
+            ],
+            "validation_gates": ["style prompt sidecar completion marker exists", "style_prompt.md exists", "style_prompt.agent.json exists", "style prompt quality passes"],
+            "next_allowed_states": ["style-prompt-quality", "style-eval-readiness"],
+        },
+        "style-prompt-quality": {
+            "task_type": "platform-agent-revision",
+            "prompt_asset_id": "route.style-engineering.prompt-quality.v1",
+            "command": "",
+            "source_paths": [profile, metrics, prompt, agent_json],
+            "expected_outputs": [prompt, agent_json],
+            "hard_constraints": [
+                "Revise style_prompt.md until style_prompt_quality_report passes length and required-block checks.",
+                "A vague prompt that only says the style is beautiful, restrained, literary, or advanced is not mountable.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["style prompt quality passes"],
+            "next_allowed_states": ["style-eval-readiness"],
+        },
+        "style-eval-readiness": {
+            "task_type": "platform-agent-evaluation",
+            "prompt_asset_id": "route.style-engineering.eval.v1",
+            "command": f"python -m literary_engineering_workbench style-prompt-eval <project>/{profile_dir} --reference <reference> --input <input>",
+            "source_paths": [profile, metrics, prompt, agent_json, eval_dir],
+            "expected_outputs": [],
+            "hard_constraints": [
+                "Run or prepare at least one style-prompt evaluation and then run style-eval on the resulting candidate.",
+                "At least one style_eval_*.json must have overall_score >= 45 and risk_level not in high_copy_risk/low_similarity.",
+                "Do not build or mount a formal Style Skill until evaluation readiness passes.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["accepted style_eval JSON exists"],
+            "next_allowed_states": ["ready"],
+        },
+    }
+    default = {
+        "task_type": "manual-route-repair",
+        "prompt_asset_id": "route.style-engineering.repair.v1",
+        "command": next_action,
+        "source_paths": [profile_dir],
+        "expected_outputs": [],
+        "hard_constraints": [next_action or "Inspect workflow-state and repair the missing style-engineering gate."],
+        "style_constraints": [],
+        "validation_gates": ["style-engineering gate resolved"],
+        "next_allowed_states": [],
+    }
+    return table.get(current_state, default)
+
+
 def _render_task_markdown(task: dict[str, object], root: Path) -> str:
     task_id = str(task.get("task_id") or "")
     completion = default_agent_completion_path(_task_markdown_path(root, task_id))
@@ -1079,6 +1243,24 @@ def _select_source_ingest_state(root: Path, payload: dict[str, object], scene: P
     return next((item for item in items if item.get("status") != "ready"), None)
 
 
+def _select_style_engineering_state(root: Path, payload: dict[str, object], scene: Path | str | None) -> dict[str, object] | None:
+    _ = root
+    items = [item for item in payload.get("styles", []) if isinstance(item, dict)]
+    if scene:
+        target = str(scene).replace("\\", "/").strip("/")
+        return next(
+            (
+                item
+                for item in items
+                if str(item.get("profile_id") or "") == target
+                or str(item.get("target_id") or "") == target
+                or str(item.get("profile_dir") or "").rstrip("/").endswith(target)
+            ),
+            None,
+        )
+    return next((item for item in items if item.get("status") != "ready"), None)
+
+
 def _scene_id(scene_path: Path) -> str:
     text = scene_path.read_text(encoding="utf-8", errors="ignore") if scene_path.exists() else ""
     match = re.search(r"(?m)^\s*scene_id:\s*['\"]?([^'\"\n#]+)", text)
@@ -1188,6 +1370,31 @@ def _source_ingest_state_gate_validation(root: Path, task: dict[str, object]) ->
         notes.append("source extraction candidates and sidecar completion marker exist")
     if current_state == "extraction-review" and not errors:
         notes.append("source extraction review passed")
+    return errors, notes
+
+
+def _style_engineering_state_gate_validation(root: Path, task: dict[str, object]) -> tuple[list[str], list[str]]:
+    current_state = str(task.get("current_state") or "")
+    profile_dir = _style_profile_dir_for_task(root, task)
+    errors: list[str] = []
+    notes: list[str] = []
+    if current_state == "style-profile":
+        errors.extend(_style_profile_gate_errors(root, profile_dir))
+    if current_state == "style-prompt-task-file":
+        errors.extend(_style_profile_gate_errors(root, profile_dir))
+        if not (profile_dir / "style_prompt.agent_tasks.md").exists():
+            errors.append(f"style prompt task sidecar missing: {_rel(profile_dir / 'style_prompt.agent_tasks.md', root)}")
+    if current_state in {"style-prompt-agent-task", "style-prompt-quality"}:
+        errors.extend(_style_profile_gate_errors(root, profile_dir))
+        errors.extend(_style_prompt_gate_errors(root, profile_dir))
+    if current_state == "style-eval-readiness":
+        errors.extend(_style_profile_gate_errors(root, profile_dir))
+        errors.extend(_style_prompt_gate_errors(root, profile_dir))
+        errors.extend(_style_eval_gate_errors(root, profile_dir))
+    if current_state in {"style-prompt-agent-task", "style-prompt-quality"} and not errors:
+        notes.append("style prompt task completed and quality gate passed")
+    if current_state == "style-eval-readiness" and not errors:
+        notes.append("style evaluation readiness passed")
     return errors, notes
 
 
@@ -1305,6 +1512,75 @@ def _source_candidate_outputs_from_manifest(manifest: dict[str, object], work_id
         "style_notes": f"style/candidates/{work_id}_style_generation_notes.md",
         "review": f"reviews/source_ingest/{work_id}_extraction_review.md",
     }
+
+
+def _style_profile_gate_errors(root: Path, profile_dir: Path) -> list[str]:
+    errors: list[str] = []
+    for path in (profile_dir / "style-profile.md", profile_dir / "style_metrics.json"):
+        if not path.exists():
+            errors.append(f"style profile artifact missing: {_rel(path, root)}")
+    return errors
+
+
+def _style_prompt_gate_errors(root: Path, profile_dir: Path) -> list[str]:
+    task_path = profile_dir / "style_prompt.agent_tasks.md"
+    prompt_path = profile_dir / "style_prompt.md"
+    agent_json = profile_dir / "style_prompt.agent.json"
+    errors: list[str] = []
+    state = agent_task_completion_status(task_path, root=root)
+    if state.get("complete") is not True:
+        errors.append(f"style prompt sidecar is incomplete: {state.get('message')}")
+    for path in (prompt_path, agent_json):
+        if not path.exists():
+            errors.append(f"style prompt artifact missing: {_rel(path, root)}")
+    if prompt_path.exists():
+        report = style_prompt_quality_report(_read_text(prompt_path))
+        if not report.get("length_ok"):
+            errors.append(
+                "style_prompt.md detail length must be 500-2500 non-whitespace characters; "
+                f"got {report.get('detail_chars')}"
+            )
+        if not report.get("structure_ok"):
+            missing = ", ".join(str(item) for item in report.get("missing_blocks", []))
+            errors.append(f"style_prompt.md missing required prompt blocks: {missing}")
+    return errors
+
+
+def _style_eval_gate_errors(root: Path, profile_dir: Path) -> list[str]:
+    accepted = _accepted_style_eval_jsons(profile_dir)
+    if accepted:
+        return []
+    return [f"accepted style_eval_*.json missing under {_rel(profile_dir / 'evaluation_results', root)}"]
+
+
+def _accepted_style_eval_jsons(profile_dir: Path) -> list[Path]:
+    accepted: list[Path] = []
+    for path in sorted((profile_dir / "evaluation_results").glob("*/style_eval_*.json")):
+        payload, error = _read_optional_json(path)
+        if error:
+            continue
+        risk = str(payload.get("risk_level") or "")
+        try:
+            score = float(payload.get("overall_score") or 0)
+        except (TypeError, ValueError):
+            score = 0.0
+        if risk in {"high_copy_risk", "low_similarity"} or score < 45:
+            continue
+        accepted.append(path)
+    return accepted
+
+
+def _style_profile_dir_for_task(root: Path, task: dict[str, object]) -> Path:
+    profile_dir = str(task.get("profile_dir") or "").strip()
+    if profile_dir:
+        return _resolve_project_path(root, profile_dir)
+    source_paths = [str(item) for item in task.get("source_paths") or []]
+    for item in source_paths:
+        normalized = item.replace("\\", "/")
+        if normalized.endswith("/style-profile.md"):
+            return _resolve_project_path(root, normalized).parent
+    profile_id = str(task.get("profile_id") or task.get("target_id") or task.get("scene_id") or "style-profile")
+    return root / "style" / profile_id
 
 
 def _roleplay_gate_errors(root: Path, scene_id: str) -> list[str]:
