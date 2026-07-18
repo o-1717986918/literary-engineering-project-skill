@@ -25,7 +25,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
             self.skipTest("fastapi test client is not installed")
 
         project = self.make_project()
-        make_reviewed_passing_scene(project)
+        make_reviewed_passing_scene(project, prepare_flow=False)
         app = create_app(allowed_roots=[project.parent])
         client = TestClient(app)
 

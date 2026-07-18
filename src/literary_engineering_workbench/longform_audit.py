@@ -9,12 +9,10 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .agent_schema import validate_payload
 from .draft_text import count_delivery_chars, final_body_from_draft_text
+from .scene_readiness import agent_review_gate_state, scene_flow_gate_issues, scene_readiness_status
 from .word_budget import load_word_budget_summary
 
-
-PASSING_REVIEW_CONCLUSIONS = {"pass", "pass_with_notes"}
 
 RESOLVED_FORESHADOW_STATUSES = {
     "paid",
@@ -45,6 +43,11 @@ class LongformSceneRecord:
     agent_review_json: str
     agent_review_conclusion: str
     agent_review_schema_status: str
+    agent_review_source_match: bool
+    agent_review_unresolved_notes: tuple[str, ...]
+    style_adherence_status: str
+    flow_gate_issues: tuple[str, ...]
+    readiness_issues: tuple[str, ...]
     draft_chars: int
     status: str
 
@@ -144,7 +147,18 @@ def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
         body = final_body_from_draft_text(draft_text) if draft_text else ""
         review_text = _read(review_path)
         conclusion = _review_conclusion(review_text)
-        agent_conclusion, agent_schema_status = _agent_review_state(agent_review_json_path)
+        flow_issues = scene_flow_gate_issues(root, scene_id)
+        agent_state = agent_review_gate_state(root, agent_review_json_path, draft_path)
+        status, readiness_issues = scene_readiness_status(
+            root,
+            draft_path=draft_path,
+            review_path=review_path,
+            agent_review_json_path=agent_review_json_path,
+            body=body,
+            static_review_conclusion=conclusion,
+            flow_gate_issues=flow_issues,
+            agent_review_state=agent_state,
+        )
         records.append(
             LongformSceneRecord(
                 scene_id=scene_id,
@@ -158,10 +172,15 @@ def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
                 review_conclusion=conclusion,
                 agent_review_path=_existing_rel(agent_review_path, root),
                 agent_review_json=_existing_rel(agent_review_json_path, root),
-                agent_review_conclusion=agent_conclusion,
-                agent_review_schema_status=agent_schema_status,
+                agent_review_conclusion=str(agent_state.get("conclusion") or ""),
+                agent_review_schema_status=str(agent_state.get("schema_status") or ""),
+                agent_review_source_match=bool(agent_state.get("source_match")),
+                agent_review_unresolved_notes=tuple(str(item) for item in agent_state.get("unresolved_notes", [])),
+                style_adherence_status=str(agent_state.get("style_adherence_status") or ""),
+                flow_gate_issues=flow_issues,
+                readiness_issues=readiness_issues,
                 draft_chars=count_delivery_chars(body),
-                status=_scene_status(draft_path, review_path, agent_review_json_path, body, conclusion, agent_conclusion, agent_schema_status),
+                status=status,
             )
         )
     return records
@@ -258,6 +277,16 @@ def _audit_issues(
                 )
         if scene.status == "needs_draft":
             issues.append(LongformIssue("high", "draft_readiness", scene.scene_id, "场景缺少可审计正文草稿。", "运行 draft-scene 并补全正文草稿。"))
+        elif scene.status == "needs_flow_gates":
+            issues.append(
+                LongformIssue(
+                    "high",
+                    "flow_readiness",
+                    scene.scene_id,
+                    "场景缺少正式场景链路门禁，不能进入章节或长篇 ready。",
+                    "补齐 context、simulate-scene --agent、branch-simulate --agent、branch_selection.md 和 ready composition。",
+                )
+            )
         elif scene.status == "needs_review":
             issues.append(LongformIssue("high", "review_readiness", scene.scene_id, "场景有正文但缺少审查报告。", "运行 review-scene。"))
         elif scene.status == "needs_agent_review":
@@ -268,6 +297,16 @@ def _audit_issues(
                     scene.scene_id,
                     "场景缺少平台 Agent 正式审查 JSON，不能进入 ready。",
                     "运行 agent-review-scene 生成任务，由平台 agent 填写 scene_review.v1 JSON 和 Markdown 报告。",
+                )
+            )
+        elif scene.status == "needs_revision":
+            issues.append(
+                LongformIssue(
+                    "high",
+                    "review_readiness",
+                    scene.scene_id,
+                    "场景存在 pass_with_notes、warnings、revision_actions、style_notes 或未解决文风偏差。",
+                    "运行 revise-scene 或记录正式 waiver 后重新进行静态/AgentReview。",
                 )
             )
         elif scene.status == "blocked":
@@ -546,44 +585,9 @@ def _summary(
     }
 
 
-def _scene_status(
-    draft_path: Path,
-    review_path: Path,
-    agent_review_json_path: Path,
-    body: str,
-    conclusion: str,
-    agent_conclusion: str,
-    agent_schema_status: str,
-) -> str:
-    if not draft_path.exists() or not body:
-        return "needs_draft"
-    if not review_path.exists() or not conclusion:
-        return "needs_review"
-    if conclusion not in PASSING_REVIEW_CONCLUSIONS:
-        return "blocked"
-    if not agent_review_json_path.exists() or not agent_conclusion or not agent_schema_status:
-        return "needs_agent_review"
-    if agent_schema_status != "pass":
-        return "blocked"
-    if agent_conclusion in PASSING_REVIEW_CONCLUSIONS:
-        return "ready"
-    return "blocked"
-
-
 def _review_conclusion(text: str) -> str:
     match = re.search(r"(?m)^-\s*结论：\s*(\S+)\s*$", text)
     return match.group(1).strip() if match else ""
-
-
-def _agent_review_state(json_path: Path) -> tuple[str, str]:
-    if not json_path.exists():
-        return "", ""
-    try:
-        payload = json.loads(json_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return "", "failed"
-    errors, _warnings = validate_payload(payload, "scene_review.v1")
-    return str(payload.get("conclusion", "")).strip(), "pass" if not errors else "failed"
 
 
 def _foreshadow_status(row: dict[str, str]) -> str:

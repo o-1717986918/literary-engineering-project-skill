@@ -9,14 +9,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-from .agent_schema import validate_payload
 from .draft_text import count_delivery_chars, final_body_from_draft_text
 from .platform_agent_tasks import write_platform_scene_review_task
 from .review_ci import review_scene_draft
 from .scene_draft import build_scene_draft
-
-
-PASSING_REVIEW_CONCLUSIONS = {"pass", "pass_with_notes"}
+from .scene_readiness import agent_review_gate_state, scene_flow_gate_issues, scene_readiness_status
 
 
 @dataclass(frozen=True)
@@ -37,6 +34,11 @@ class SceneChapterRecord:
     agent_review_validation: str
     agent_review_conclusion: str
     agent_review_schema_status: str
+    agent_review_source_match: bool
+    agent_review_unresolved_notes: tuple[str, ...]
+    style_adherence_status: str
+    flow_gate_issues: tuple[str, ...]
+    readiness_issues: tuple[str, ...]
     draft_chars: int
     status: str
     writeback_candidates: tuple[str, ...]
@@ -170,15 +172,17 @@ def _build_scene_record(
     review_text = _read(review_path)
     body = final_body_from_draft_text(draft_text) if draft_text else ""
     conclusion = _review_conclusion(review_text)
-    agent_conclusion, agent_schema_status, agent_validation_path = _agent_review_state(root, agent_review_json_path)
-    status = _scene_status(
-        draft_path,
-        review_path,
-        agent_review_json_path,
-        body,
-        conclusion,
-        agent_conclusion,
-        agent_schema_status,
+    flow_issues = scene_flow_gate_issues(root, scene_id)
+    agent_state = agent_review_gate_state(root, agent_review_json_path, draft_path)
+    status, readiness_issues = scene_readiness_status(
+        root,
+        draft_path=draft_path,
+        review_path=review_path,
+        agent_review_json_path=agent_review_json_path,
+        body=body,
+        static_review_conclusion=conclusion,
+        flow_gate_issues=flow_issues,
+        agent_review_state=agent_state,
     )
 
     return SceneChapterRecord(
@@ -195,9 +199,14 @@ def _build_scene_record(
         review_conclusion=conclusion,
         agent_review_path=_existing_rel(agent_review_path, root),
         agent_review_json=_existing_rel(agent_review_json_path, root),
-        agent_review_validation=agent_validation_path,
-        agent_review_conclusion=agent_conclusion,
-        agent_review_schema_status=agent_schema_status,
+        agent_review_validation=str(agent_state.get("validation_path") or ""),
+        agent_review_conclusion=str(agent_state.get("conclusion") or ""),
+        agent_review_schema_status=str(agent_state.get("schema_status") or ""),
+        agent_review_source_match=bool(agent_state.get("source_match")),
+        agent_review_unresolved_notes=tuple(str(item) for item in agent_state.get("unresolved_notes", [])),
+        style_adherence_status=str(agent_state.get("style_adherence_status") or ""),
+        flow_gate_issues=flow_issues,
+        readiness_issues=readiness_issues,
         draft_chars=count_delivery_chars(body),
         status=status,
         writeback_candidates=tuple(_writeback_candidates(draft_text)),
@@ -216,7 +225,8 @@ def _render_chapter_markdown(root: Path, chapter_id: str, records: list[SceneCha
         "## 使用规则",
         "",
         "- 本文件是章节级工程工作台，不是最终正稿。",
-        "- 只有静态场景审查和 Agent 场景审查都通过后，场景正文才可进入章节装配区。",
+        "- 只有 flow gates、静态场景审查和 Agent 场景审查都干净通过后，场景正文才可进入章节装配区。",
+        "- `pass_with_notes`、warnings、revision_actions、style_notes 或未解决的文风偏差必须先进入 `revise-scene` 或记录正式 waiver。",
         "- 跨场景新增事实、人物变化和伏笔变化必须进入写回候选，等待人工确认。",
         "- Dify 或其他前台工具可以展示本文件，但不得绕过后端直接写回 canon。",
         "",
@@ -245,6 +255,24 @@ def _render_chapter_markdown(root: Path, chapter_id: str, records: list[SceneCha
                 status=record.status,
             )
         )
+
+    lines.extend([
+        "",
+        "## 门禁问题汇总",
+        "",
+    ])
+    issue_found = False
+    for record in records:
+        if not record.readiness_issues:
+            continue
+        issue_found = True
+        lines.append(f"### {record.scene_id}")
+        lines.append("")
+        for issue in record.readiness_issues:
+            lines.append(f"- {issue}")
+        lines.append("")
+    if not issue_found:
+        lines.append("- 所有场景通过章节装配门禁。")
 
     lines.extend([
         "",
@@ -310,6 +338,8 @@ def _draft_excerpt_lines(root: Path, record: SceneChapterRecord) -> list[str]:
     lines = [f"### {record.scene_id}", ""]
     if record.status != "ready":
         lines.append(f"- 当前状态：{record.status}，暂不装配正文。")
+        if record.readiness_issues:
+            lines.append("- 阻塞原因：" + "；".join(record.readiness_issues[:4]))
         lines.append("")
         return lines
     draft_path = root / record.draft_path if record.draft_path else Path()
@@ -347,56 +377,9 @@ def _chapter_summary(records: list[SceneChapterRecord]) -> dict[str, int]:
     }
 
 
-def _scene_status(
-    draft_path: Path,
-    review_path: Path,
-    agent_review_json_path: Path,
-    body: str,
-    conclusion: str,
-    agent_conclusion: str,
-    agent_schema_status: str,
-) -> str:
-    if not draft_path.exists() or not body:
-        return "needs_draft"
-    if not review_path.exists() or not conclusion:
-        return "needs_review"
-    if conclusion not in PASSING_REVIEW_CONCLUSIONS:
-        return "blocked"
-    if not agent_review_json_path.exists() or not agent_conclusion or not agent_schema_status:
-        return "needs_agent_review"
-    if agent_schema_status != "pass":
-        return "blocked"
-    if agent_conclusion in PASSING_REVIEW_CONCLUSIONS:
-        return "ready"
-    return "blocked"
-
-
 def _review_conclusion(text: str) -> str:
     match = re.search(r"(?m)^-\s*结论：\s*(\S+)\s*$", text)
     return match.group(1).strip() if match else ""
-
-
-def _agent_review_state(root: Path, json_path: Path) -> tuple[str, str, str]:
-    if not json_path.exists():
-        return "", "", ""
-    try:
-        payload = json.loads(json_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return "", "failed", ""
-    errors, _warnings = validate_payload(payload, "scene_review.v1")
-    conclusion = str(payload.get("conclusion", "")).strip()
-    validation_status = "pass" if not errors else "failed"
-    validation_rel = str(payload.get("schema_validation", "")).strip()
-    validation_path = root / validation_rel if validation_rel else Path()
-    if validation_rel and validation_path.exists():
-        try:
-            validation_payload = json.loads(validation_path.read_text(encoding="utf-8"))
-            recorded_status = str(validation_payload.get("status", "")).strip()
-            if recorded_status:
-                validation_status = recorded_status
-        except json.JSONDecodeError:
-            validation_status = "failed"
-    return conclusion, validation_status, validation_rel
 
 
 def _agent_review_label(record: SceneChapterRecord) -> str:

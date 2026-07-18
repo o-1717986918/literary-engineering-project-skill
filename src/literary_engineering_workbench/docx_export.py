@@ -17,8 +17,16 @@ from typing import Iterable
 from xml.etree import ElementTree
 from xml.sax.saxutils import escape
 
+from .draft_text import final_body_from_workbench_text
+
 
 DOCX_KINDS = {"novel", "screenplay", "video_prompt_pack", "report"}
+DELIVERY_TRACE_RE = re.compile(
+    r"(scene[_-]?\d{1,6}|chapter[_-]?\d{1,6}|AGENT_TASK|prompt manifest|"
+    r"状态变化候选|世界状态变化|人物状态变化|新增事实候选|写回候选|需要人工确认|"
+    r"上下文包|场景文件|审查状态)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -58,6 +66,7 @@ def export_markdown_to_docx(
 
     text = source.read_text(encoding="utf-8", errors="ignore")
     inferred_title = title.strip() or _infer_title(text) or source.stem
+    text = _delivery_markdown_source(text, title=inferred_title, kind=doc_kind)
     paragraphs, warnings = _markdown_to_paragraphs(text, kind=doc_kind)
     if not paragraphs:
         paragraphs = [_paragraph("未读取到可导出的正文。", style="Normal")]
@@ -152,6 +161,15 @@ def _infer_title(text: str) -> str:
         if line:
             return line[:80]
     return ""
+
+
+def _delivery_markdown_source(text: str, *, title: str, kind: str) -> str:
+    if kind == "report":
+        return text
+    if not re.search(r"(?m)^##\s*(正文草稿|正文候选|修订正文候选)\s*$", text):
+        return text
+    body = final_body_from_workbench_text(text)
+    return f"# {title}\n\n{body}\n" if body else f"# {title}\n\n未读取到可导出的正文。\n"
 
 
 def _markdown_to_paragraphs(text: str, *, kind: str) -> tuple[list[str], list[str]]:
@@ -452,6 +470,8 @@ def _docx_inspection_warnings(
         warnings.append("document text contains replacement characters, possible garbled source text")
     if re.search(r"(?m)^\s*[•●○]\s+", document_text):
         warnings.append("document text may contain fake bullet characters instead of Word numbering")
+    if DELIVERY_TRACE_RE.search(document_text):
+        warnings.append("document text may contain workbench traces; export from a cleaned package or review draft_text cleaning rules")
     return warnings
 
 

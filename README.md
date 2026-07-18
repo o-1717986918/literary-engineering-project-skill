@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.72.0`
+- 当前版本：`0.73.0`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -103,6 +103,8 @@ context packet
 ```
 
 `route-audit` 会检查场景是否漏掉角色扮演推演、分支模拟、正式分支选择、文风审查、候选专属审查和晋升门禁。`promote-candidate` 也要求候选正文必须有对应的、干净通过的 AgentReview，避免“写完就合并”。
+
+`v0.73.0` 起，章节 ready 和正式导出也使用同一组强门禁：上下文包、RP 读取回执、分支 manifest、正式 `branch_selection.md`、ready composition、静态 review clean `pass`、平台 AgentReview clean `pass` 且引用当前草稿。`pass_with_notes`、warnings、revision_actions、style_notes 或文风偏差会进入 `needs_revision`，不能直接导出。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 
@@ -435,7 +437,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.72.0`。
+- 当前版本：`0.73.0`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -447,6 +449,7 @@ literary-engineering-project-skill/
 - 文风挂载强门禁：已要求正式场景审查包含 `style_adherence`，并把文风约束放入生成标准。
 - 标点与反 AI 腔约束：已纳入生成、审查、修订和导出参考。
 - 横排中文引号统一、DOCX layout plan、DOCX inspection、基础 Markdown 表格转 Word 表格：已完成。
+- DOCX/Markdown 交付清洗与章节强门禁：已阻止“世界状态变化”等工作台痕迹进入最终 DOCX；导出前默认重建章节工作台，非 ready 场景会阻塞正式导出。
 - 可选 CLI 工具箱：可运行。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 

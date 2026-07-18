@@ -155,7 +155,7 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
 
     def test_generation_blocks_unselected_composition_by_default(self):
         project = self.make_project()
-        make_reviewed_passing_scene(project)
+        make_reviewed_passing_scene(project, prepare_flow=False)
         branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
         build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, allow_recommended_branch=True)
 
@@ -173,7 +173,7 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
 
     def test_generation_requires_composition_by_default(self):
         project = self.make_project()
-        make_reviewed_passing_scene(project)
+        make_reviewed_passing_scene(project, prepare_flow=False)
 
         with self.assertRaises(FlowGateError) as raised:
             generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), provider="dry-run")

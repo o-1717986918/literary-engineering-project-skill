@@ -6,7 +6,7 @@ from pathlib import Path
 from literary_engineering_workbench.chapter_pipeline import build_chapter_workspace
 from literary_engineering_workbench.draft_text import count_delivery_chars
 
-from helpers import TempProjectMixin, make_reviewed_passing_scene, make_static_reviewed_passing_scene
+from helpers import TempProjectMixin, make_reviewed_passing_scene, make_static_reviewed_passing_scene, write_platform_scene_review
 
 
 class ChapterPipelineTests(TempProjectMixin, unittest.TestCase):
@@ -44,6 +44,18 @@ class ChapterPipelineTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(result.ready_count, 0)
         self.assertEqual(result.blocked_count, 1)
         self.assertTrue((project / "reviews" / "agent" / "scene_0001_scene_review.agent_tasks.md").exists())
+
+    def test_agent_review_with_notes_requires_revision_before_ready(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+        write_platform_scene_review(project, conclusion="pass_with_notes")
+
+        result = build_chapter_workspace(project, chapter_id="chapter_0001")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(result.ready_count, 0)
+        self.assertEqual(payload["scenes"][0]["status"], "needs_revision")
+        self.assertIn("conclusion=pass_with_notes", payload["scenes"][0]["agent_review_unresolved_notes"])
 
     def test_missing_scene_path_fails(self):
         project = self.make_project()

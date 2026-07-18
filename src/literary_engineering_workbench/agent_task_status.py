@@ -268,12 +268,21 @@ def _route_gates(root: Path, route: str, records: list[AgentTaskRecord]) -> list
         scene_pending = [record for record in pending if record.route == "scene-development"]
         _add_gate(gates, "scene-sidecars-handled", not scene_pending, "blocking", "scene-development sidecars handled", f"仍有 {len(scene_pending)} 个 scene-development sidecar 未完成。")
         unresolved_reviews = _unresolved_scene_review_count(root)
-        _add_gate(gates, "scene-review-notes-resolved", unresolved_reviews == 0, "warning", "scene review notes resolved", f"仍有 {unresolved_reviews} 个场景 review notes 未进入 revise-scene 修订闭环或缺修订报告。")
+        _add_gate(gates, "scene-review-notes-resolved", unresolved_reviews == 0, "blocking", "scene review notes resolved", f"仍有 {unresolved_reviews} 个场景 review notes 未进入 revise-scene 修订闭环或缺修订报告。")
     if route == "export-and-release":
         chapter_jsons = list((root / "plot" / "chapters").glob("*.json")) if (root / "plot" / "chapters").exists() else []
         _add_gate(gates, "chapter-workspace-json", bool(chapter_jsons), "blocking", "chapter workspace JSON exists", "先运行 chapter-workspace。")
         non_ready = _non_ready_scene_count(chapter_jsons)
         _add_gate(gates, "chapter-scenes-ready", non_ready == 0 and bool(chapter_jsons), "blocking", "chapter scenes ready", f"章节中仍有 {non_ready} 个非 ready 场景。")
+        stale_or_weak = _stale_or_weak_chapter_gate_count(chapter_jsons)
+        _add_gate(
+            gates,
+            "chapter-clean-review-gates",
+            stale_or_weak == 0 and bool(chapter_jsons),
+            "blocking",
+            "chapter scenes have clean formal review gates",
+            f"章节工作台中仍有 {stale_or_weak} 个场景缺少新式 clean review/flow gate 字段或存在未解决 notes；重新运行 chapter-workspace 并修订。",
+        )
     return gates
 
 
@@ -385,10 +394,10 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         _add_gate(
             gates,
             f"{scene_id}:style-adherence-review",
-            style_status in {"pass", "pass_with_notes"},
+            style_status == "pass",
             "blocking",
             f"{scene_id} mounted style adherence reviewed",
-            f"{scene_id} 已挂载文风，但 scene_review.v1 缺少通过的 style_adherence；当前状态：{style_status or 'missing'}。",
+            f"{scene_id} 已挂载文风，但 scene_review.v1 缺少 clean pass 的 style_adherence；当前状态：{style_status or 'missing'}。",
         )
     promotion_json = root / "drafts" / "promotions" / f"{scene_id}_promotion.json"
     if promotion_json.exists():
@@ -418,6 +427,37 @@ def _non_ready_scene_count(chapter_jsons: list[Path]) -> int:
         payload = _read_json(path)
         for scene in payload.get("scenes", []) if isinstance(payload.get("scenes"), list) else []:
             if isinstance(scene, dict) and scene.get("status") != "ready":
+                total += 1
+    return total
+
+
+def _stale_or_weak_chapter_gate_count(chapter_jsons: list[Path]) -> int:
+    total = 0
+    required_keys = {
+        "agent_review_source_match",
+        "agent_review_unresolved_notes",
+        "style_adherence_status",
+        "flow_gate_issues",
+        "readiness_issues",
+    }
+    for path in chapter_jsons:
+        payload = _read_json(path)
+        for scene in payload.get("scenes", []) if isinstance(payload.get("scenes"), list) else []:
+            if not isinstance(scene, dict):
+                continue
+            if not required_keys.issubset(scene):
+                total += 1
+                continue
+            weak = (
+                scene.get("review_conclusion") != "pass"
+                or scene.get("agent_review_conclusion") != "pass"
+                or scene.get("agent_review_schema_status") != "pass"
+                or scene.get("agent_review_source_match") is not True
+                or bool(scene.get("agent_review_unresolved_notes"))
+                or bool(scene.get("flow_gate_issues"))
+                or bool(scene.get("readiness_issues"))
+            )
+            if weak:
                 total += 1
     return total
 

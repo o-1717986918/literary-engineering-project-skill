@@ -9,7 +9,7 @@ Use this reference when the user asks for final work delivery in `.docx` or anot
 - Keep Markdown exports as auditable source artifacts. DOCX files are delivery artifacts, not canon.
 - Do not write API keys, prompt manifests, `[AGENT_TASK: ...]`, draft review notes, or unapproved candidate metadata into final DOCX files unless the user explicitly requests an internal working copy.
 - Before exporting final Chinese prose, check `references/punctuation-standard.md`; DOCX output should not preserve accidental English punctuation in Chinese sentences, wrong ellipses, wrong dashes, or repeated exclamation/question marks.
-- Final delivery exports should not expose engineering identifiers such as `scene_0001`, `chapter_0001`, scene file paths, context packet paths, canon notes, workflow traces, review state, or writeback candidates. Keep those in manifests and workbench files only.
+- Final delivery exports should not expose engineering identifiers or draft workbench sections such as `scene_0001`, `chapter_0001`, scene file paths, context packet paths, canon notes, workflow traces, review state, `## 状态变化`, `## 世界状态变化`, `### 人物状态变化`, or writeback candidates. Keep those in manifests and workbench files only.
 
 ## Migrated Office DOCX Rules
 
@@ -30,7 +30,7 @@ Not migrated by design: academic paper evidence extraction, PPT template workflo
 
 ## Recommended Delivery Flow
 
-1. Run chapter readiness and review gates.
+1. Run chapter readiness and review gates. Clean delivery requires every scene to be `ready`; `pass_with_notes`, missing RP/branch/composition gates, stale AgentReview, or unresolved style notes block final export.
 2. Run:
 
 ```powershell
@@ -61,5 +61,6 @@ Before delivering a DOCX:
 - confirm companion layout and inspection files exist when DOCX is requested;
 - confirm the exported Chinese prose has passed the standard punctuation review or has a recorded exception;
 - confirm horizontal quote style is unified as `“”` / `‘’`; final exports normalize corner/vertical quotes only as a delivery hygiene step, not as an excuse to skip review;
+- confirm the DOCX text does not contain workbench traces such as `世界状态变化`, `状态变化候选`, `scene_0001`, `[AGENT_TASK: ...]`, prompt manifests, canon notes, or review notes;
 - ensure final DOCX is not used as canon writeback evidence by itself;
 - report the source file, DOCX path, and unresolved formatting limitations.

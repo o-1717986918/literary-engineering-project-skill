@@ -25,7 +25,7 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
 
     def test_run_index_and_stable_run_id_are_written(self):
         project = self.make_project()
-        make_reviewed_passing_scene(project)
+        make_reviewed_passing_scene(project, prepare_flow=False)
         result = run_workflow(project, mode="scene-loop", scene=Path("scenes/scene_0001.yaml"), run_id="demo-run")
         self.assertEqual(result.run_id, "demo-run")
 
@@ -83,7 +83,7 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
 
     def test_scene_loop_blocks_generation_until_branch_selection(self):
         project = self.make_project()
-        make_reviewed_passing_scene(project)
+        make_reviewed_passing_scene(project, prepare_flow=False)
         result = run_workflow(
             project,
             mode="scene-loop",
@@ -101,7 +101,7 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
 
     def test_scene_loop_records_agent_task_sidecars(self):
         project = self.make_project()
-        make_reviewed_passing_scene(project)
+        make_reviewed_passing_scene(project, prepare_flow=False)
         _prepare_branch_selection(project)
         result = run_workflow(
             project,

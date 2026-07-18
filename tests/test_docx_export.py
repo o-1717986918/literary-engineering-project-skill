@@ -51,6 +51,45 @@ class DocxExportTests(unittest.TestCase):
                 self.assertIn("旧档案", document_xml)
                 self.assertIn("<w:tbl>", document_xml)
 
+    def test_direct_draft_docx_export_uses_clean_body_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "scene.md"
+            source.write_text(
+                "\n".join(
+                    [
+                        "# 场景草稿工作台：scene_0001",
+                        "",
+                        "## 使用规则",
+                        "",
+                        "- 本文件不是最终正稿。",
+                        "",
+                        "## 正文草稿",
+                        "",
+                        "她把旧档案放回桌面。",
+                        "",
+                        "## 世界状态变化",
+                        "",
+                        "- 城市停电扩大。",
+                        "",
+                        "## 状态变化",
+                        "",
+                        "### 人物状态变化",
+                        "",
+                        "- 她决定继续调查。",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = export_markdown_to_docx(source, kind="novel")
+
+            with zipfile.ZipFile(result.docx_path) as package:
+                document_xml = package.read("word/document.xml").decode("utf-8")
+            self.assertIn("旧档案", document_xml)
+            self.assertNotIn("世界状态变化", document_xml)
+            self.assertNotIn("城市停电扩大", document_xml)
+            self.assertNotIn("人物状态变化", document_xml)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -88,7 +88,7 @@ style/active_style_skill.json
 
 Mounted `prompt.md` has highest priority for expression-level writing choices, but it cannot override canon, character facts, plot causality, legal/safety boundaries, or explicit user constraints.
 
-When a style is mounted, every formal platform scene review must include `style_adherence` in `reviews/agent/{scene_id}_scene_review.json`. The field records whether the mounted style materially shaped narrative distance, syntax rhythm, imagery/sensory route, psychology, dialogue, punctuation rhythm, and AI-trace reduction. `pass` and `pass_with_notes` satisfy the style gate; `not_applicable`, missing fields, and `revise_required` block promotion, chapter readiness, export, and writeback until revised or explicitly waived.
+When a style is mounted, every formal platform scene review must include `style_adherence` in `reviews/agent/{scene_id}_scene_review.json`. The field records whether the mounted style materially shaped narrative distance, syntax rhythm, imagery/sensory route, psychology, dialogue, punctuation rhythm, and AI-trace reduction. Clean chapter readiness and formal export require `style_adherence.status=pass`. `pass_with_notes`, `not_applicable`, missing fields, and `revise_required` block readiness/export until revised or explicitly waived.
 
 ## Scene Files
 
@@ -316,7 +316,7 @@ workflow/route_audit.json
 
 These files are diagnostic dashboards. They summarize `.agent_tasks.md` sidecars, expected artifact paths, missing outputs, inferred routes, route-specific gates, promotion review gates, and unresolved scene review notes when auditing `scene-development`. They do not create prose, canon, characters, final plot, or approval. A pending sidecar remains pending until the platform agent reads it, writes the expected artifacts, and records the outcome.
 
-When auditing `scene-development`, `route-audit` also checks mounted Style Skills. If `style/active_style_skill.json` exists, each scene requires a formal scene review JSON with `style_adherence.status` equal to `pass` or `pass_with_notes`; a missing review, `not_applicable`, or `revise_required` is a blocking gate.
+When auditing `scene-development`, `route-audit` also checks mounted Style Skills. If `style/active_style_skill.json` exists, each scene requires a formal scene review JSON with `style_adherence.status` equal to clean `pass`; `pass_with_notes`, a missing review, `not_applicable`, or `revise_required` is a blocking gate until revised or explicitly waived in an internal manifest.
 
 When a promotion manifest exists, `route-audit` also checks whether the promoted candidate had a candidate-specific platform Agent scene review. The review must cite the exact candidate path in `source_paths`, `candidate`, or `reviewed_candidate`, pass `scene_review.v1`, and have no unresolved notes unless the promotion explicitly records an internal waiver.
 
@@ -602,7 +602,7 @@ Default promotion is blocked until the exact candidate has passed formal platfor
 - `source_paths`, `candidate`, or `reviewed_candidate` must cite the candidate path being promoted;
 - `conclusion` must be `pass`;
 - `blocking_issues`, `warnings`, `revision_actions`, `style_notes`, `style_adherence.deviations`, and `style_adherence.revision_actions` must be empty;
-- if a Style Skill is mounted, `style_adherence.status` must be `pass` or, with an explicit waiver, `pass_with_notes`.
+- if a Style Skill is mounted, `style_adherence.status` must be clean `pass`; unresolved `pass_with_notes` requires `revise-scene` or an explicit internal waiver before promotion.
 
 Use `--allow-unreviewed` only for internal experiments. Use `--allow-review-notes` only when a platform agent or user explicitly accepts the unresolved `pass_with_notes` items. Both flags must remain visible in the promotion manifest.
 
@@ -675,7 +675,7 @@ The apply record points to the source patch and approval run. It may update only
 
 ## Export Cleanliness
 
-Final prose and screenplay exports are reader-facing delivery artifacts. They must not contain workbench-only sections such as scene context packets, canon notes, prompt manifests, workflow logs, review status, writeback candidates, `## 状态变化`, `### 新增事实候选`, `### 人物状态变化`, `### 需要人工确认`, or “导出规则”. Keep provenance, readiness, skipped scenes, source draft paths, and review metadata in `export_manifest.json`, release manifests, review files, and workflow logs.
+Final prose and screenplay exports are reader-facing delivery artifacts. They must not contain workbench-only sections such as scene context packets, canon notes, prompt manifests, workflow logs, review status, writeback candidates, `## 状态变化`, `## 状态变化候选`, `## 世界状态变化`, `### 新增事实候选`, `### 人物状态变化`, `### 需要人工确认`, or “导出规则”. Keep provenance, readiness, skipped scenes, source draft paths, and review metadata in `export_manifest.json`, release manifests, review files, and workflow logs.
 
 ## Chapter Workspace
 
@@ -694,12 +694,14 @@ plot/chapters/{chapter_id}.json
 Scene readiness values:
 
 - `ready`
+- `needs_flow_gates`
 - `needs_draft`
 - `needs_review`
 - `needs_agent_review`
+- `needs_revision`
 - `blocked`
 
-`ready` requires a draft body, passing static review, passing formal platform Agent scene review JSON, `scene_review.v1` schema validation, and, when a Style Skill is mounted, `style_adherence.status=pass|pass_with_notes`.
+`ready` requires a cleaned draft body, context packet, roleplay simulation with platform-agent reading receipt, resolved roleplay directives, valid branch manifest, formal `branch_selection.md`, ready scene composition, static review `pass`, formal platform Agent scene review JSON that cites the current draft path, `scene_review.v1` schema validation, clean AgentReview `conclusion=pass`, no unresolved `warnings` / `revision_actions` / `style_notes`, and, when a Style Skill is mounted, `style_adherence.status=pass`.
 
 ## Longform Audit
 
@@ -762,6 +764,8 @@ Files:
 - optional `{chapter_id}_video_prompt_pack.inspection.json`
 
 DOCX outputs are delivery files generated from the Markdown exports. Layout JSON records the chosen document preset, source structure, fonts, styles, lists, tables, and quality gates. Inspection JSON records package structure, paragraph/table counts, style ids, numbering, East Asian font presence, page setup, and warnings. Do not treat exported files as canon. Writebacks still require approval. Final Chinese prose exports should preserve the standard punctuation gate result or record an explicit exception; the export layer normalizes corner/vertical quote variants to `“”` / `‘’` as delivery hygiene.
+
+`export-package` rebuilds or verifies the chapter workspace before packaging and blocks by default when any scene is non-ready. Use `--include-blocked` only for internal previews; final release should have zero skipped scenes and no residual workbench trace warnings.
 
 ## Publish Releases
 

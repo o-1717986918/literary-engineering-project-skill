@@ -90,7 +90,7 @@ def write_platform_scene_review_task(
   }},
   "source_paths": []
 }}
-`conclusion` 只有 `pass` 或 `pass_with_notes` 才能进入 ready；新增事实仍保持候选。""",
+`conclusion=pass` 且 warnings / revision_actions / style_notes / style_adherence 偏差为空，才可进入 clean ready。`pass_with_notes` 必须先进入 revise-scene 或记录明确 waiver，不能直接章节装配或导出；新增事实仍保持候选。""",
             ),
             (
                 "处理 pass_with_notes 语义",

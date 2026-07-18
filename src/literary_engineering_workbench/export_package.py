@@ -12,11 +12,11 @@ from typing import Sequence
 from .chapter_pipeline import build_chapter_workspace
 from .docx_export import export_markdown_to_docx
 from .draft_text import count_delivery_chars, final_body_from_draft_text
+from .flow_gates import FlowGateError
 from .punctuation_standard import normalize_punctuation_for_delivery
 
 
 EXPORT_FORMATS = {"md", "docx"}
-PASSING_REVIEW_CONCLUSIONS = {"pass", "pass_with_notes"}
 
 
 @dataclass(frozen=True)
@@ -50,8 +50,7 @@ def build_export_package(
     requested_formats = normalize_export_formats(formats)
 
     chapter_json = root / "plot" / "chapters" / f"{chapter_id}.json"
-    if rebuild_chapter or not chapter_json.exists():
-        build_chapter_workspace(root, chapter_id=chapter_id, build_missing=False, review_drafts=False)
+    build_chapter_workspace(root, chapter_id=chapter_id, build_missing=False, review_drafts=False)
     if not chapter_json.exists():
         raise FileNotFoundError(f"chapter JSON not found: {chapter_json}")
 
@@ -64,6 +63,12 @@ def build_export_package(
             exportable.append(scene)
         else:
             skipped.append(scene)
+    if skipped and not include_blocked:
+        raise FlowGateError(
+            f"export-package blocked: chapter {chapter_id} has {len(skipped)} non-ready scene(s). "
+            "Run chapter-workspace, route-audit --route scene-development, agent-review-scene/revise-scene as needed. "
+            "For internal previews only, pass --include-blocked."
+        )
 
     out_dir = (output_dir if output_dir and output_dir.is_absolute() else root / output_dir) if output_dir else root / "exports" / chapter_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -333,9 +338,13 @@ def _public_scene_label(index: int) -> str:
 def _is_export_ready(scene: dict) -> bool:
     return (
         scene.get("status") == "ready"
-        and scene.get("review_conclusion") in PASSING_REVIEW_CONCLUSIONS
-        and scene.get("agent_review_conclusion") in PASSING_REVIEW_CONCLUSIONS
+        and scene.get("review_conclusion") == "pass"
+        and scene.get("agent_review_conclusion") == "pass"
         and scene.get("agent_review_schema_status") == "pass"
+        and scene.get("agent_review_source_match") is True
+        and not scene.get("agent_review_unresolved_notes")
+        and not scene.get("flow_gate_issues")
+        and not scene.get("readiness_issues")
     )
 
 

@@ -400,6 +400,12 @@ def _context_artifact(root: Path, scene_path: Path) -> tuple[dict[str, str], str
 
 
 def _simulation_artifact(root: Path, scene_path: Path, agent_tasks: bool) -> tuple[dict[str, str], str]:
+    scene_id = scene_path.stem
+    existing = root / "branches" / scene_id / "roleplay_simulation.md"
+    if existing.exists():
+        text = existing.read_text(encoding="utf-8", errors="ignore")
+        if "读取回执" in text and "[AGENT_TASK:" not in text:
+            return {"simulation": _rel_str(existing, root)}, "existing platform-agent roleplay receipt preserved"
     result = build_roleplay_simulation(root, scene=scene_path, rebuild_context=False, agent_mode=agent_tasks)
     artifacts = {"simulation": _rel_str(result.output_path, root)}
     if agent_tasks:

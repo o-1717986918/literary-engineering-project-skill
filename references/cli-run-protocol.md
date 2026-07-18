@@ -130,7 +130,7 @@ python -m literary_engineering_workbench revise-scene <project> --scene scenes/s
 python -m literary_engineering_workbench state-evolve <project> --scene scenes/scene_0001.yaml --agent-tasks
 ```
 
-The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review the exact candidate before promotion, then review promoted draft character causality, mounted style adherence, and punctuation. `promote-candidate` now blocks unless `reviews/agent/{scene_id}_scene_review.json` cites the exact candidate path and has a clean `conclusion=pass`; `--allow-unreviewed` and `--allow-review-notes` are internal-experiment waivers. `route-audit --route scene-development` must show that context, RP, branch manifest, formal branch selection, ready composition, and promotion candidate review gates are complete before formal generation or writeback. When `style/active_style_skill.json` exists, the same audit also requires `reviews/agent/{scene_id}_scene_review.json` to contain `style_adherence.status=pass|pass_with_notes`; `not_applicable`, missing, or `revise_required` blocks the route. Use `revise-scene` when `agent-review-scene`, `review-scene`, style adherence, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the platform agent to produce a revision candidate and report without overwriting the formal draft.
+The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review the exact candidate before promotion, then review promoted draft character causality, mounted style adherence, and punctuation. `promote-candidate` now blocks unless `reviews/agent/{scene_id}_scene_review.json` cites the exact candidate path and has a clean `conclusion=pass`; `--allow-unreviewed` and `--allow-review-notes` are internal-experiment waivers. `route-audit --route scene-development` must show that context, RP, branch manifest, formal branch selection, ready composition, and promotion candidate review gates are complete before formal generation or writeback. When `style/active_style_skill.json` exists, formal chapter readiness and export require `style_adherence.status=pass`; `pass_with_notes`, `not_applicable`, missing, or `revise_required` blocks readiness/export until revised or explicitly waived. Use `revise-scene` when `agent-review-scene`, `review-scene`, style adherence, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the platform agent to produce a revision candidate and report without overwriting the formal draft.
 
 ### Review And Audit
 
@@ -164,7 +164,7 @@ python -m literary_engineering_workbench export-package <project> --chapter-id c
 python -m literary_engineering_workbench publish-chapter <project> --chapter-id chapter_0001 --approval-run-id <id>
 ```
 
-Before delivery, confirm readiness, approvals, canon audit, punctuation, target format, and rollback notes.
+Before delivery, confirm readiness, approvals, canon audit, punctuation, target format, and rollback notes. `export-package` rebuilds or verifies the chapter workspace before packaging and blocks non-ready scenes by default; `--include-blocked` is only for internal previews.
 
 ## Completion Gate
 

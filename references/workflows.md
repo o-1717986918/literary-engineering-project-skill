@@ -430,7 +430,9 @@ python -m literary_engineering_workbench chapter-workspace "<work-dir>" --chapte
 
 Scene states:
 
-- `ready`: draft exists, static review passed, platform Agent scene review JSON exists, schema passes, and conclusion is `pass` or `pass_with_notes`.
+- `ready`: draft exists, context/RP/branch/selection/composition flow gates are complete, static review is clean `pass`, platform Agent scene review JSON exists, schema passes, the review cites the current draft path, conclusion is clean `pass`, no warnings/revision/style notes remain, and mounted Style Skill adherence is clean `pass`.
+- `needs_flow_gates`: prose may exist, but context, roleplay reading receipt, branch manifest, formal `branch_selection.md`, or ready composition is missing.
+- `needs_revision`: `pass_with_notes`, warnings, revision actions, style notes, or style adherence deviations still need `revise-scene` or an explicit waiver before readiness/export.
 - `needs_draft`: no usable body.
 - `needs_review`: body exists but review missing.
 - `needs_agent_review`: static review exists but formal platform Agent scene review JSON is missing.
@@ -470,7 +472,7 @@ Outputs:
 - optional DOCX inspection JSON files;
 - `export_manifest.json`.
 
-By default only `ready` scenes are exported. Use `--include-blocked` only for internal preview.
+By default only `ready` scenes are exported, and the command blocks when any chapter scene is non-ready or the chapter workspace is stale. Use `--include-blocked` only for internal preview.
 
 Final exported prose and screenplay files are cleaned delivery artifacts. They should not expose scene workbench sections, scene IDs such as `scene_0001`, chapter IDs such as `chapter_0001`, scene file paths, context packet paths, writeback candidates, canon notes, prompt manifests, review status, workflow IDs, or “导出规则” text. Audit and provenance remain in `export_manifest.json`, release manifests, review files, and workflow logs.
 

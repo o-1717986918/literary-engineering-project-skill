@@ -145,7 +145,7 @@ class DirectorAgentTests(TempProjectMixin, unittest.TestCase):
 
     def test_director_can_run_scene_loop(self):
         project = self.make_project()
-        make_reviewed_passing_scene(project)
+        make_reviewed_passing_scene(project, prepare_flow=False)
         result = run_director_turn(project, "推进并审查当前场景", provider="dry-run", agent_tasks=True)
 
         self.assertEqual(result.decision["chosen_workflow"], "scene-loop")

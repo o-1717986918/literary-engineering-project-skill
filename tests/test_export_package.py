@@ -1,11 +1,13 @@
 import json
 import unittest
+import zipfile
 
 from literary_engineering_workbench.chapter_pipeline import build_chapter_workspace
 from literary_engineering_workbench.cli import build_parser
 from literary_engineering_workbench.export_package import build_export_package
+from literary_engineering_workbench.flow_gates import FlowGateError
 
-from helpers import TempProjectMixin, make_reviewed_passing_scene
+from helpers import TempProjectMixin, make_reviewed_passing_scene, make_static_reviewed_passing_scene
 
 
 class ExportPackageTests(TempProjectMixin, unittest.TestCase):
@@ -54,6 +56,27 @@ class ExportPackageTests(TempProjectMixin, unittest.TestCase):
         self.assertNotIn("状态变化候选", novel_text)
         self.assertNotIn("canon 信息", novel_text)
 
+    def test_final_docx_filters_world_state_change_markers(self):
+        project = self.make_project()
+        draft = make_reviewed_passing_scene(project)
+        text = draft.read_text(encoding="utf-8")
+        text = text.replace(
+            "他把手电压低，沿着墙边移动，心里清楚每一步都会改变同伴明天能否继续调查。",
+            "他把手电压低，沿着墙边移动。\n\n## 世界状态变化\n\n- 旧楼停电扩大为城市级异常。",
+        )
+        draft.write_text(text, encoding="utf-8")
+
+        result = build_export_package(project, chapter_id="chapter_0001", formats="md,docx")
+        novel_text = result.novel_path.read_text(encoding="utf-8")
+        with zipfile.ZipFile(result.docx_outputs["novel"]) as package:
+            document_xml = package.read("word/document.xml").decode("utf-8")
+
+        self.assertIn("他把手电压低", novel_text)
+        self.assertNotIn("世界状态变化", novel_text)
+        self.assertNotIn("城市级异常", novel_text)
+        self.assertNotIn("世界状态变化", document_xml)
+        self.assertNotIn("城市级异常", document_xml)
+
     def test_final_export_normalizes_corner_quotes(self):
         project = self.make_project()
         draft = make_reviewed_passing_scene(project)
@@ -90,6 +113,24 @@ class ExportPackageTests(TempProjectMixin, unittest.TestCase):
             self.assertTrue(path.exists())
         for path in result.docx_inspections.values():
             self.assertTrue(path.exists())
+
+    def test_export_blocks_non_ready_scenes_by_default(self):
+        project = self.make_project()
+        make_static_reviewed_passing_scene(project)
+
+        with self.assertRaises(FlowGateError):
+            build_export_package(project, chapter_id="chapter_0001")
+
+    def test_export_include_blocked_is_internal_preview_only(self):
+        project = self.make_project()
+        make_static_reviewed_passing_scene(project)
+
+        result = build_export_package(project, chapter_id="chapter_0001", include_blocked=True)
+        manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(result.exported_scene_count, 1)
+        self.assertTrue(manifest["include_blocked"])
+        self.assertIn("内部预览", result.novel_path.read_text(encoding="utf-8"))
 
     def test_missing_project_fails(self):
         project = self.make_project()
