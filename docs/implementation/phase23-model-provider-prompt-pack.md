@@ -37,6 +37,8 @@ drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json
 
 `generation_standards.style` 是生成前置契约，不是审查后置清单。平台 agent 或 provider 在写正文候选前，应先把 Style Skill / style profile 转译为本场景的叙述距离、句法节奏、意象系统、心理呈现、对白密度和标点停顿策略；这些策略只用于指导写作，不应作为工作流痕迹输出到候选正文。
 
+`v0.74.0` 起，Prompt Pack 会把“降低 AI 腔”从软提醒改成生成前默认禁令：未经用户或已挂载 Style Skill 明确授权，不使用机械“不是……而是……”“并非……而是……”“与其说……不如说……”及“不是……——是……”等破折号/句号变体。若 Style Skill 明确保留否定纠偏或高破折号节奏，写作 agent 必须让其承担人物认知、信息反转、讽刺顿挫或叙述者纠偏功能，而不是让模型用它伪装文学性。任何语义级清洗都必须逐句复核，不能用正则批量删除否定或破折号。
+
 `v0.66.0` 起，Prompt Pack 会额外注入：
 
 - `generation_standards.hard_constraints`：把 canon、场景编排、人物逻辑、文风、字数预算、AgentReview notes、标点和输出边界压缩成生成前执行顺序。

@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 
+from literary_engineering_workbench.anti_ai_style import lint_ai_style
 from literary_engineering_workbench.punctuation_standard import lint_punctuation
 from literary_engineering_workbench.review_ci import review_scene_draft
 from literary_engineering_workbench.scene_draft import build_scene_draft
@@ -91,7 +92,19 @@ class SceneReviewTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(review.conclusion, "revise_required")
         self.assertIn("AI Trace Reduction Test", report)
-        self.assertIn("机械对照句式", report)
+        self.assertIn("机械对照/否定纠偏句式", report)
+        self.assertIn("不得用脚本", report)
+
+    def test_ai_trace_flags_dash_contrast_without_prescribing_regex_cleanup(self):
+        text = "不是C营的——是那个E营的年轻人，他把袖章藏在雨衣里面。"
+
+        issues = lint_ai_style(text)
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].rule, "mechanical-contrast-frame")
+        self.assertEqual(issues[0].severity, "low")
+        self.assertIn("可保留", issues[0].message)
+        self.assertIn("不得用脚本", issues[0].message)
 
 
 if __name__ == "__main__":

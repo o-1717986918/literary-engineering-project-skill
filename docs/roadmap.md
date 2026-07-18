@@ -208,6 +208,10 @@
 
 已在 `v0.73.0` 补齐章节 ready 与 DOCX 交付层的两个漏点：最终正文清洗扩展到 `世界状态变化`、状态候选、写回候选等工作台痕迹，`export-docx` 直接处理草稿/候选工作台时也只抽取可交付正文；`chapter-workspace` 与 `longform-audit` 改用共享 `scene_readiness` 强门禁，要求 context、RP 读取回执、branch manifest、正式 branch selection、ready composition、静态 review clean pass、AgentReview clean pass 且引用当前草稿。`export-package` 默认重建章节工作台并阻塞任何非 ready 场景，`--include-blocked` 只用于内部预览。
 
+## Phase 74：生成层反 AI 腔硬约束与语义清洗边界
+
+已在 `v0.74.0` 把“不是……而是……”问题从事后 review 前移到 prompt pack、scene template、style prompt 和 agent-style-prompt 的生成前硬约束。未经用户或挂载 Style Skill 明确授权，机械“不是……而是……”“并非……而是……”“与其说……不如说……”及“不是……——是……”“不是……。是……”等变体默认禁用；若文风确有否定纠偏、高破折号或短促顿挫机制，必须说明其叙事功能、适用语境和禁用边界。`AI Trace Reduction Test` 现在能识别破折号替代“而是”的变体，并把单次出现标为语义复核信号、多次出现标为修订问题。新增自动清洗边界：脚本只能做安全排版规范化或风险提示，不得批量删除“不是”、改写“不是 A——是 B”或替换心理判断，避免生成后清理造成语义反转。
+
 ## Phase 47：前端显式 API Key 配置
 
 已实现前端 API Key 密码输入框、`/config` 明文保存与脱敏响应、空 key 保存保留既有密钥、`model_config.py` 从环境变量或保存的 profile key 读取密钥。

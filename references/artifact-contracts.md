@@ -175,7 +175,8 @@ Content requirements for a mountable style prompt:
 - imagery and sensory channel rules;
 - psychological presentation and hidden background behavior rules;
 - dialogue, tone, and action rules;
-- AI trace reduction rules covering mechanical contrast frames, abstract summary language, explanatory psychology labels, template transitions, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings;
+- AI trace reduction rules covering mechanical contrast frames and dash variants such as `不是……——是……`, abstract summary language, explanatory psychology labels, template transitions, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings;
+- style exception rules that distinguish functional rhetoric from model habits: if high dash density or negative-correction frames are part of the target style, the prompt must define when they are allowed, when they are forbidden, and how a reviewer can tell the difference;
 - explicit avoid/forbidden tendencies;
 - output self-check criteria.
 

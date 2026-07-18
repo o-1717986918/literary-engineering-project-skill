@@ -69,3 +69,4 @@
 - `phase67-delivery-body-stats-roleplay-gate.md`：最终正文口径、字数统计与 RP 门禁
 - `phase68-task-dashboard-revision-budget-binding.md`：平台 Agent 总控、场景修订闭环与场景库存绑定
 - `phase69-punctuation-docx-office-migration.md`：引号统一与 DOCX 版式规划补强
+- `phase74-generation-style-guardrails.md`：生成层反 AI 腔硬约束与语义清洗边界

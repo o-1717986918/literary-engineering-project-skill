@@ -81,7 +81,7 @@ def build_agent_style_prompt(
 def _system_prompt() -> str:
     return f"""You are a literary style prompt engineering agent.
 
-Convert style profile evidence into an LLM-facing style constraint prompt. The output must be JSON using style_prompt.v1, and `prompt_markdown` must be directly usable as a generation prompt. {STYLE_PROMPT_LENGTH_RULE} {STYLE_PROMPT_QUALITY_RULE}"""
+Convert style profile evidence into an LLM-facing style constraint prompt. The output must be JSON using style_prompt.v1, and `prompt_markdown` must be directly usable as a generation prompt. {STYLE_PROMPT_LENGTH_RULE} {STYLE_PROMPT_QUALITY_RULE} Distinguish functional punctuation/style features from model habits: contrast frames and dash-heavy cadence are prohibited by default unless profile evidence shows they are a functional style mechanism."""
 
 
 def _user_prompt(profile_path: Path, metrics_path: Path, manifest_path: Path) -> str:
@@ -127,7 +127,7 @@ def _dry_style_prompt(source_paths: list[str]) -> dict[str, object]:
 
 ## 标点和段落
 
-中文正文使用标准全角标点，省略号用“……”，破折号用“——”。句号用于真实语义、镜头或心理落点；逗号用于未完成关系；分号用于层级并列；破折号只用于打断、插入、骤变或强解释性补充。转折优先由动作、视线、意象、信息差和因果推进完成，少用“但是、然而、于是、然后、突然”机械连接。
+中文正文使用标准全角标点，省略号用“……”，破折号用“——”。句号用于真实落点；逗号用于未完成关系；分号用于层级并列；破折号只用于打断、插入、骤变、信息纠偏或强解释性补充。未经文风授权，同段破折号原则上不超过 2 处；若 profile 证明高破折号是核心节奏，每处都必须承担叙事功能，不能替代“而是/但是/于是”。转折优先由动作、视线、意象、信息差和因果推进完成，少用机械连接词。
 
 ## 对白与动作
 
@@ -135,14 +135,15 @@ def _dry_style_prompt(source_paths: list[str]) -> dict[str, object]:
 
 ## 降低 AI 腔约束
 
-不要高频使用“不是……而是……”“并非……而是……”“与其说……不如说……”等机械对照句式。不要用“某种意义、答案、真相、命运、存在、本身、这一刻、仿佛、像是”等抽象词替代具体叙事。不要反复写“他知道、她明白、他意识到”，应把认知变化转化为选择、停顿、回避、误判、语气和对白潜台词。转折来自因果、场景物理变化、人物目标冲突或伏笔回响，而不是模板化连接词。场景结尾落在动作结果、关系变化、信息揭示或悬念上，不用金句化总结替代戏剧变化。
+默认禁用机械“不是……而是……”及“不是……——是……”等变体。只有 profile 证明其属于功能性修辞时，才可在认知二分、信息反转、讽刺顿挫或叙述者纠偏处保留，且同场景原则上最多一次。不要用“某种意义、答案、真相、命运、存在、本身、这一刻、仿佛、像是”等抽象词替代具体叙事。不要反复写“他知道、她明白、他意识到”；把认知变化转化为选择、停顿、回避、误判、语气和潜台词。转折来自因果、场景物理变化、目标冲突或伏笔回响。结尾落在动作结果、关系变化、信息揭示或悬念上。
 
 ## 禁止倾向
 
 - 不摘抄连续原文。
 - 不把风格简化为高频词堆叠。
 - 不把候选事实写成已确认事实。
-- 不用密集句号、长逗号链或破折号堆叠伪装文学性。
+- 不用密集句号、长逗号链、机械“不是……而是……”或破折号堆叠伪装文学性。
+- 不把“不是 A——是 B”式否定纠偏结构交给脚本批量删除；语义改写必须逐句复核。
 - 不用 AI 腔、对称排比或抽象总结制造廉价文学感。
 - 不为了贴近文风牺牲可读性、人物逻辑和剧情因果。
 
@@ -151,7 +152,7 @@ def _dry_style_prompt(source_paths: list[str]) -> dict[str, object]:
 - 是否保持叙述距离稳定。
 - 是否把句法、标点、段落推进和意象调度落实成可执行约束。
 - 是否让意象服务主题和人物状态。
-- 是否避免 AI 腔、机械对照句式、解释性心理标签和金句化收束。
+- 是否避免 AI 腔、未经授权的机械对照句式、破折号转折变体、解释性心理标签和金句化收束。
 - 是否避免过短导致约束不足，或过长导致模型抓不住优先级。
 - 是否保留人工确认点。
 """
