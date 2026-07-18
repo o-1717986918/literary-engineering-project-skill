@@ -23,6 +23,9 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn(".agent_tasks.md", text)
         self.assertIn("Completion Gates", text)
         self.assertIn("Chinese punctuation", text)
+        self.assertIn("Probe documented commands", text)
+        self.assertIn("agent-review-scene is a sidecar generator", text)
+        self.assertIn("scene_review.v1", text)
 
     def test_cli_exposes_protocol_command(self):
         help_text = build_parser().format_help()

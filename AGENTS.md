@@ -25,10 +25,12 @@ Every task must run through the protocol loop before it is considered complete:
 4. Record a reading receipt: selected route, references read, project files inspected, missing context, and pending sidecars.
 5. Inspect current project state before generating, reviewing, promoting, or exporting.
 6. Treat CLI output as preparation or evidence. The supervising platform agent handles creative judgment, JSON drafting/repair, review findings, branch decisions, and promotion recommendations.
-7. Process any `.agent_tasks.md` sidecar by reading it and writing the expected artifact paths.
-8. Use `agent-task-status` or `route-audit` whenever pending sidecars, expected artifacts, or route gates are unclear.
-9. Apply route completion gates before final response.
-10. Report changed files, candidate-only outputs, promoted outputs, checks run, reading receipt, and approvals still needed.
+7. Do not declare a documented command or task unavailable until you have probed it with `--help`, `protocol <route>`, or the smallest safe command attempt. If it fails, record the exact command and error.
+8. Process any `.agent_tasks.md` sidecar by reading it and writing the expected artifact paths; a sidecar is executable work for the current platform agent, not a completed step or an external LLM prompt.
+9. For scene batches, build a per-scene ledger. One completed scene loop is not evidence for the rest of the chapter or volume.
+10. Use `agent-task-status` or `route-audit` whenever pending sidecars, expected artifacts, or route gates are unclear.
+11. Apply route completion gates before final response.
+12. Report changed files, candidate-only outputs, promoted outputs, checks run, reading receipt, and approvals still needed.
 
 ## Operating Model
 
@@ -42,7 +44,9 @@ Every task must run through the protocol loop before it is considered complete:
 - Longform word-budget planning is also platform-agent work: the CLI may calculate target distribution and inventory gaps, but the platform agent expands the outline, judges pacing/load, and decides readiness.
 - `agent-task-status` and `route-audit` are dashboard helpers. They do not complete creative work; they reveal unhandled sidecars, missing expected artifacts, and incomplete route gates for the platform agent to resolve or list as pending.
 - Formal non-deterministic commands write platform-agent task sidecars plus expected output paths. The platform agent reads those tasks, performs the creative/review judgment, writes the expected artifacts, applies schema/canon/style checks, and decides the next step.
+- `agent-review-scene` is a sidecar generator, not proof that an external model is required. Run it, read the generated task, review the exact candidate yourself as platform agent, and write the expected scene review JSON/Markdown before promotion.
 - `simulate-scene --agent` is not complete until the platform agent has filled the execution gate reading receipt and used scene/context/character/canon evidence for roleplay, world consequences, branch scoring, canon audit, and writeback candidates.
+- A formal scene-development batch must repeat the full chain for every scene: context, RP, branch, branch selection, composition, prose candidate, exact-candidate AgentReview, promotion, promoted draft, and state patch. Do not process one representative scene and bulk-write the rest.
 - Local model-backed commands, HTTP providers, and the local `director-chat` implementation are legacy/debug tools. Use them only when the user explicitly asks for that path.
 
 ## Hard Rules
@@ -56,6 +60,7 @@ Every task must run through the protocol loop before it is considered complete:
 - For 100000+ word or multi-volume targets, create or inspect `plot/word_budget/word_budget.json` before bulk generation. If budget status is `needs_expansion`, process `word_budget.agent_tasks.md`, process `scene_inventory_expansion.agent_tasks.md`, and review the budgeted outline plus scene inventory candidates first.
 - Count only cleaned deliverable prose as draft/chapter/longform/export length. Exclude workflow notes, review text, canon explanations, prompt manifests, `[AGENT_TASK: ...]`, status/writeback candidates, scene IDs, and internal paths.
 - Formal scene generation must be gated by context, roleplay simulation, branch manifest, formal `branch_selection.md`, and ready `selection_source=selection` composition. Do not start `generate-scene`, manual drafting, state writeback, or export from a scene that skipped RP/branch/composition unless the user explicitly requested an internal experiment and the waiver is recorded.
+- `route-audit --route scene-development` is the per-scene completion ledger. For each `scenes/*.yaml`, missing prose candidate, exact-candidate AgentReview, promotion manifest, promoted draft, or `state-evolve` patch is a blocking work item before chapter/export readiness.
 - Promote candidates only after review and explicit user approval unless the user clearly asks for an internal experiment.
 - `promote-candidate` is a formal gate, not a shortcut into review. Before promotion, the exact prose candidate must be cited in a passing `reviews/agent/{scene_id}_scene_review.json`; stale scene reviews, missing source paths, `pass_with_notes`, warnings, revision actions, or style deviations require `revise-scene` or an explicit internal waiver.
 - Character `background_story` is hidden behavioral causality. It should affect action, omission, speech, hesitation, misreading, and pressure, not appear as direct exposition unless the scene is designed to reveal it.
@@ -67,6 +72,7 @@ Every task must run through the protocol loop before it is considered complete:
 - `pass_with_notes` requires a notes-resolution step. The writing agent must apply local revision_actions / warnings / style_notes through `revise-scene` or record a specific acceptance reason before promotion, chapter readiness, export, or writeback.
 - Final delivery exports must not expose engineering identifiers or process traces such as `scene_0001`, `chapter_0001`, scene/context paths, canon notes, review states, or writeback candidates. Keep those in manifests, reviews, and workbench files.
 - Formal export must rebuild or verify the chapter workspace immediately before packaging. Do not export partial chapters by default: any non-ready scene, stale chapter state, unresolved review note, missing flow gate, or missing clean AgentReview blocks `export-package` unless the user explicitly requests an internal preview.
+- If an official gate blocks generation, promotion, chapter readiness, or export, do not replace it with an ad hoc script and call the output final. Resolve the missing sidecar/review/readiness gate, run `revise-scene` when needed, or record an explicit internal-preview waiver.
 - Keep each character in a separate file. Mark `importance: major` for major characters; context packets load major characters plus secondary/cameo characters named by the current scene, instead of loading every biography into every scene.
 - Do not store API keys or provider secrets inside work projects.
 - Keep outputs auditable: say what changed, where candidates were written, what remains unapproved, and what validation ran.

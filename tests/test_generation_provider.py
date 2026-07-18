@@ -69,6 +69,9 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         assert result.agent_tasks_path is not None
         tasks = result.agent_tasks_path.read_text(encoding="utf-8")
         self.assertIn("[AGENT_TASK:", tasks)
+        self.assertIn("任务已准备好", tasks)
+        self.assertIn("不表示任务完成", tasks)
+        self.assertIn("不要因为任务名称包含 agent / review / style / JSON 就判断自己不能做", tasks)
         self.assertIn("审查 prompt manifest", tasks)
         self.assertIn("生成前文风标准", tasks)
         self.assertIn("generation_standards.style", tasks)

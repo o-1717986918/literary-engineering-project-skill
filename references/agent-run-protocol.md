@@ -13,20 +13,22 @@ Use this protocol whenever a tool-layer agent runs a literary engineering task t
 4. Record a reading receipt in the working report or produced task artifact: selected route, references read, project-state files inspected, missing context, and whether any `.agent_tasks.md` remains pending.
 5. Inspect current project state before planning: `project.yaml`, relevant canon/character/plot/style files, latest reviews, workflow runs, and approval records.
 6. State a short plan to yourself or in the working trace: objective, route, artifacts to inspect, artifacts to create, review gates, and user approval boundary.
-7. Execute deterministic preparation with CLI only when useful: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars.
-8. Perform every non-deterministic creative or judgment step as the supervising platform agent. This includes prose, JSON drafting, schema repair, roleplay, branch choice, review findings, style prompts, and promotion recommendations.
-9. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, then inspect the produced artifact. Do not report the task file as completed work by itself.
-10. If sidecar completion, expected outputs, or route gates are unclear, run or emulate `agent-task-status` and route-specific `route-audit`; resolve the missing items or list them as pending.
-11. Validate produced artifacts before acceptance:
+7. Probe documented tools before declaring them unavailable. Use `--help`, `protocol <route>`, or the smallest safe command attempt; if a command fails, record the exact command, error, and next workaround instead of guessing.
+8. Execute deterministic preparation with CLI only when useful: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars.
+9. Perform every non-deterministic creative or judgment step as the supervising platform agent. This includes prose, JSON drafting, schema repair, roleplay, branch choice, review findings, style prompts, and promotion recommendations.
+10. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, then inspect the produced artifact. Do not report the task file as completed work by itself.
+11. For scene batches, maintain per-scene coverage. Each scene needs its own context, RP, branch selection, composition, prose candidate, exact-candidate review, promotion, promoted draft, and state patch; one completed scene does not cover the rest.
+12. If sidecar completion, expected outputs, or route gates are unclear, run or emulate `agent-task-status` and route-specific `route-audit`; resolve the missing items or list them as pending.
+13. Validate produced artifacts before acceptance:
    - JSON: schema validation or explicit schema review.
    - Canon and continuity: canon lint or platform-agent canon review.
    - Character logic: BDI, hidden `background_story`, relationship pressure, and OOC risk.
    - Style: mounted Style Skill and style prompt priority.
    - Chinese prose: `references/punctuation-standard.md`.
    - Release/export: readiness, approval, and target format checks.
-12. If a prose review returns `pass_with_notes`, warnings, or local fixes, run or emulate `revise-scene` and review the revision candidate before promotion, chapter readiness, export, or writeback.
-13. Decide the artifact status: revise, keep as candidate, ask user, approve internally for experiment, or promote after explicit user approval.
-14. Finish with an audit summary: files changed, candidate-only files, promoted files, checks run, blocked items, reading receipt, and next high-level creative choices.
+14. If a prose review returns `pass_with_notes`, warnings, or local fixes, run or emulate `revise-scene` and review the revision candidate before promotion, chapter readiness, export, or writeback.
+15. Decide the artifact status: revise, keep as candidate, ask user, approve internally for experiment, or promote after explicit user approval.
+16. Finish with an audit summary: files changed, candidate-only files, promoted files, checks run, blocked items, reading receipt, and next high-level creative choices.
 
 ## Platform Agent Responsibilities
 
@@ -51,6 +53,12 @@ The following must never be delegated to local dry-run, HTTP helper, or CLI outp
 
 Local tools may prepare inputs and task files for those actions, but the supervising platform agent must make the judgment and write or approve the artifact.
 
+## Command Attempt Rule
+
+If a route names a command, the supervising agent should assume it can try that command with the local shell/tooling unless a real error proves otherwise. In particular, do not skip `agent-review-scene`, `agent-canon-review`, `agent-task-status`, `route-audit`, `promote-candidate`, `chapter-workspace`, or `export-package` because they sound model-backed or environment-dependent. Run `--help` first if uncertain. Many `agent-*` commands only generate sidecars and expected output paths; the platform agent then performs the judgment and writes the artifacts.
+
+If the command errors, the correct response is not “the skill cannot do it”; the correct response is: record the command, stderr/exception, whether `PYTHONPATH` or path arguments were wrong, and the next safe workaround. Only after an actual failure should the agent choose an emulation path.
+
 ## Completion Gate
 
 Before final response, check:
@@ -58,6 +66,7 @@ Before final response, check:
 - Route selected from `agentread.yaml`.
 - Required references read for that route.
 - Project state inspected.
+- Documented commands needed for the route were attempted or deliberately skipped with a concrete reason based on project state.
 - All `.agent_tasks.md` outputs handled or explicitly listed as pending.
 - `agent-task-status` or route-specific `route-audit` used when route completion state was ambiguous.
 - Reading receipt recorded or summarized.
@@ -65,6 +74,7 @@ Before final response, check:
 - Generated JSON/prose/reviews are marked candidate, reviewed, approved, or pending.
 - Canon, character, style, punctuation, and release/export gates applied when relevant.
 - User approval requirement is recorded for promotions or final release.
+- For scene batches, route-audit or an equivalent ledger accounts for every scene instead of sampling one scene.
 - Final response separates completed work from pending decisions.
 
 ## Forbidden Shortcuts
@@ -72,6 +82,9 @@ Before final response, check:
 - Do not accept generated JSON because it parses.
 - Do not accept branch scores, simulation scores, local director choices, or model ratings as final decisions.
 - Do not promote candidates without review and approval unless the user explicitly requested an internal experiment.
+- Do not batch-write scenes while skipping RP, branch simulation, composition, exact-candidate review, promotion, or state patch for most scenes.
+- Do not declare a documented CLI/tool step impossible without probing it or recording a real command failure.
+- Do not bypass failed readiness/export gates with a custom script and present the result as final release output.
 - Do not skip punctuation review for Chinese prose because a Style Skill is mounted.
 - Do not expose raw schemas, internal command chatter, or file paths to the user unless useful for the task or requested.
 - Do not write API keys or provider secrets into work projects.

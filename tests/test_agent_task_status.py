@@ -4,6 +4,8 @@ from pathlib import Path
 
 from literary_engineering_workbench.agent_task_status import build_agent_task_status, build_route_audit
 from literary_engineering_workbench.branch_lab import build_branch_simulation
+from literary_engineering_workbench.candidate_promotion import promote_scene_candidate
+from literary_engineering_workbench.character_state_evolver import build_character_state_patch
 from literary_engineering_workbench.cli import build_parser
 from literary_engineering_workbench.scene_composer import build_scene_composition
 
@@ -98,8 +100,12 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("scene_0001:branch-manifest", failing_keys)
         self.assertIn("scene_0001:branch-selection", failing_keys)
         self.assertIn("scene_0001:composition-ready", failing_keys)
+        self.assertIn("scene_0001:prose-candidate", failing_keys)
+        self.assertIn("scene_0001:agent-review-json", failing_keys)
+        self.assertIn("scene_0001:promotion-manifest", failing_keys)
+        self.assertIn("scene_0001:state-patch-json", failing_keys)
 
-    def test_route_audit_passes_scene_flow_after_rp_branch_and_composition(self):
+    def test_route_audit_passes_scene_flow_after_full_scene_loop(self):
         project = self.make_project()
         add_character(project)
         make_reviewed_passing_scene(project)
@@ -112,6 +118,7 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
         branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
         _select_branch(branch.selection_path, branch.recommended_branch)
         build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+        _promote_candidate_and_patch_state(project)
 
         result = build_route_audit(project, route="scene-development")
         payload = json.loads(result.json_path.read_text(encoding="utf-8"))
@@ -145,6 +152,7 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
         branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
         _select_branch(branch.selection_path, branch.recommended_branch)
         build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+        _promote_candidate_and_patch_state(project)
 
         result = build_route_audit(project, route="scene-development")
         payload = json.loads(result.json_path.read_text(encoding="utf-8"))
@@ -180,6 +188,21 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
 
         self.assertTrue(
             any(gate["key"] == "scene_0001:promotion-candidate-review" and gate["status"] == "fail" for gate in payload["gates"])
+        )
+
+    def test_route_audit_requires_word_budget_before_bulk_longform_scene_work(self):
+        project = self.make_project()
+        project_yaml = project / "project.yaml"
+        project_yaml.write_text(
+            project_yaml.read_text(encoding="utf-8").replace("target_length: 30000", "target_length: 130000"),
+            encoding="utf-8",
+        )
+
+        result = build_route_audit(project, route="scene-development")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "longform-required:word-budget-json" and gate["status"] == "fail" for gate in payload["gates"])
         )
 
     def test_cli_exposes_task_status_commands(self):
@@ -234,6 +257,60 @@ def _mount_style(project: Path):
         + "\n",
         encoding="utf-8",
     )
+
+
+def _write_candidate(project: Path, scene_id: str = "scene_0001") -> Path:
+    candidate = project / "drafts" / "candidates" / f"{scene_id}-platform-agent.md"
+    candidate.parent.mkdir(parents=True, exist_ok=True)
+    candidate.write_text(
+        f"""# 场景候选：{scene_id}
+
+## 正文候选
+
+林舟站在旧楼门口，先看了一眼街角的灯。灯还没转过来。
+
+他推门进去。门轴响了一声。他停住，等楼里重新安静下来，才沿着墙边往里走。
+
+## 状态变化候选
+
+### 新增事实候选
+
+- 林舟发现旧楼停电与残缺档案有关。
+
+### 人物状态变化
+
+- 林舟从旁观转为主动调查。
+
+### 关系变化
+
+- 林舟开始隐瞒自己的行动计划。
+
+### 伏笔变化
+
+- 残缺档案成为后续追查线索。
+
+### 需要人工确认
+
+- 是否确认旧楼停电为主线事件。
+""",
+        encoding="utf-8",
+    )
+    return candidate
+
+
+def _promote_candidate_and_patch_state(project: Path, scene_id: str = "scene_0001") -> None:
+    candidate = _write_candidate(project, scene_id=scene_id)
+    review = write_platform_scene_review(project, scene_id=scene_id)
+    payload = json.loads(review.read_text(encoding="utf-8"))
+    payload["candidate"] = f"drafts/candidates/{scene_id}-platform-agent.md"
+    payload["source_paths"] = [
+        f"scenes/{scene_id}.yaml",
+        f"drafts/candidates/{scene_id}-platform-agent.md",
+        f"memory/context_packets/{scene_id}.md",
+    ]
+    review.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    promote_scene_candidate(project, scene=Path(f"scenes/{scene_id}.yaml"), candidate=candidate, overwrite=True)
+    build_character_state_patch(project, scene=Path(f"scenes/{scene_id}.yaml"), source=Path(f"drafts/scenes/{scene_id}.md"))
 
 
 if __name__ == "__main__":

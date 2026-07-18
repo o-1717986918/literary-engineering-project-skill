@@ -357,6 +357,8 @@ The lint only reports project-state issues. It does not edit canon, approve cand
 
 ## Scene Loop
 
+The command chain below develops one scene. For a chapter, volume, or longform batch, enumerate all target `scenes/*.yaml` first and repeat the chain for each scene. A completed loop for one scene is never evidence that the remaining scenes have passed RP, branch, composition, review, promotion, or state-patch gates.
+
 ```powershell
 python -m literary_engineering_workbench context "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-index
 python -m literary_engineering_workbench simulate-scene "<work-dir>" --scene scenes/scene_0001.yaml --agent
@@ -366,7 +368,7 @@ python -m literary_engineering_workbench compose-scene "<work-dir>" --scene scen
 python -m literary_engineering_workbench route-audit "<work-dir>" --route scene-development
 python -m literary_engineering_workbench generate-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
 python -m literary_engineering_workbench agent-review-scene "<work-dir>" --scene scenes/scene_0001.yaml --draft drafts/candidates/scene_0001-platform-agent.md
-# Platform agent fills reviews/agent/scene_0001_scene_review.json with source_paths citing that exact candidate and conclusion=pass.
+# Platform agent reads reviews/agent/scene_0001_scene_review.agent_tasks.md, then writes scene_review.v1 JSON/Markdown with source_paths citing that exact candidate and conclusion=pass.
 python -m literary_engineering_workbench promote-candidate "<work-dir>" --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench review-scene "<work-dir>" drafts/scenes/scene_0001.md
 python -m literary_engineering_workbench revise-scene "<work-dir>" --scene scenes/scene_0001.yaml
@@ -393,13 +395,17 @@ When character `background_story` is present, scene and branch work should conve
 
 The prompt manifest includes `generation_standards.style`, `generation_standards.word_budget`, `generation_standards.review_notes`, and `generation_standards.hard_constraints`. These are generation-time contracts, not merely review checklists: before drafting, the platform agent should translate the mounted Style Skill / style profile into concrete scene tactics, apply any `pass_with_notes` revision actions, honor longform budget load, and follow the hard-constraint priority order. Do not output that plan in the candidate; use it to reduce review failures before they happen.
 
-Generated candidates and promoted drafts should pass the standard Chinese punctuation gate. `review-scene` reports punctuation issues under `Punctuation Standard Test`; fix those before chapter readiness or export unless the user explicitly approves a recorded exception. Before `promote-candidate`, run `agent-review-scene --draft <candidate>` or perform an equivalent platform Agent review of the exact candidate, and ensure the resulting `scene_review.v1` JSON cites that candidate in `source_paths` with `conclusion=pass`. When a Style Skill is mounted, formal platform scene review must also write `style_adherence` into `reviews/agent/{scene_id}_scene_review.json`, and `route-audit --route scene-development` treats missing or failed style adherence as blocking.
+Generated candidates and promoted drafts should pass the standard Chinese punctuation gate. `review-scene` reports punctuation issues under `Punctuation Standard Test`; fix those before chapter readiness or export unless the user explicitly approves a recorded exception. Before `promote-candidate`, run `agent-review-scene --draft <candidate>` or perform an equivalent platform Agent review of the exact candidate, and ensure the resulting `scene_review.v1` JSON cites that candidate in `source_paths` with `conclusion=pass`. Do not skip `agent-review-scene` because it sounds model-backed: it writes a task sidecar and expected report paths; the supervising platform agent performs the review and writes the JSON/Markdown. When a Style Skill is mounted, formal platform scene review must also write `style_adherence` into `reviews/agent/{scene_id}_scene_review.json`, and `route-audit --route scene-development` treats missing or failed style adherence as blocking.
+
+After a batch, run `route-audit --route scene-development`. The audit is the per-scene ledger: each scene must show context, roleplay, branch manifest, formal branch selection, ready composition, prose candidate, exact-candidate review, promotion manifest, promoted draft, and state patch. Missing rows are unfinished work, not optional warnings. For 100000+ word or multi-volume targets, the same audit also checks that `word-budget` was run before bulk scene work.
 
 Generated candidates and promoted drafts should also pass the AI trace reduction gate. `review-scene` reports mechanical “不是……而是……” frames, dash variants such as “不是……——是……”, organ-rotation, generic placeholders, simile dependency, abstract summary language, explanatory psychology labels, template transitions, scenery syncing, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings under `AI Trace Reduction Test`. Mechanical contrast frames are core banned frames and must not be judged as reasonable rhetoric; other risk phrase families use an approximately 2% narrative-unit density gate, where isolated hits are review signals and dense hits require revision. Do not run regex cleanup that deletes negation or rewrites contrast frames; the platform agent must decide sentence by sentence how to preserve meaning while removing model habits.
 
 `revise-scene` reads the scene file, draft, context packet, AgentReview notes, mounted style, canon, punctuation standard, and word budget, then writes a revision prompt manifest plus `drafts/revisions/{scene_id}_revision.agent_tasks.md`. The platform agent fills the expected revision candidate and revision report. This is the formal path for resolving `pass_with_notes`, warnings, local prose defects, or under-length scene bodies without silently overwriting `drafts/scenes/{scene_id}.md`.
 
 `promote-candidate` turns a selected, reviewed model candidate into `drafts/scenes/{scene_id}.md` and writes `drafts/promotions/{scene_id}_promotion.md` / `.json`. By default it blocks missing, stale, or unresolved candidate reviews. It does not confirm canon and does not write characters. `--allow-unreviewed` and `--allow-review-notes` are internal-experiment waiver flags and are recorded in the promotion manifest.
+
+If any official command blocks a scene, chapter, or export because review gates are missing, do not bypass the gate with a custom script and label the result final. Run `agent-task-status`, `route-audit`, `agent-review-scene`, `revise-scene`, or `chapter-workspace` as appropriate; only use ad hoc output as an explicitly labeled internal preview with the waiver reason recorded.
 
 The prompt manifest records system/user messages and source files for the platform agent. It must remain pure audit data and must not contain `[AGENT_TASK: ...]`.
 

@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.75.0`
+- 当前版本：`0.77.0`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -107,6 +107,10 @@ context packet
 `v0.73.0` 起，章节 ready 和正式导出也使用同一组强门禁：上下文包、RP 读取回执、分支 manifest、正式 `branch_selection.md`、ready composition、静态 review clean `pass`、平台 AgentReview clean `pass` 且引用当前草稿。`pass_with_notes`、warnings、revision_actions、style_notes 或文风偏差会进入 `needs_revision`，不能直接导出。
 
 `v0.75.0` 起，反 AI 腔规则升级为“核心禁区 + 密度门禁”：机械“不是……而是……”和“不是……——是……”等生硬对照变体不再被判断为合理修辞，文风学习只能提取其背后的纠偏、讽刺、信息反转或节奏功能，不能把模板句式授权给生成模型。器官轮岗、万能占位、比喻依赖、抽象总结、景物强制同步、模板转折和金句化收束按约 2% 叙事单元密度控制，孤立风险点进入复核，密集出现必须修订。语义级修订仍必须由平台 Agent 逐句判断，避免脚本把否定关系改坏。
+
+`v0.76.0` 起，Supervisor Agent 执行纪律被写成硬规则：遇到文档中的 CLI 或 agent sidecar 步骤，必须先 `--help`、`protocol <route>` 或尝试最小安全命令，不能事前判断“我做不了”。`agent-review-scene` 明确为 sidecar 生成器：命令生成任务文件后，当前平台 Agent 必须读取任务并写入 `scene_review.v1` JSON/Markdown；`export-package` 等官方门禁若阻塞，不能用自写脚本绕过并称为最终交付，只能修 gate 或标记为内部预览。
+
+`v0.77.0` 起，批量场景开发增加“逐场景账本”硬门禁：一条完整 scene loop 只覆盖一个场景，不能用做过 `scene_0075` 来代表 `scene_0076-0099`。`route-audit --route scene-development` 会逐个场景检查 context、RP、branch、composition、prose candidate、exact-candidate AgentReview、promotion、promoted draft 和 state patch；10 万字以上项目还会在场景开发/导出前检查 word-budget 是否完成。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 
@@ -439,7 +443,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.75.0`。
+- 当前版本：`0.77.0`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -452,6 +456,8 @@ literary-engineering-project-skill/
 - 标点与反 AI 腔约束：已纳入生成、审查、修订和导出参考；机械对照句式和破折号转折变体作为核心禁区在生成层拦截，不判断为合理修辞；器官轮岗、万能占位、比喻依赖、模板转折和景物强制同步按约 2% 密度门禁审查，语义级清洗禁止用正则脚本批量执行。
 - 横排中文引号统一、DOCX layout plan、DOCX inspection、基础 Markdown 表格转 Word 表格：已完成。
 - DOCX/Markdown 交付清洗与章节强门禁：已阻止“世界状态变化”等工作台痕迹进入最终 DOCX；导出前默认重建章节工作台，非 ready 场景会阻塞正式导出。
+- Supervisor Agent 执行纪律：已要求文档命令先试再判断，`.agent_tasks.md` 必须由当前平台 Agent 执行，`agent-review-scene` 不得被误判为外部模型依赖，官方 gate 失败不得用自写脚本冒充正式交付。
+- 批量场景账本门禁：已要求 scene-development 按每个 scene 检查候选、候选专属审查、promotion、正式草稿和 state-evolve patch，避免只跑一场 RP/review 后批量直写正文。
 - 可选 CLI 工具箱：可运行。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 

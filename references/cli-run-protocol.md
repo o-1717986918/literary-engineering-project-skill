@@ -26,6 +26,10 @@ python -m literary_engineering_workbench protocol <route>
 
 The `protocol` command prints the required references, suggested CLI chain, platform-agent handoff points, completion gates, and forbidden shortcuts for that route.
 
+## Command Attempt Rule
+
+Do not decide in advance that a documented command is unusable because it sounds like it needs a model, an external agent, or a special environment. First run `--help`, print `protocol <route>`, or attempt the smallest safe command with the current project path. If it fails, record the exact command, error, and next workaround. Many `agent-*` commands, including `agent-review-scene`, generate task sidecars; the platform agent then performs the review or creative judgment itself.
+
 ## CLI Usage Loop
 
 1. Choose the route first. Do not start with a command just because it exists.
@@ -34,17 +38,18 @@ The `protocol` command prints the required references, suggested CLI chain, plat
 4. Record or prepare a reading receipt: route, references read, project files inspected, command runbook printed, and missing context.
 5. Set `PYTHONPATH` for the current repository layout.
 6. Run `--help` for unfamiliar commands before use.
-7. Run the smallest deterministic command that prepares the next artifact.
+7. Run the smallest deterministic command that prepares the next artifact; do not skip it without a concrete project-state reason.
 8. Capture and inspect output paths printed by the command.
-9. If the command writes `.agent_tasks.md`, read the task file and have the platform agent fill the expected artifact paths. The CLI has not completed the creative step by writing a task file.
-10. When sidecar or gate status is unclear, run `agent-task-status <project>` or `route-audit <project> --route <route>` and resolve or list pending items.
-11. Validate artifacts:
+9. If the command writes `.agent_tasks.md`, read the task file immediately when feasible and have the platform agent fill the expected artifact paths. The CLI has not completed the creative/review step by writing a task file.
+10. After filling sidecars, inspect the produced Markdown/JSON/prose and record whether it is candidate, pass, pass_with_notes, revise_required, or pending.
+11. When sidecar or gate status is unclear, run `agent-task-status <project>` or `route-audit <project> --route <route>` and resolve or list pending items.
+12. Validate artifacts:
    - `agent-validate` for agent run outputs.
    - schema-specific review for JSON candidates.
    - `canon-lint` for canon and character consistency.
    - `review-scene`, `agent-review-scene`, or platform review for prose.
    - `word-budget`, `longform-audit`, `chapter-workspace`, and approval summaries for longform/release.
-12. Record whether each output remains a candidate, was revised, was promoted, or needs user approval.
+13. Record whether each output remains a candidate, was revised, was promoted, or needs user approval.
 
 ## Common CLI Chains
 
@@ -114,6 +119,8 @@ The platform agent writes candidate content, reviews motive/canon/style risks, a
 
 ### Scene Development
 
+The following chain is for one scene. In a chapter or volume batch, repeat it for every `scenes/{scene_id}.yaml`; never use one completed scene as a proxy for the remaining scenes.
+
 ```powershell
 python -m literary_engineering_workbench protocol scene-development
 python -m literary_engineering_workbench context <project> --scene scenes/scene_0001.yaml
@@ -124,13 +131,14 @@ python -m literary_engineering_workbench compose-scene <project> --scene scenes/
 python -m literary_engineering_workbench route-audit <project> --route scene-development
 python -m literary_engineering_workbench generate-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench agent-review-scene <project> --scene scenes/scene_0001.yaml --draft drafts/candidates/scene_0001-platform-agent.md
+# Read reviews/agent/scene_0001_scene_review.agent_tasks.md, then write the expected scene_review.v1 JSON and Markdown report yourself as platform agent.
 python -m literary_engineering_workbench promote-candidate <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench review-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench revise-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench state-evolve <project> --scene scenes/scene_0001.yaml --agent-tasks
 ```
 
-The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review the exact candidate before promotion, then review promoted draft character causality, mounted style adherence, and punctuation. `promote-candidate` now blocks unless `reviews/agent/{scene_id}_scene_review.json` cites the exact candidate path and has a clean `conclusion=pass`; `--allow-unreviewed` and `--allow-review-notes` are internal-experiment waivers. `route-audit --route scene-development` must show that context, RP, branch manifest, formal branch selection, ready composition, and promotion candidate review gates are complete before formal generation or writeback. When `style/active_style_skill.json` exists, formal chapter readiness and export require `style_adherence.status=pass`; `pass_with_notes`, `not_applicable`, missing, or `revise_required` blocks readiness/export until revised or explicitly waived. Use `revise-scene` when `agent-review-scene`, `review-scene`, style adherence, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the platform agent to produce a revision candidate and report without overwriting the formal draft.
+The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review the exact candidate before promotion, then review promoted draft character causality, mounted style adherence, punctuation, and state-patch consequences. `agent-review-scene` must be tried, not guessed about: it generates the review task and expected report paths; the supervising platform agent performs the review and writes `scene_review.v1`. `promote-candidate` blocks unless `reviews/agent/{scene_id}_scene_review.json` cites the exact candidate path and has a clean `conclusion=pass`; `--allow-unreviewed` and `--allow-review-notes` are internal-experiment waivers. `route-audit --route scene-development` is the per-scene ledger and must show that each scene has context, RP, branch manifest, formal branch selection, ready composition, prose candidate, exact-candidate review, promotion manifest, promoted draft, and state patch before chapter/export readiness. When `style/active_style_skill.json` exists, formal chapter readiness and export require `style_adherence.status=pass`; `pass_with_notes`, `not_applicable`, missing, or `revise_required` blocks readiness/export until revised or explicitly waived. Use `revise-scene` when `agent-review-scene`, `review-scene`, style adherence, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the platform agent to produce a revision candidate and report without overwriting the formal draft.
 
 ### Review And Audit
 
@@ -166,11 +174,14 @@ python -m literary_engineering_workbench publish-chapter <project> --chapter-id 
 
 Before delivery, confirm readiness, approvals, canon audit, punctuation, target format, and rollback notes. `export-package` rebuilds or verifies the chapter workspace before packaging and blocks non-ready scenes by default; `--include-blocked` is only for internal previews.
 
+If `export-package` blocks, do not write a custom export script and call it final. Run `chapter-workspace` / `route-audit`, resolve missing scene reviews or sidecars, or explicitly label the output as an internal preview with the waiver reason.
+
 ## Completion Gate
 
 Do not finish a CLI-backed task until:
 
 - The route protocol was read or printed.
+- Documented commands needed by the route were tried or skipped only with a concrete project-state reason.
 - Reading receipt was recorded or summarized.
 - Command output paths were inspected.
 - `.agent_tasks.md` files were handled by the platform agent or listed as pending.

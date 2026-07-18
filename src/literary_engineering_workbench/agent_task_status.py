@@ -250,17 +250,9 @@ def _route_gates(root: Path, route: str, records: list[AgentTaskRecord]) -> list
     _add_gate(gates, "agent-sidecars-handled", not pending, "blocking", "all .agent_tasks.md sidecars handled", f"仍有 {len(pending)} 个 sidecar 未完整处理。")
     _add_gate(gates, "expected-artifacts-exist", missing_expected == 0, "blocking", "all expected artifacts exist", f"仍缺 {missing_expected} 个预期产物。")
     if route == "longform-planning":
-        budget_json = root / "plot" / "word_budget" / "word_budget.json"
-        _add_gate(gates, "word-budget-json", budget_json.exists(), "blocking", "word budget JSON exists", "运行 word-budget / longform-budget。")
-        payload = _read_json(budget_json)
-        candidate = root / "plot" / "candidates" / "outlines" / "word_budget_expansion.md"
-        review = root / "reviews" / "word_budget" / "word_budget_review.md"
-        scene_plan = root / "plot" / "candidates" / "scenes" / "word_budget_scene_inventory.md"
-        if payload.get("status") == "needs_expansion":
-            _add_gate(gates, "budgeted-outline-candidate", candidate.exists(), "blocking", "budgeted outline candidate exists", "平台 Agent 需处理 word_budget.agent_tasks.md。")
-            _add_gate(gates, "word-budget-review", review.exists(), "blocking", "word-budget review exists", "平台 Agent 需写入 reviews/word_budget/word_budget_review.md。")
-            _add_gate(gates, "scene-inventory-expansion", scene_plan.exists(), "warning", "scene inventory expansion candidate exists", "平台 Agent 需处理 scene_inventory_expansion.agent_tasks.md。")
+        _add_longform_budget_gates(gates, root, force=True)
     if route == "scene-development":
+        _add_longform_budget_gates(gates, root, force=False)
         scene_files = _scene_files(root)
         _add_gate(gates, "scene-files", bool(scene_files), "blocking", "scene yaml exists", "先创建 scenes/{scene_id}.yaml。")
         for scene_path in scene_files:
@@ -283,7 +275,68 @@ def _route_gates(root: Path, route: str, records: list[AgentTaskRecord]) -> list
             "chapter scenes have clean formal review gates",
             f"章节工作台中仍有 {stale_or_weak} 个场景缺少新式 clean review/flow gate 字段或存在未解决 notes；重新运行 chapter-workspace 并修订。",
         )
+        _add_longform_budget_gates(gates, root, force=False)
+        unapplied = _unapplied_state_patch_count(root)
+        _add_gate(
+            gates,
+            "state-patches-applied-or-waived",
+            unapplied == 0,
+            "warning",
+            "character state patches have apply reports or no pending patches",
+            f"仍有 {unapplied} 个人物状态 patch 未生成 state-apply 报告；最终发布前需审批写回或记录内部预览 waiver。",
+        )
     return gates
+
+
+def _add_longform_budget_gates(gates: list[dict[str, str]], root: Path, *, force: bool) -> None:
+    target_words = _project_target_words(root)
+    if not force and target_words < 100000:
+        return
+    budget_json = root / "plot" / "word_budget" / "word_budget.json"
+    review = root / "reviews" / "word_budget" / "word_budget_review.md"
+    candidate = root / "plot" / "candidates" / "outlines" / "word_budget_expansion.md"
+    scene_plan = root / "plot" / "candidates" / "scenes" / "word_budget_scene_inventory.md"
+    scene_review = root / "reviews" / "word_budget" / "scene_inventory_review.md"
+
+    prefix = "longform" if force else "longform-required"
+    _add_gate(
+        gates,
+        f"{prefix}:word-budget-json",
+        budget_json.exists(),
+        "blocking",
+        "word budget JSON exists",
+        "目标达到中长篇规模或正在执行 longform-planning；先运行 word-budget / longform-budget，不能直接批量写正文。",
+    )
+    if not budget_json.exists():
+        return
+
+    payload = _read_json(budget_json)
+    status = str(payload.get("status") or "").strip().lower()
+    _add_gate(
+        gates,
+        f"{prefix}:word-budget-review",
+        review.exists(),
+        "blocking",
+        "word-budget platform review exists",
+        "平台 Agent 必须写 reviews/word_budget/word_budget_review.md，确认字数-剧情库存映射后才能进入批量场景开发。",
+    )
+    if status == "needs_expansion":
+        _add_gate(gates, f"{prefix}:budgeted-outline-candidate", candidate.exists(), "blocking", "budgeted outline candidate exists", "预算显示剧情库存不足；平台 Agent 需处理 word_budget.agent_tasks.md。")
+        _add_gate(gates, f"{prefix}:scene-inventory-expansion", scene_plan.exists(), "blocking", "scene inventory expansion candidate exists", "预算显示场景库存不足；平台 Agent 需处理 scene_inventory_expansion.agent_tasks.md。")
+        _add_gate(gates, f"{prefix}:scene-inventory-review", scene_review.exists(), "blocking", "scene inventory review exists", "扩展场景库存后，平台 Agent 需写 reviews/word_budget/scene_inventory_review.md。")
+
+
+def _project_target_words(root: Path) -> int:
+    text = _read_text(root / "project.yaml")
+    values: list[int] = []
+    for key in ("target_length", "target_words"):
+        for match in re.finditer(rf"(?m)^\s*{re.escape(key)}:\s*([0-9][0-9_,]*)\s*$", text):
+            raw = match.group(1).replace("_", "").replace(",", "")
+            try:
+                values.append(int(raw))
+            except ValueError:
+                continue
+    return max(values) if values else 0
 
 
 def _add_gate(gates: list[dict[str, str]], key: str, passed: bool, severity: str, passed_message: str, failed_message: str) -> None:
@@ -322,6 +375,18 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         and composition_payload.get("selection_source") == "selection"
         and flow_gate.get("ready_for_generation") is True
     )
+    candidate_path = _promotion_candidate_path(root, scene_id) or _latest_scene_candidate(root, scene_id)
+    review_json = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
+    candidate_gate = (
+        candidate_review_gate(root, scene_id, candidate_path)
+        if candidate_path is not None
+        else {"status": "missing", "message": "no prose candidate found for exact-candidate review"}
+    )
+    promotion_json = root / "drafts" / "promotions" / f"{scene_id}_promotion.json"
+    promotion_payload = _read_json(promotion_json)
+    promoted_draft = root / "drafts" / "scenes" / f"{scene_id}.md"
+    state_patch_json = root / "characters" / "state_patches" / f"{scene_id}_state_patch.json"
+    state_patch_report = root / "characters" / "state_patches" / f"{scene_id}_state_patch.md"
 
     _add_gate(
         gates,
@@ -387,8 +452,74 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         f"{scene_id} composition is ready for generation",
         f"{scene_id} 的 composition 未达到 selection_source=selection 且 ready_for_generation=true；重建 compose-scene。",
     )
+    _add_gate(
+        gates,
+        f"{scene_id}:prose-candidate",
+        candidate_path is not None and candidate_path.exists(),
+        "blocking",
+        f"{scene_id} prose candidate exists",
+        f"{scene_id} 缺少 drafts/candidates/{scene_id}-*.md；不能直接写 drafts/scenes 正式草稿。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:agent-review-json",
+        review_json.exists(),
+        "blocking",
+        f"{scene_id} platform Agent review JSON exists",
+        f"{scene_id} 缺少 reviews/agent/{scene_id}_scene_review.json；运行 agent-review-scene --draft <candidate> 并由平台 Agent 填写 scene_review.v1。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:candidate-review-pass",
+        candidate_gate.get("status") == "pass",
+        "blocking",
+        f"{scene_id} exact prose candidate review passed",
+        f"{scene_id} 候选稿未通过 exact-candidate AgentReview：{candidate_gate.get('message') or candidate_gate.get('status') or 'missing'}。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:promotion-manifest",
+        promotion_json.exists(),
+        "blocking",
+        f"{scene_id} promotion manifest exists",
+        f"{scene_id} 缺少 drafts/promotions/{scene_id}_promotion.json；通过候选专属审查后运行 promote-candidate。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:promoted-draft",
+        promoted_draft.exists(),
+        "blocking",
+        f"{scene_id} promoted draft exists",
+        f"{scene_id} 缺少 drafts/scenes/{scene_id}.md；不能跳过 promote-candidate 直接进入章节装配。",
+    )
+    if promotion_json.exists():
+        promoted_candidate = str(promotion_payload.get("candidate") or "").strip()
+        gate = candidate_review_gate(root, scene_id, root / promoted_candidate) if promoted_candidate else {"status": "missing", "message": "promotion manifest has no candidate"}
+        _add_gate(
+            gates,
+            f"{scene_id}:promotion-candidate-review",
+            gate.get("status") == "pass",
+            "blocking",
+            f"{scene_id} promoted candidate had a formal pre-promotion review",
+            f"{scene_id} promotion 缺少正式候选审查门禁：{gate.get('message') or gate.get('status') or 'missing'}。",
+        )
+    _add_gate(
+        gates,
+        f"{scene_id}:state-patch-json",
+        state_patch_json.exists(),
+        "blocking",
+        f"{scene_id} state evolution JSON exists",
+        f"{scene_id} 缺少 characters/state_patches/{scene_id}_state_patch.json；promote 后运行 state-evolve --agent-tasks。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:state-patch-report",
+        state_patch_report.exists(),
+        "blocking",
+        f"{scene_id} state evolution report exists",
+        f"{scene_id} 缺少 characters/state_patches/{scene_id}_state_patch.md；平台 Agent 需审查人物状态演化候选。",
+    )
     if _mounted_style_exists(root):
-        review_json = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
         review_payload = _read_json(review_json)
         style_status = _style_adherence_status(review_payload)
         _add_gate(
@@ -399,19 +530,30 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
             f"{scene_id} mounted style adherence reviewed",
             f"{scene_id} 已挂载文风，但 scene_review.v1 缺少 clean pass 的 style_adherence；当前状态：{style_status or 'missing'}。",
         )
+
+
+def _promotion_candidate_path(root: Path, scene_id: str) -> Path | None:
     promotion_json = root / "drafts" / "promotions" / f"{scene_id}_promotion.json"
-    if promotion_json.exists():
-        promotion_payload = _read_json(promotion_json)
-        candidate = str(promotion_payload.get("candidate") or "").strip()
-        gate = candidate_review_gate(root, scene_id, root / candidate) if candidate else {"status": "missing", "message": "promotion manifest has no candidate"}
-        _add_gate(
-            gates,
-            f"{scene_id}:promotion-candidate-review",
-            gate.get("status") == "pass",
-            "blocking",
-            f"{scene_id} promoted candidate had a formal pre-promotion review",
-            f"{scene_id} promotion 缺少正式候选审查门禁：{gate.get('message') or gate.get('status') or 'missing'}。",
-        )
+    payload = _read_json(promotion_json)
+    candidate = str(payload.get("candidate") or "").strip()
+    if not candidate:
+        return None
+    path = Path(candidate)
+    return path if path.is_absolute() else root / path
+
+
+def _latest_scene_candidate(root: Path, scene_id: str) -> Path | None:
+    candidate_dir = root / "drafts" / "candidates"
+    if not candidate_dir.exists():
+        return None
+    candidates = [
+        path
+        for path in candidate_dir.glob(f"{scene_id}-*.md")
+        if not path.name.endswith(".agent_tasks.md") and not path.name.endswith(".prompt.md")
+    ]
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True)[0]
 
 
 def _scene_id(scene_path: Path) -> str:
@@ -477,6 +619,20 @@ def _unresolved_scene_review_count(root: Path) -> int:
         if not (report.exists() and manifest.exists()):
             unresolved += 1
     return unresolved
+
+
+def _unapplied_state_patch_count(root: Path) -> int:
+    patch_dir = root / "characters" / "state_patches"
+    if not patch_dir.exists():
+        return 0
+    count = 0
+    for path in sorted(patch_dir.glob("*_state_patch.json")):
+        scene_id = path.name[: -len("_state_patch.json")]
+        apply_json = patch_dir / f"{scene_id}_state_apply.json"
+        apply_report = patch_dir / f"{scene_id}_state_apply.md"
+        if not (apply_json.exists() and apply_report.exists()):
+            count += 1
+    return count
 
 
 def _review_needs_revision(payload: dict) -> bool:

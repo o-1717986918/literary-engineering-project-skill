@@ -315,7 +315,9 @@ workflow/route_audit.md
 workflow/route_audit.json
 ```
 
-These files are diagnostic dashboards. They summarize `.agent_tasks.md` sidecars, expected artifact paths, missing outputs, inferred routes, route-specific gates, promotion review gates, and unresolved scene review notes when auditing `scene-development`. They do not create prose, canon, characters, final plot, or approval. A pending sidecar remains pending until the platform agent reads it, writes the expected artifacts, and records the outcome.
+These files are diagnostic dashboards and formal route ledgers. They summarize `.agent_tasks.md` sidecars, expected artifact paths, missing outputs, inferred routes, route-specific gates, promotion review gates, and unresolved scene review notes when auditing `scene-development`. They do not create prose, canon, characters, final plot, or approval. A pending sidecar remains pending until the platform agent reads it, writes the expected artifacts, and records the outcome.
+
+When auditing `scene-development`, `route-audit` checks every `scenes/*.yaml` independently. Each formal scene needs context, roleplay reading receipt, resolved RP tasks, branch manifest, formal `branch_selection.md`, ready composition, prose candidate, exact-candidate `scene_review.v1`, promotion manifest, promoted draft, and `state-evolve` patch. A batch with one complete scene and many direct-written drafts is incomplete. For 100000+ word or multi-volume targets, `scene-development` and `export-and-release` audits also require the longform word-budget gate before bulk scene work.
 
 When auditing `scene-development`, `route-audit` also checks mounted Style Skills. If `style/active_style_skill.json` exists, each scene requires a formal scene review JSON with `style_adherence.status` equal to clean `pass`; `pass_with_notes`, a missing review, `not_applicable`, or `revise_required` is a blocking gate until revised or explicitly waived in an internal manifest.
 
@@ -434,7 +436,7 @@ Purpose:
 - point to the source artifacts the agent should inspect;
 - keep JSON, prompt manifest, canon, drafts, exports, and release artifacts free of task markers.
 
-Task files may contain `[AGENT_TASK: ...]`. They are not external LLM prompts, not canon, and not final prose. They may be deleted, replaced, or converted into formal review notes after the platform agent completes the work.
+Task files may contain `[AGENT_TASK: ...]`. They are not external LLM prompts, not canon, and not final prose. They are executable work for the tool-layer platform agent that loaded this skill. A CLI command that creates a task file has prepared the next step; it has not completed the creative/review step. The platform agent should read the sidecar, write the expected artifacts, inspect them, and only then continue to promotion, readiness, export, or user response. Task files may be deleted, replaced, or converted into formal review notes after the platform agent completes the work.
 
 Do not write `[AGENT_TASK: ...]` into:
 
@@ -550,7 +552,7 @@ drafts/candidates/{scene_id}-platform-agent.prompt.json
 drafts/candidates/{scene_id}-platform-agent.agent_tasks.md
 ```
 
-The prompt manifest records rendered messages, source files, and generation standards for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. Formal prompt manifests require a ready composition with `selection_source=selection` and `ready_for_generation=true`; missing or unselected composition is allowed only with an explicit internal-experiment waiver. Generated prose candidates require platform-agent review before promotion; use the sidecar task file for that review. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
+The prompt manifest records rendered messages, source files, and generation standards for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. Formal prompt manifests require a ready composition with `selection_source=selection` and `ready_for_generation=true`; missing or unselected composition is allowed only with an explicit internal-experiment waiver. Generated prose candidates require platform-agent review before promotion; run `agent-review-scene --draft <candidate>` or write an equivalent exact-candidate review, then read the generated sidecar and fill the expected `scene_review.v1` JSON/Markdown. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
 
 Generation standards include:
 

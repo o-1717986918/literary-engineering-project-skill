@@ -71,3 +71,5 @@
 - `phase69-punctuation-docx-office-migration.md`：引号统一与 DOCX 版式规划补强
 - `phase74-generation-style-guardrails.md`：生成层反 AI 腔硬约束与语义清洗边界
 - `phase75-plain-narration-density-gate.md`：朴素叙述约束与 AI 腔密度门禁
+- `phase76-supervisor-execution-discipline.md`：Supervisor Agent 执行纪律与 sidecar 闭环
+- `phase77-batch-scene-ledger-gates.md`：批量场景逐场景账本门禁

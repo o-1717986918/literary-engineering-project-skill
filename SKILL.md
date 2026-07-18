@@ -34,6 +34,21 @@ Use `agent-run`, `agent-repair`, provider-backed Python functions, `/director/ch
 
 Never let generated JSON, simulation output, local-director output, model scores, or a CLI recommendation become canon, selected plot direction, approved style policy, final prose, or release authority by itself.
 
+## Execution Discipline Gate
+
+- Do not declare a documented CLI step, sidecar step, or platform-agent task impossible until you have actually probed it: run `--help`, run `protocol <route>`, or attempt the smallest safe command. If it fails, record the exact command, error, and next workaround.
+- A command that emits `.agent_tasks.md` has not completed the step. It has handed executable work to the platform agent that loaded this skill. Read the sidecar immediately when possible, write the expected Markdown/JSON/prose artifacts, inspect them, then continue the route.
+- `agent-review-scene` is not an external model dependency by itself. It prepares the scene-review task and expected `scene_review.v1` outputs; the supervising platform agent performs the review and writes the files.
+- If a formal command such as `promote-candidate`, `chapter-workspace`, or `export-package` blocks on missing review/readiness gates, do not bypass it with an ad hoc script and call the result final. Resolve the gate, run `revise-scene`, run `agent-task-status` / `route-audit`, or record an explicit internal-preview waiver.
+
+## Batch Scene Loop Coverage Gate
+
+- A scene-development loop is per scene. Running the chain once for `scene_0075` does not cover `scene_0076` through `scene_0099`.
+- Before bulk drafting, identify the complete scene set from `scenes/*.yaml`, `plot/chapters/`, or the word-budget scene inventory, then track each scene through context, roleplay, branch selection, composition, prose candidate, exact-candidate AgentReview, `promote-candidate`, static/Agent review notes, and `state-evolve`.
+- For 100000+ word or multi-volume targets, run or emulate `word-budget` before bulk scene work. If `word_budget.json` reports `needs_expansion`, the platform agent must complete the budgeted outline, scene-inventory expansion, and reviews before treating prose generation as formally ready.
+- Run `route-audit --route scene-development` after a batch and before chapter/export. It must show each scene has a prose candidate, passing exact-candidate `scene_review.v1`, promotion manifest, promoted draft, and state patch. Missing gates are work items, not optional notes.
+- Run `longform-audit`, `agent-task-status`, and `route-audit --route export-and-release` before final delivery. Custom export scripts may produce internal previews only; they do not satisfy official readiness gates.
+
 ## First Move
 
 1. Identify the workspace type:
@@ -69,6 +84,7 @@ Before final response, explicitly account for the relevant completion gates: rou
 - Retrieval results, roleplay output, model summaries, and style matches are evidence, not canon.
 - Source-derived extraction is evidence, not canon. Existing-work imports must write extracted characters, world rules, outlines, timelines, foreshadowing, and style notes to candidate/review locations before any promotion.
 - Longform word budgets are generation constraints, not final plot. For 100000+ word or multi-volume targets, build or inspect `plot/word_budget/word_budget.json`, have the platform agent handle the budget expansion and scene-inventory sidecars, and do not bulk-generate while budget status is `needs_expansion` or chapter/scene inventory shortfalls are unresolved.
+- Scene loop evidence is per-scene evidence. A batch is incomplete if any scene lacks context, RP, branch selection, composition, candidate, exact-candidate AgentReview, promotion, promoted draft, or state patch; `route-audit --route scene-development` is the default ledger for this.
 - Draft length, chapter progress, longform progress, and export manifest `draft_chars` must use cleaned deliverable prose only. Do not count workflow notes, review text, canon explanations, prompt manifests, `[AGENT_TASK: ...]`, status/writeback candidates, scene IDs, or file paths as prose length.
 - Formal scene generation must not start from `generate-scene`, manual drafting, or provider-backed helpers until the scene has a context packet, roleplay simulation with platform-agent reading receipt, branch manifest, formal `branch_selection.md`, and a ready `selection_source=selection` composition. Any shortcut requires an explicit internal-experiment waiver and must not be promoted or exported.
 - LLM-authored JSON is a draft artifact until the tool-layer agent validates schema, checks project constraints, and accepts it as a candidate or asks for approval.

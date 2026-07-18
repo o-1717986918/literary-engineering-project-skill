@@ -27,6 +27,7 @@ COMMON_PREFLIGHT = (
     "Select this route in agentread.yaml and avoid starting from an arbitrary command.",
     "Read references/agent-run-protocol.md before changing project artifacts.",
     "Inspect project.yaml plus relevant canon, characters, plot, style, drafts, reviews, workflow, and approvals.",
+    "Probe documented commands before declaring them unavailable: run --help, protocol <route>, or the smallest safe command attempt; record exact errors before choosing an emulation path.",
     "Run agent-task-status or route-audit when sidecar or route completion state is unclear.",
     "State intended artifacts, review gates, and approval boundary before generation or promotion.",
 )
@@ -34,8 +35,10 @@ COMMON_PREFLIGHT = (
 COMMON_FORBIDDEN = (
     "Do not accept CLI output as canon or final creative judgment.",
     "Do not accept generated JSON merely because it parses.",
-    "Do not skip .agent_tasks.md handling when a command writes sidecars.",
+    "Do not skip .agent_tasks.md handling when a command writes sidecars; the current platform agent must read the task and fill expected artifacts.",
+    "Do not declare a documented CLI/tool step impossible without probing it or recording a real command failure.",
     "Do not promote candidates without review and approval unless the user explicitly asks for an internal experiment.",
+    "Do not bypass failed readiness/export gates with a custom script and present the result as final release output.",
     "Do not store API keys or provider secrets in work projects.",
 )
 
@@ -298,6 +301,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         + (
             "Inspect the scene file, participants, previous scene state, and mounted style.",
             "Identify whether this turn needs context, simulation, branch, composition, prose, review, or state patch.",
+            "For a chapter or volume batch, list every scene first; this runbook must be repeated per scene, not sampled.",
         ),
         cli_chain=(
             "python -m literary_engineering_workbench protocol scene-development",
@@ -308,6 +312,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "python -m literary_engineering_workbench compose-scene <project> --scene scenes/scene_0001.yaml --agent-tasks",
             "python -m literary_engineering_workbench generate-scene <project> --scene scenes/scene_0001.yaml",
             "python -m literary_engineering_workbench agent-review-scene <project> --scene scenes/scene_0001.yaml --draft drafts/candidates/scene_0001-platform-agent.md",
+            "Read reviews/agent/scene_0001_scene_review.agent_tasks.md and write the expected scene_review.v1 JSON/Markdown as platform agent.",
             "python -m literary_engineering_workbench promote-candidate <project> --scene scenes/scene_0001.yaml",
             "python -m literary_engineering_workbench review-scene <project> --scene scenes/scene_0001.yaml",
             "python -m literary_engineering_workbench revise-scene <project> --scene scenes/scene_0001.yaml",
@@ -316,7 +321,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         ),
         platform_agent_handoffs=(
             "Roleplay answers, branch selection, consequence reasoning, and scene composition judgment.",
-            "Prose drafting, AgentReview notes resolution, formal revision candidate generation, and scene review.",
+            "Prose drafting, AgentReview notes resolution, formal revision candidate generation, and scene review. agent-review-scene is a sidecar generator; the platform agent performs the review.",
             "Character state patch interpretation and promotion recommendation.",
         ),
         completion_gates=(
@@ -324,14 +329,19 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "Roleplay simulation exists, includes a platform-agent reading receipt, and has no unresolved AGENT_TASK directives.",
             "Branch manifest exists and branch_selection.md records decision: selected plus selected_branch before composition or generation.",
             "Composition exists with selection_source=selection and ready_for_generation=true before generate-scene or state writeback.",
+            "Prose candidate exists for each target scene; direct drafts without a candidate/promotion trail are internal experiments only.",
             "Prose candidate reviewed for canon, character, style, and punctuation.",
+            "agent-review-scene was run or an equivalent exact-candidate platform review was written with a concrete reason for any CLI skip.",
             "Exact candidate path is cited in a passing scene_review.v1 JSON before promote-candidate.",
+            "promote-candidate wrote the promotion manifest and promoted draft for each formal scene.",
             "Any pass_with_notes, warning, or revise_required finding is resolved through revise-scene or a recorded waiver.",
-            "State patch remains candidate until reviewed and approved.",
+            "state-evolve wrote a state patch for each formal scene; state-apply remains approval-gated.",
+            "route-audit --route scene-development passes or lists every missing per-scene gate before chapter/export readiness.",
         ),
         forbidden_shortcuts=COMMON_FORBIDDEN
         + (
             "Do not let branch scores become final plot decisions without platform-agent review.",
+            "Do not process one representative scene and bulk-write the rest without their own RP/branch/composition/review/promotion/state gates.",
             "Do not skip Chinese punctuation review for Chinese prose.",
         ),
     ),
@@ -410,6 +420,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "Approval record verified or pending approval stated.",
             "Requested file formats generated and inspected; DOCX exports include layout and inspection companion files.",
             "Release notes and rollback notes prepared.",
+            "If official export was blocked, any workaround is labeled internal preview unless missing gates were resolved.",
         ),
         forbidden_shortcuts=COMMON_FORBIDDEN
         + (

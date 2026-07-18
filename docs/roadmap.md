@@ -216,6 +216,14 @@
 
 已在 `v0.75.0` 将用户提供的“给朋友讲一件事 / 日记标准”融入生成层和审查层。机械“不是……而是……”“并非……而是……”“与其说……不如说……”及“不是……——是……”等变体升级为核心禁区，不再允许平台 Agent 或 Style Skill 把它判断为合理修辞；若源文风存在否定纠偏，只抽象其认知二分、信息反转、讽刺顿挫或叙述者纠偏功能，并改写为动作、事实顺序、信息差或直接陈述。器官轮岗、万能占位、比喻依赖、抽象总结、景物强制同步、模板转折和破折号密集使用改为约 2% 叙事单元密度门禁：孤立风险点进入低级复核，密集出现升级为修订问题。可挂载文风 `prompt.md` 上限提升到 2500 字，以容纳更完整的优秀 prompt 模块和降低 AI 腔规则。
 
+## Phase 76：Supervisor Agent 执行纪律与 sidecar 闭环
+
+已在 `v0.76.0` 修正实际使用中暴露的执行纪律问题：平台 Agent 不能事前判断某个文档命令“做不了”，必须先运行 `--help`、打印 `protocol <route>` 或尝试最小安全命令；失败后记录真实命令和错误。所有 `.agent_tasks.md` 统一声明“命令写出本文件只表示任务准备好，不表示任务完成”，要求当前平台 Agent 读取 sidecar、写入 expected artifacts、检查产物后再晋升/导出/回复。`agent-review-scene` 明确为场景审查 sidecar 生成器，不是外部模型依赖；正式候选 promotion 前必须由平台 Agent 写入引用 exact candidate 的 `scene_review.v1` JSON/Markdown。若 `export-package` 或 readiness gate 阻塞，不能用自写脚本绕过并标为最终交付，只能修复 gate 或记录内部预览 waiver。
+
+## Phase 77：批量场景逐场景账本门禁
+
+已在 `v0.77.0` 修正批量场景实际使用中暴露的“只做一场完整流程，余下场景直接写 prose”问题。`route-audit --route scene-development` 现在把每个 `scenes/*.yaml` 当作独立账本，逐项阻塞缺失 prose candidate、exact-candidate `scene_review.v1`、promotion manifest、promoted draft 和 `state-evolve` patch 的场景；已有 RP、branch 和 composition gate 继续保留。目标达到 100000+ 字或多卷时，scene-development / export-and-release audit 还会要求先完成 word-budget 及预算 review；当预算状态为 `needs_expansion` 时，预算化大纲、场景库存扩展和对应 review 必须补齐。`SKILL.md`、`AGENTS.md`、`agent-run-protocol`、`cli-run-protocol` 和 `protocol scene-development` 均明确“一条 scene loop 只覆盖一个场景，不能代表整个章节或卷”。
+
 ## Phase 47：前端显式 API Key 配置
 
 已实现前端 API Key 密码输入框、`/config` 明文保存与脱敏响应、空 key 保存保留既有密钥、`model_config.py` 从环境变量或保存的 profile key 读取密钥。
