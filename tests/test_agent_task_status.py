@@ -4,10 +4,13 @@ from pathlib import Path
 
 from literary_engineering_workbench.agent_tasks import write_agent_completion_marker
 from literary_engineering_workbench.agent_task_status import build_agent_task_status, build_route_audit
+from literary_engineering_workbench.approval import record_workflow_approval
+from literary_engineering_workbench.asset_workshop import create_asset_candidate, promote_candidate_asset
 from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.candidate_promotion import promote_scene_candidate
 from literary_engineering_workbench.character_state_evolver import build_character_state_patch
 from literary_engineering_workbench.cli import build_parser
+from literary_engineering_workbench.platform_agent_tasks import write_platform_asset_creation_task, write_platform_asset_review_task
 from literary_engineering_workbench.scene_composer import build_scene_composition
 
 from helpers import TempProjectMixin, add_character, make_reviewed_passing_scene, write_formal_candidate_artifacts, write_platform_scene_review
@@ -71,6 +74,48 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
 
         self.assertGreater(result.blocking_count, 0)
         self.assertTrue(any(gate["key"] == "scene-sidecars-handled" and gate["status"] == "fail" for gate in payload["gates"]))
+
+    def test_route_audit_blocks_asset_without_review_approval_and_promotion(self):
+        project = self.make_project()
+        candidate = create_asset_candidate(project, asset_type="character", brief="谨慎调查者", target_id="linzhou", provider="dry-run")
+        creation = write_platform_asset_creation_task(
+            project,
+            asset_type="character",
+            brief="谨慎调查者",
+            target_id="linzhou",
+            candidate_path=candidate.candidate_path,
+            report_path=candidate.report_path,
+        )
+        write_agent_completion_marker(creation.task_path, root=project, handled_by="platform-agent-test")
+
+        result = build_route_audit(project, route="character-and-world-assets")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertGreater(result.blocking_count, 0)
+        self.assertTrue(any(gate["key"].endswith(":asset-review-clean-pass") and gate["status"] == "fail" for gate in payload["gates"]))
+        self.assertTrue(any(gate["key"].endswith(":asset-approval") and gate["status"] == "fail" for gate in payload["gates"]))
+
+    def test_route_audit_passes_promoted_asset_route(self):
+        project = self.make_project()
+        candidate = create_asset_candidate(project, asset_type="character", brief="谨慎调查者", target_id="linzhou", provider="dry-run")
+        creation = write_platform_asset_creation_task(
+            project,
+            asset_type="character",
+            brief="谨慎调查者",
+            target_id="linzhou",
+            candidate_path=candidate.candidate_path,
+            report_path=candidate.report_path,
+        )
+        write_agent_completion_marker(creation.task_path, root=project, handled_by="platform-agent-test")
+        review = write_platform_asset_review_task(project, candidate_path=candidate.candidate_path)
+        _write_clean_asset_review(project, candidate.candidate_id, candidate.candidate_path)
+        write_agent_completion_marker(review.task_path, root=project, handled_by="platform-agent-test")
+        record_workflow_approval(project, candidate.candidate_id, "approve", actor="tester")
+        promote_candidate_asset(project, candidate.candidate_path, group="character", approval_run_id=candidate.candidate_id)
+
+        result = build_route_audit(project, route="character-and-world-assets")
+
+        self.assertEqual(result.blocking_count, 0)
 
     def test_route_audit_reports_unresolved_review_notes(self):
         project = self.make_project()
@@ -385,6 +430,34 @@ def _mount_style(project: Path):
         + "\n",
         encoding="utf-8",
     )
+
+
+def _write_clean_asset_review(project: Path, candidate_id: str, candidate_path: Path) -> None:
+    review_dir = project / "reviews" / "assets"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    review_json = review_dir / f"{candidate_id}_review.json"
+    review_md = review_dir / f"{candidate_id}_review.md"
+    review_json.write_text(
+        json.dumps(
+            {
+                "schema": "literary-engineering-workbench/candidate-asset-review/v0.1",
+                "candidate": candidate_path.relative_to(project).as_posix(),
+                "candidate_id": candidate_id,
+                "asset_type": "character",
+                "status": "pass",
+                "blocking_issues": [],
+                "warnings": [],
+                "revision_actions": [],
+                "promotion_risks": [],
+                "reviewed_at": "2026-07-18T00:00:00+00:00",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    review_md.write_text("# Candidate Asset Review\n\n- Status：`pass`\n", encoding="utf-8")
 
 
 def _write_candidate(project: Path, scene_id: str = "scene_0001") -> Path:

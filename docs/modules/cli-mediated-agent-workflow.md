@@ -44,7 +44,7 @@ CLI 不负责：
 
 ## 3. 最小命令闭环
 
-当前支持 `scene-development`、`longform-planning`、`source-ingest` 与 `style-engineering` 四条正式路线。`scene-development` 是逐场景样板；`longform-planning` 用来确保长篇字数预算、预算化大纲和分场景库存不会被生成环节跳过；`source-ingest` 用来确保已有作品导入后的反推设定、候选资产和 review 不会被跳过；`style-engineering` 用来确保文风 profile 真正转化为可挂载、可评测的 LLM-facing prompt。
+当前支持 `scene-development`、`longform-planning`、`source-ingest`、`style-engineering` 与 `character-and-world-assets` 五条正式路线。`scene-development` 是逐场景样板；`longform-planning` 用来确保长篇字数预算、预算化大纲和分场景库存不会被生成环节跳过；`source-ingest` 用来确保已有作品导入后的反推设定、候选资产和 review 不会被跳过；`style-engineering` 用来确保文风 profile 真正转化为可挂载、可评测的 LLM-facing prompt；`character-and-world-assets` 用来确保角色/世界/大纲等候选资产必须经过 sidecar、review、approval 和 promotion gate。
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -117,6 +117,8 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 从 `v0.84.3` 起，`source-ingest` 已接入同一生命周期：`source-manifest`、`extraction-agent-task`、`extraction-review`。已有作品导入只负责源文本、chunk 和 extraction sidecar；反推出的项目简报、人物/背景、世界观、大纲、时间线、伏笔、文风 notes 和 extraction review 必须由平台 Agent 写入候选区。completion marker、候选文件和 clean `pass` review 缺一项都不能 ready。
 
 从 `v0.84.4` 起，`style-engineering` 已接入同一生命周期：`style-profile`、`style-prompt-task-file`、`style-prompt-agent-task`、`style-prompt-quality`、`style-eval-readiness`。项目根 `style/style-profile.md` 占位文件不会被误当成 profile；真正的 profile 目录必须完成 sidecar、prompt、agent JSON、质量检查和 accepted style eval 后才 ready。
+
+从 `v0.84.5` 起，`character-and-world-assets` 已接入同一生命周期：`asset-intake`、`asset-creation-agent-task`、`asset-review-task-file`、`asset-review-agent-task`、`asset-review-pass`、`asset-approval`、`asset-promotion`。`asset-create` / `agent-create-*` 只准备平台 Agent 创建任务；review 只证明候选可请求审批，不等于用户 approval；`promote-candidate-asset` 必须使用 approve record，不能用 `--allow-unapproved`。
 
 ## 4. Scene-development 样板状态
 
@@ -220,6 +222,39 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 3. 必须包含身份/边界、核心机制、叙述距离、句法节奏、标点、意象感官、心理/行为、对白、AI 腔控制、禁止倾向和输出自检。
 4. accepted eval 要求 `overall_score >= 45`，且 `risk_level` 不能是 `high_copy_risk` 或 `low_similarity`。
 
+## 4.4 Character-and-world-assets 状态
+
+角色/世界资产路线顺序：
+
+1. `asset-intake`
+2. `asset-creation-agent-task`
+3. `asset-review-task-file`
+4. `asset-review-agent-task`
+5. `asset-review-pass`
+6. `asset-approval`
+7. `asset-promotion`
+
+对应硬产物：
+
+1. `characters/candidates/*.agent_tasks.md`、`canon/candidates/**/*.agent_tasks.md` 或 `plot/candidates/**/*.agent_tasks.md`
+2. 对应候选 JSON 与候选 Markdown 报告
+3. 创建 sidecar 的 `.agent_completion.json`
+4. `reviews/assets/{candidate_id}_review.agent_tasks.md`
+5. `reviews/assets/{candidate_id}_review.json`
+6. `reviews/assets/{candidate_id}_review.md`
+7. 审查 sidecar 的 `.agent_completion.json`
+8. `workflow/approvals/index.jsonl` 中匹配 candidate_id 的 approve 记录
+9. `workflow/asset_promotions/{candidate_id}_promotion.json`
+10. promotion manifest 列出的正式输出文件
+
+质量门禁：
+
+1. 候选 JSON 必须通过资产类型对应 schema，并保留 `candidate_id`、`risks`、`source_paths`、`promotion_notes`。
+2. 角色与背景故事候选必须把 `background_story` 作为隐性行为因果，不得默认写成正文 exposition。
+3. 平台 Agent 资产审查必须 `status=pass`，且没有 blocking issues 或 unresolved revision actions。
+4. Review 不是 approval。用户 approve 记录缺失时不能晋升。
+5. `allow_unapproved=true` 的 promotion manifest 在正式路线中 blocking。
+
 ## 5. Task 包必须包含什么
 
 每个 `agent-task.v1` 至少包含：
@@ -283,4 +318,4 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 2. Context Broker：让 `task-open` 输出稳定的 context trace。
 3. Reader Experience Contract：让字数和章节义务进入 `task-open` 与 `task-complete`。
 4. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
-5. 继续横向接入 `character-and-world-assets`、`review-and-audit`、`export-and-release`。
+5. 继续横向接入 `review-and-audit`、`export-and-release`。

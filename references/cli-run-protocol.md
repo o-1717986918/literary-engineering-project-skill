@@ -141,6 +141,19 @@ The platform agent must write or approve the LLM-facing style prompt and judge i
 
 ### Character And World Assets
 
+Preferred formal control loop:
+
+```powershell
+python -m literary_engineering_workbench protocol character-and-world-assets
+python -m literary_engineering_workbench task-next <project> --route character-and-world-assets
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
+# Run asset-create / agent-create-* when the intake task asks for it, or complete the current asset sidecar/review/approval/promotion task.
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
+```
+
+Underlying commands:
+
 ```powershell
 python -m literary_engineering_workbench protocol character-and-world-assets
 python -m literary_engineering_workbench agent-create-character <project> --brief "<brief>"
@@ -148,7 +161,7 @@ python -m literary_engineering_workbench review-candidate-asset <project> <candi
 python -m literary_engineering_workbench promote-candidate-asset <project> <candidate> --approval-run-id <id>
 ```
 
-The platform agent writes candidate content, reviews motive/canon/style risks, and asks for approval before promotion.
+The platform agent writes candidate content, reviews motive/canon/style risks, and asks for approval before promotion. Under `task-next --route character-and-world-assets`, the formal route gates are: asset creation sidecar completion, candidate JSON/report, review sidecar completion, clean `pass` review, matching approve record, promotion manifest, no `allow_unapproved`, and promoted outputs. Review is not approval.
 
 ### Scene Development
 

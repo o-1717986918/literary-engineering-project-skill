@@ -3,8 +3,11 @@ import unittest
 from pathlib import Path
 
 from literary_engineering_workbench.agent_tasks import default_agent_completion_path, write_agent_completion_marker
+from literary_engineering_workbench.approval import record_workflow_approval
+from literary_engineering_workbench.asset_workshop import create_asset_candidate, promote_candidate_asset
 from literary_engineering_workbench.cli import build_parser, main
 from literary_engineering_workbench.context_packet import build_context_packet
+from literary_engineering_workbench.platform_agent_tasks import write_platform_asset_creation_task, write_platform_asset_review_task
 from literary_engineering_workbench.task_registry import (
     complete_task,
     issue_next_task,
@@ -533,6 +536,91 @@ class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
             complete_task(project, issued.task_id)
         self.assertIn("accepted style_eval_*.json missing", str(ctx.exception))
 
+    def test_character_world_assets_route_starts_with_intake_task(self):
+        project = self.make_project()
+
+        issued = issue_next_task(project, route="character-and-world-assets")
+
+        self.assertEqual(issued.status, "issued")
+        self.assertEqual(issued.scene_id, "asset-intake")
+        self.assertEqual(issued.current_state, "asset-intake")
+        payload = json.loads(issued.task_json_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["route"], "character-and-world-assets")
+        self.assertIn("asset-create", payload["command"])
+        with self.assertRaises(ValueError) as ctx:
+            complete_task(project, issued.task_id)
+        self.assertIn("no candidate asset or asset creation sidecar exists", str(ctx.exception))
+
+    def test_character_world_assets_moves_from_creation_to_review_task(self):
+        project = self.make_project()
+        candidate = create_asset_candidate(project, asset_type="character", brief="谨慎调查者", target_id="linzhou", provider="dry-run")
+        task = write_platform_asset_creation_task(
+            project,
+            asset_type="character",
+            brief="谨慎调查者",
+            target_id="linzhou",
+            candidate_path=candidate.candidate_path,
+            report_path=candidate.report_path,
+        )
+        write_agent_completion_marker(task.task_path, root=project, handled_by="platform-agent-test")
+
+        issued = issue_next_task(project, route="character-and-world-assets")
+
+        self.assertEqual(issued.current_state, "asset-review-task-file")
+        self.assertIn(candidate.candidate_id.lower(), issued.task_id)
+        payload = json.loads(issued.task_json_path.read_text(encoding="utf-8"))
+        self.assertIn("review-candidate-asset", payload["command"])
+
+    def test_character_world_assets_blocks_unreviewed_asset_review(self):
+        project = self.make_project()
+        candidate = create_asset_candidate(project, asset_type="character", brief="谨慎调查者", target_id="linzhou", provider="dry-run")
+        creation = write_platform_asset_creation_task(
+            project,
+            asset_type="character",
+            brief="谨慎调查者",
+            target_id="linzhou",
+            candidate_path=candidate.candidate_path,
+            report_path=candidate.report_path,
+        )
+        write_agent_completion_marker(creation.task_path, root=project, handled_by="platform-agent-test")
+        review = write_platform_asset_review_task(project, candidate_path=candidate.candidate_path)
+        write_agent_completion_marker(review.task_path, root=project, handled_by="platform-agent-test")
+
+        issued = issue_next_task(project, route="character-and-world-assets")
+
+        self.assertEqual(issued.current_state, "asset-review-agent-task")
+        with self.assertRaises(FileNotFoundError):
+            complete_task(project, issued.task_id)
+
+    def test_character_world_assets_requires_approval_before_promotion(self):
+        project = self.make_project()
+        candidate = create_asset_candidate(project, asset_type="character", brief="谨慎调查者", target_id="linzhou", provider="dry-run")
+        _write_asset_creation_completion(project, candidate)
+        review = write_platform_asset_review_task(project, candidate_path=candidate.candidate_path)
+        _write_clean_asset_review(project, candidate.candidate_id, candidate.candidate_path)
+        write_agent_completion_marker(review.task_path, root=project, handled_by="platform-agent-test")
+
+        issued = issue_next_task(project, route="character-and-world-assets")
+
+        self.assertEqual(issued.current_state, "asset-approval")
+        with self.assertRaises(FileNotFoundError) as ctx:
+            complete_task(project, issued.task_id)
+        self.assertIn("workflow/approvals/index.jsonl", str(ctx.exception))
+
+    def test_character_world_assets_route_ready_after_promotion(self):
+        project = self.make_project()
+        candidate = create_asset_candidate(project, asset_type="character", brief="谨慎调查者", target_id="linzhou", provider="dry-run")
+        _write_asset_creation_completion(project, candidate)
+        review = write_platform_asset_review_task(project, candidate_path=candidate.candidate_path)
+        _write_clean_asset_review(project, candidate.candidate_id, candidate.candidate_path)
+        write_agent_completion_marker(review.task_path, root=project, handled_by="platform-agent-test")
+        record_workflow_approval(project, candidate.candidate_id, "approve", actor="tester")
+        promote_candidate_asset(project, candidate.candidate_path, group="character", approval_run_id=candidate.candidate_id)
+
+        ready = issue_next_task(project, route="character-and-world-assets")
+
+        self.assertEqual(ready.status, "ready")
+
 
 def _write_registry_task(
     project: Path,
@@ -715,6 +803,46 @@ def _write_valid_style_prompt(profile_dir: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
+
+
+def _write_asset_creation_completion(project: Path, candidate) -> None:
+    task = write_platform_asset_creation_task(
+        project,
+        asset_type="character",
+        brief="谨慎调查者",
+        target_id="linzhou",
+        candidate_path=candidate.candidate_path,
+        report_path=candidate.report_path,
+    )
+    write_agent_completion_marker(task.task_path, root=project, handled_by="platform-agent-test")
+
+
+def _write_clean_asset_review(project: Path, candidate_id: str, candidate_path: Path) -> None:
+    review_dir = project / "reviews" / "assets"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    review_json = review_dir / f"{candidate_id}_review.json"
+    review_md = review_dir / f"{candidate_id}_review.md"
+    review_json.write_text(
+        json.dumps(
+            {
+                "schema": "literary-engineering-workbench/candidate-asset-review/v0.1",
+                "candidate": _rel(project, candidate_path),
+                "candidate_id": candidate_id,
+                "asset_type": "character",
+                "status": "pass",
+                "blocking_issues": [],
+                "warnings": [],
+                "revision_actions": [],
+                "promotion_risks": [],
+                "reviewed_at": "2026-07-18T00:00:00+00:00",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    review_md.write_text("# Candidate Asset Review\n\n- Status：`pass`\n", encoding="utf-8")
 
 
 def _rel(project: Path, value: Path | str) -> str:

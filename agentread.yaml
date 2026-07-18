@@ -290,9 +290,15 @@ task_routes:
       - promotion recommendation
       - user approval question
     completion_gates:
+      - formal character/world asset work uses task-next/task-open/task-submit/task-complete with route character-and-world-assets until ready
+      - asset-create or agent-create-* only prepares the platform-agent creation sidecar
       - asset written as candidate first
+      - candidate JSON/report and asset creation completion marker exist
+      - review-candidate-asset sidecar exists and has been completed by the platform agent
       - schema and canon risks reviewed
+      - candidate review status is pass with no blocking issues or unresolved revision actions
       - explicit approval required before promotion
+      - promotion manifest exists, does not use allow_unapproved, and listed promoted outputs exist
 
   scene_development:
     protocol: scene-development

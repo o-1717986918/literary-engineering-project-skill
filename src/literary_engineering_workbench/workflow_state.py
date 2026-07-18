@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 
 from .agent_tasks import agent_task_completion_status
+from .asset_workshop import ASSET_CANDIDATE_DIRS
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .flow_gates import branch_selection_status
 from .style_prompt import style_prompt_quality_report
@@ -44,6 +45,7 @@ def build_workflow_state(
     longform = _longform_state(root) if normalized_route in {"longform-planning", "overall"} else {}
     source_ingests = _source_ingest_states(root) if normalized_route in {"source-ingest", "overall"} else []
     styles = _style_engineering_states(root) if normalized_route in {"style-engineering", "overall"} else []
+    assets = _asset_states(root, include_intake=normalized_route == "character-and-world-assets") if normalized_route in {"character-and-world-assets", "overall"} else []
     longform_blocked = 1 if longform and longform.get("status") != "ready" else 0
     longform_ready = 1 if longform and longform.get("status") == "ready" else 0
     summary = {
@@ -51,23 +53,27 @@ def build_workflow_state(
         "scene_count": len(scenes),
         "source_ingest_count": len(source_ingests),
         "style_profile_count": len(styles),
+        "asset_count": len(assets),
         "ready_count": (
             sum(1 for scene in scenes if scene["status"] == "ready")
             + longform_ready
             + sum(1 for item in source_ingests if item["status"] == "ready")
             + sum(1 for item in styles if item["status"] == "ready")
+            + sum(1 for item in assets if item["status"] == "ready")
         ),
         "blocked_count": (
             sum(1 for scene in scenes if scene["status"] != "ready")
             + longform_blocked
             + sum(1 for item in source_ingests if item["status"] != "ready")
             + sum(1 for item in styles if item["status"] != "ready")
+            + sum(1 for item in assets if item["status"] != "ready")
         ),
         "next_action_count": (
             sum(1 for scene in scenes if scene.get("next_action"))
             + (1 if longform and longform.get("next_action") else 0)
             + sum(1 for item in source_ingests if item.get("next_action"))
             + sum(1 for item in styles if item.get("next_action"))
+            + sum(1 for item in assets if item.get("next_action"))
         ),
         "longform_status": longform.get("status", "") if isinstance(longform, dict) else "",
     }
@@ -81,6 +87,7 @@ def build_workflow_state(
         "longform": longform,
         "source_ingests": source_ingests,
         "styles": styles,
+        "assets": assets,
         "rules": [
             "This state ledger is advisory plus auditable; command-level gates remain authoritative.",
             "A step is pass only when the formal CLI artifact and its platform-agent completion marker both exist where required.",
@@ -309,6 +316,166 @@ def _style_engineering_states(root: Path) -> list[dict[str, object]]:
     return states
 
 
+def _asset_states(root: Path, *, include_intake: bool = False) -> list[dict[str, object]]:
+    records: dict[str, dict[str, Path | str]] = {}
+    for asset_type, folder in ASSET_CANDIDATE_DIRS.items():
+        base = root / folder
+        if not base.exists():
+            continue
+        for candidate in sorted(base.glob("*.json")):
+            if candidate.name.endswith(".agent_completion.json") or candidate.name.endswith(".submission.json"):
+                continue
+            candidate_id = candidate.stem
+            record = records.setdefault(candidate_id, {"candidate": candidate, "asset_type": asset_type})
+            record["candidate"] = candidate
+            record["asset_type"] = str(_read_json(candidate).get("asset_type") or asset_type)
+        for task in sorted(base.glob("*.agent_tasks.md")):
+            candidate_id = _agent_task_base(task).stem
+            record = records.setdefault(candidate_id, {"candidate": _agent_task_base(task).with_suffix(".json"), "asset_type": asset_type})
+            record["creation_task"] = task
+            record.setdefault("candidate", _agent_task_base(task).with_suffix(".json"))
+            record.setdefault("asset_type", asset_type)
+    states = [_asset_state(root, record) for _candidate_id, record in sorted(records.items())]
+    if not states and include_intake:
+        states.append(_asset_intake_state())
+    return states
+
+
+def _asset_intake_state() -> dict[str, object]:
+    return {
+        "target_id": "asset-intake",
+        "candidate_id": "asset-intake",
+        "asset_type": "",
+        "candidate": "",
+        "status": "blocked",
+        "current_step": "asset-intake",
+        "next_action": "choose asset type from user direction and run asset-create / agent-create-* to create a platform-agent sidecar",
+        "steps": [
+            {
+                "key": "asset-intake",
+                "status": "missing",
+                "path": "",
+                "message": "no candidate asset or asset creation sidecar found",
+                "next_action": "run asset-create / agent-create-* with asset type, brief, optional target id, and optional source",
+            }
+        ],
+    }
+
+
+def _asset_state(root: Path, record: dict[str, Path | str]) -> dict[str, object]:
+    candidate = record.get("candidate")
+    candidate_path = candidate if isinstance(candidate, Path) else root / str(candidate)
+    candidate_id = candidate_path.stem
+    payload = _read_json(candidate_path)
+    asset_type = str(payload.get("asset_type") or record.get("asset_type") or _infer_asset_type(root, candidate_path))
+    creation_task = record.get("creation_task")
+    creation_task_path = creation_task if isinstance(creation_task, Path) else candidate_path.with_suffix(".agent_tasks.md")
+    report_path = candidate_path.with_suffix(".md")
+    review_path = root / "reviews" / "assets" / f"{candidate_id}_review.md"
+    review_json = review_path.with_suffix(".json")
+    review_task = review_json.with_suffix(".agent_tasks.md")
+    promotion_manifest = root / "workflow" / "asset_promotions" / f"{candidate_id}_promotion.json"
+    steps = [
+        _asset_creation_step(root, candidate_path, report_path, creation_task_path),
+        _file_step("asset-review-task-file", review_task, "run review-candidate-asset to create the platform-agent asset review sidecar"),
+        _asset_review_agent_step(root, review_task, review_json, review_path),
+        _asset_review_pass_step(root, review_json),
+        _asset_approval_step(root, candidate_id),
+        _asset_promotion_step(root, promotion_manifest),
+    ]
+    first_open = next((step for step in steps if step["status"] != "pass"), None)
+    return {
+        "target_id": candidate_id,
+        "candidate_id": candidate_id,
+        "asset_type": asset_type,
+        "candidate": _rel(candidate_path, root),
+        "status": "ready" if first_open is None else "blocked",
+        "current_step": first_open["key"] if first_open else "ready",
+        "next_action": first_open["next_action"] if first_open else "",
+        "steps": steps,
+    }
+
+
+def _asset_creation_step(root: Path, candidate_path: Path, report_path: Path, task_path: Path) -> dict[str, object]:
+    state = agent_task_completion_status(task_path, root=root)
+    missing = [_rel(path, root) for path in (candidate_path, report_path) if not path.exists()]
+    complete = state.get("complete") is True and not missing
+    message = str(state.get("message") or "")
+    if missing:
+        message = (message + "; " if message else "") + "missing " + ", ".join(missing)
+    return {
+        "key": "asset-creation-agent-task",
+        "status": "pass" if complete else str(state.get("status") or "pending"),
+        "path": _rel(task_path, root),
+        "completion": state.get("completion", ""),
+        "message": message,
+        "next_action": "" if complete else "complete asset creation sidecar, candidate JSON, candidate report, and completion marker",
+    }
+
+
+def _asset_review_agent_step(root: Path, task_path: Path, json_path: Path, report_path: Path) -> dict[str, object]:
+    state = agent_task_completion_status(task_path, root=root)
+    missing = [_rel(path, root) for path in (json_path, report_path) if not path.exists()]
+    complete = state.get("complete") is True and not missing
+    message = str(state.get("message") or "")
+    if missing:
+        message = (message + "; " if message else "") + "missing " + ", ".join(missing)
+    return {
+        "key": "asset-review-agent-task",
+        "status": "pass" if complete else str(state.get("status") or "pending"),
+        "path": _rel(task_path, root),
+        "completion": state.get("completion", ""),
+        "message": message,
+        "next_action": "" if complete else "complete asset review sidecar, review JSON, review report, and completion marker",
+    }
+
+
+def _asset_review_pass_step(root: Path, review_json: Path) -> dict[str, object]:
+    payload = _read_json(review_json)
+    status = str(payload.get("status") or "").strip().lower()
+    blocking = payload.get("blocking_issues") if isinstance(payload.get("blocking_issues"), list) else []
+    revisions = payload.get("revision_actions") if isinstance(payload.get("revision_actions"), list) else []
+    passed = status == "pass" and not blocking and not revisions
+    return {
+        "key": "asset-review-pass",
+        "status": "pass" if passed else status or "missing",
+        "path": _rel(review_json, root),
+        "message": f"status={status or 'missing'}; blocking={len(blocking)}; revision_actions={len(revisions)}",
+        "next_action": "" if passed else "revise candidate asset or write a clean platform-agent review with status: pass",
+    }
+
+
+def _asset_approval_step(root: Path, candidate_id: str) -> dict[str, object]:
+    approval = _approval_record(root, candidate_id)
+    passed = str(approval.get("decision") or "") == "approve"
+    return {
+        "key": "asset-approval",
+        "status": "pass" if passed else str(approval.get("decision") or "missing"),
+        "path": "workflow/approvals/index.jsonl",
+        "message": "approve record exists" if passed else "missing human approve record",
+        "next_action": "" if passed else f"ask user for approval and record an approve decision for run_id `{candidate_id}` before promotion",
+    }
+
+
+def _asset_promotion_step(root: Path, manifest_path: Path) -> dict[str, object]:
+    payload = _read_json(manifest_path)
+    outputs = [root / str(item) for item in payload.get("outputs", [])] if isinstance(payload.get("outputs"), list) else []
+    missing_outputs = [_rel(path, root) for path in outputs if not path.exists()]
+    blocked = bool(payload.get("allow_unapproved")) or missing_outputs or str(payload.get("status") or "") != "promoted"
+    message = f"status={payload.get('status') or 'missing'}"
+    if payload.get("allow_unapproved"):
+        message += "; allow_unapproved=true"
+    if missing_outputs:
+        message += "; missing outputs=" + ", ".join(missing_outputs)
+    return {
+        "key": "asset-promotion",
+        "status": "pass" if manifest_path.exists() and not blocked else "missing" if not manifest_path.exists() else "blocked",
+        "path": _rel(manifest_path, root),
+        "message": message,
+        "next_action": "" if manifest_path.exists() and not blocked else "run promote-candidate-asset with an approval run id; do not use --allow-unapproved",
+    }
+
+
 def _style_engineering_state(root: Path, profile_dir: Path) -> dict[str, object]:
     profile_id = _rel(profile_dir, root)
     task_path = profile_dir / "style_prompt.agent_tasks.md"
@@ -426,6 +593,42 @@ def _accepted_style_evals(profile_dir: Path) -> list[dict[str, object]]:
             continue
         accepted.append({"path": str(path), "overall_score": score, "risk_level": risk})
     return accepted
+
+
+def _agent_task_base(task_path: Path) -> Path:
+    name = task_path.name
+    suffix = ".agent_tasks.md"
+    if name.endswith(suffix):
+        return task_path.with_name(name[: -len(suffix)])
+    return task_path.with_suffix("")
+
+
+def _infer_asset_type(root: Path, candidate_path: Path) -> str:
+    try:
+        rel = candidate_path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        rel = candidate_path.as_posix()
+    for asset_type, folder in ASSET_CANDIDATE_DIRS.items():
+        if rel.startswith(folder.as_posix() + "/"):
+            return asset_type
+    return "character"
+
+
+def _approval_record(root: Path, candidate_id: str) -> dict[str, object]:
+    index = root / "workflow" / "approvals" / "index.jsonl"
+    if not index.exists():
+        return {}
+    latest: dict[str, object] = {}
+    for line in index.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if payload.get("run_id") == candidate_id:
+            latest = payload if isinstance(payload, dict) else {}
+    return latest
 
 
 def _scene_state(root: Path, scene_path: Path) -> dict[str, object]:
@@ -682,6 +885,15 @@ def _render_markdown(payload: dict[str, object]) -> str:
                 continue
             lines.append(
                 f"| {item.get('profile_dir', '')} | {item.get('status', '')} | {item.get('current_step', '')} | {item.get('next_action', '')} |"
+            )
+    assets = payload.get("assets") if isinstance(payload.get("assets"), list) else []
+    if assets:
+        lines.extend(["", "## Asset State", "", "| candidate | 类型 | 状态 | 当前步骤 | 下一步 |", "| --- | --- | --- | --- | --- |"])
+        for item in assets:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"| {item.get('candidate_id', '')} | {item.get('asset_type', '')} | {item.get('status', '')} | {item.get('current_step', '')} | {item.get('next_action', '')} |"
             )
     lines.extend(["", "## Details", ""])
     for scene in payload.get("scenes", []):

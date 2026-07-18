@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.84.4`
+- 当前版本：`0.84.5`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -133,6 +133,8 @@ context packet
 `v0.84.3` 起，`source-ingest` 也接入 CLI-mediated task loop。导入已有作品后，`task-next --route source-ingest` 会派发反推项目文件任务，要求平台 Agent 读取 source manifest、chunk 和 `extract_project_files.agent_tasks.md`，写出项目简报、人物/隐藏背景、世界观、大纲、时间线、伏笔、文风 notes 等候选文件，并写 clean `pass` 的 extraction review。只完成导入、只写 completion marker、缺候选文件或 review 为 `pass_with_notes` 都不能让路线 ready。
 
 `v0.84.4` 起，`style-engineering` 接入 CLI-mediated task loop。项目内 `style/*/style-profile.md` profile 会被状态机追踪：先由 `style-prompt` 生成平台 Agent 任务，再由平台 Agent 写出 500-2500 字、结构完整的 `style_prompt.md` 与 `style_prompt.agent.json`，最后必须有至少一个通过 copy-risk/相似度门禁的 `style_eval_*.json`。统计 profile、短 prompt、未完成 sidecar、未评测 style prompt 都不能进入正式挂载。
+
+`v0.84.5` 起，`character-and-world-assets` 接入 CLI-mediated task loop。角色、隐藏背景故事、关系、世界规则、地点、组织和大纲类候选资产现在会被状态机追踪：`asset-create` / `agent-create-*` 只生成平台 Agent 创建 sidecar，平台 Agent 必须写候选 JSON/报告，完成 review sidecar，得到 clean `pass` 审查，取得用户 approve 记录，再用 `promote-candidate-asset` 晋升。`route-audit --route character-and-world-assets` 会阻塞缺 review、缺 approval、使用 `allow_unapproved` 或晋升输出缺失的资产。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 
@@ -465,7 +467,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.84.4`。
+- 当前版本：`0.84.5`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -485,7 +487,7 @@ literary-engineering-project-skill/
 - 反规避修订协议：已要求生成任务读取 `generation_standards.anti_evasion`，修订任务输出负担证明表，route-audit 检查静态 review 和修订反规避 manifest。
 - 正式路线 CLI 工具箱：可运行。
 - 平台 Agent sidecar 状态机与字数预算硬接入：已要求 `.agent_completion.json` 完成标记，`run-workflow --agent-tasks` 在 sidecar handoff 停止等待，场景生成与审查读取 `scene.yaml` / `word_budget.json` 的预算契约。
-- CLI 中介 Agent 工作流内核：已新增 `task-next`、`task-open`、`task-submit`、`task-complete`、`workflow-advance`、`workflow-events`，并升级为 route registry。`scene-development` 已接入深度 gate；`longform-planning` 已接入预算文件、预算 sidecar、预算化大纲候选、预算 review、场景库存 sidecar、分场景库存候选和库存 review 闭环；`source-ingest` 已接入已有作品导入后的反推候选、sidecar completion 和 clean review 闭环；`style-engineering` 已接入 style prompt sidecar、500-2500 字高质量 prompt、prompt agent JSON、completion marker 和 accepted style eval 闭环。正式场景操作、长篇预算规划、源作品反推和文风挂载前 readiness 都必须由 CLI 发任务、平台 Agent 执行、CLI 收提交并校验完成。
+- CLI 中介 Agent 工作流内核：已新增 `task-next`、`task-open`、`task-submit`、`task-complete`、`workflow-advance`、`workflow-events`，并升级为 route registry。`scene-development` 已接入深度 gate；`longform-planning` 已接入预算文件、预算 sidecar、预算化大纲候选、预算 review、场景库存 sidecar、分场景库存候选和库存 review 闭环；`source-ingest` 已接入已有作品导入后的反推候选、sidecar completion 和 clean review 闭环；`style-engineering` 已接入 style prompt sidecar、500-2500 字高质量 prompt、prompt agent JSON、completion marker 和 accepted style eval 闭环；`character-and-world-assets` 已接入资产创建 sidecar、候选 JSON/报告、资产审查 sidecar、clean review、用户 approve、promotion manifest 和晋升输出闭环。正式场景操作、长篇预算规划、源作品反推、文风挂载前 readiness 和角色/世界资产晋升都必须由 CLI 发任务、平台 Agent 执行、CLI 收提交并校验完成。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 
 ## 推荐下一步

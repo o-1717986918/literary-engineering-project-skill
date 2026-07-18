@@ -1,6 +1,6 @@
 # Phase 84：CLI 中介 Agent 工作流内核
 
-版本：`v0.84.4`
+版本：`v0.84.5`
 
 ## 目标
 
@@ -136,6 +136,7 @@ CLI 只负责：
 2. `longform-planning`
 3. `source-ingest`
 4. `style-engineering`
+5. `character-and-world-assets`
 
 `workflow-state --route longform-planning` 现在会输出 Longform State，包含：
 
@@ -197,6 +198,32 @@ CLI 只负责：
 
 这一步修复“文风 profile 已生成，但实际挂载的 prompt 过短、过泛或未评测”的漏洞。统计 profile、style_metrics 和 dry-run 文档都不能代替可执行的 LLM-facing style prompt。
 
+## v0.84.5 Character-and-world-assets 接入
+
+`character-and-world-assets` 已成为第五条 registered route。它面向候选人物、隐藏背景故事、关系图、世界规则、地点、组织、大纲、章节计划和场景列表，覆盖从创建 sidecar 到正式晋升的完整资产链路。
+
+`workflow-state --route character-and-world-assets` 会扫描候选资产目录与资产创建 sidecar，并为每个候选生成状态：
+
+1. `asset-intake`
+2. `asset-creation-agent-task`
+3. `asset-review-task-file`
+4. `asset-review-agent-task`
+5. `asset-review-pass`
+6. `asset-approval`
+7. `asset-promotion`
+
+关键门禁：
+
+1. `asset-create` / `agent-create-*` 只生成平台 Agent 创建任务，不代表候选已完成。
+2. 候选 JSON 和候选 Markdown 报告必须存在，候选 JSON 必须通过资产 schema，并包含 `candidate_id`、`risks`、`source_paths`、`promotion_notes`。
+3. `review-candidate-asset` 只生成审查 sidecar；平台 Agent 必须写入 `reviews/assets/{candidate_id}_review.json` 与 `.md`，并创建 completion marker。
+4. 资产审查必须 clean `pass`，不能带 blocking issues 或 unresolved revision actions。
+5. Review 不是 approval。晋升前必须有匹配 candidate_id 的用户 approve 记录。
+6. `promote-candidate-asset` 不能使用 `--allow-unapproved`，promotion manifest 的输出必须真实存在。
+7. `route-audit --route character-and-world-assets` 会逐候选检查 creation sidecar、review sidecar、clean review、approval、promotion 和输出文件。
+
+这一步修复“角色/世界资产虽然是候选机制，但仍可被平台 Agent 手写候选、跳过审查或用 approval bypass 晋升”的漏洞。角色背景故事、世界规则和大纲等上游资产现在也进入 CLI 中介状态机。
+
 ## 测试
 
 新增：
@@ -229,6 +256,10 @@ CLI 只负责：
 - style prompt 过短、缺结构块或缺 completion marker 时，`task-complete` 阻塞。
 - style prompt 未产生 accepted style eval 时，`task-complete` 阻塞。
 - style prompt、agent JSON、completion marker 和 accepted style eval 全部存在后，`task-next --route style-engineering` 返回 ready。
+- `task-next --route character-and-world-assets` 能从空项目派发 asset-intake，并在创建 sidecar 后推进到 asset review。
+- 未写资产 review、缺用户 approval 或缺 promotion manifest 时，`task-complete` 阻塞。
+- 候选资产完成 creation、clean review、approval 和 promotion 后，`task-next --route character-and-world-assets` 返回 ready。
+- `route-audit --route character-and-world-assets` 能阻塞未 review/未 approval/未 promotion 的候选，并放行完整晋升链路。
 - `task-complete` 拒绝非 clean pass 的静态 review。
 - `task-complete` 拒绝损坏的 state patch JSON。
 - context 完成后 `task-next` 推进到 roleplay-simulation。
