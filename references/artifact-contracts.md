@@ -723,8 +723,14 @@ Files:
 - optional `{chapter_id}_novel.docx`
 - optional `{chapter_id}_screenplay.docx`
 - optional `{chapter_id}_video_prompt_pack.docx`
+- optional `{chapter_id}_novel.layout.json`
+- optional `{chapter_id}_screenplay.layout.json`
+- optional `{chapter_id}_video_prompt_pack.layout.json`
+- optional `{chapter_id}_novel.inspection.json`
+- optional `{chapter_id}_screenplay.inspection.json`
+- optional `{chapter_id}_video_prompt_pack.inspection.json`
 
-DOCX outputs are delivery files generated from the Markdown exports. Do not treat exported files as canon. Writebacks still require approval. Final Chinese prose exports should preserve the standard punctuation gate result or record an explicit exception.
+DOCX outputs are delivery files generated from the Markdown exports. Layout JSON records the chosen document preset, source structure, fonts, styles, lists, tables, and quality gates. Inspection JSON records package structure, paragraph/table counts, style ids, numbering, East Asian font presence, page setup, and warnings. Do not treat exported files as canon. Writebacks still require approval. Final Chinese prose exports should preserve the standard punctuation gate result or record an explicit exception; the export layer normalizes corner/vertical quote variants to `“”` / `‘’` as delivery hygiene.
 
 ## Publish Releases
 

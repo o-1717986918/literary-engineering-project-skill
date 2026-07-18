@@ -16,7 +16,7 @@ PUNCTUATION_STANDARD_PROMPT = """标准中文标点与文学节奏约束：
 - 中文正文中不要混用英文逗号、句号、冒号、分号、问号、感叹号或英文引号；英文缩写、URL、文件路径、代码、schema 字段和小数除外。
 - 省略号统一使用“……”，不要使用“...”或连续句点；破折号统一使用“——”，不要用“--”或单个“—”表达停顿。
 - 疑问号、感叹号通常只使用一个；避免“！！！”“？？？”“?!”等网感化连续标点，除非用户明确要求实验性文本或角色文本确有格式依据。
-- 引号使用中文弯引号；完整引语的句末标点放在引号内，提示语和对白之间使用中文冒号、逗号或句号。
+- 横排文学正文的直接引语统一使用中文双引号“”；引语内再引语使用中文单引号‘’。不要在不同章节混用「」『』、﹁﹂﹃﹄、｢｣等竖排/角引号，除非项目记录了明确的版式例外。
 - 不要在中文标点前留空格，不要连续堆叠逗号、句号、顿号、冒号或分号。
 
 二、文学节奏规则：
@@ -36,7 +36,8 @@ PUNCTUATION_STANDARD_PROMPT = """标准中文标点与文学节奏约束：
 
 PUNCTUATION_STANDARD_SHORT_RULE = (
     "中文用户可见文本必须遵守标准中文标点约束：中文正文用全角标点，省略号用“……”，"
-    "破折号用“——”，避免英文标点混入中文句子、连续感叹/疑问符和中文标点前空格；"
+    "破折号用“——”，直接引语统一用“”且内层引语用‘’，不要章节间混用「」『』等竖排/角引号；"
+    "避免英文标点混入中文句子、连续感叹/疑问符和中文标点前空格；"
     "同时控制文学节奏：句号用于真实语义落点，逗号承接未完成关系，破折号只用于打断/插入/骤变，"
     "转折优先由动作、意象和因果生成，避免机械堆叠“但是、然而、于是、然后”。代码、路径、URL、JSON/YAML/schema 字段除外。"
 )
@@ -51,6 +52,21 @@ class PunctuationIssue:
 
 
 CHINESE_RANGE = r"\u3400-\u4dbf\u4e00-\u9fff"
+CORNER_QUOTE_RE = re.compile(r"[「」『』﹁﹂﹃﹄｢｣]")
+QUOTE_NORMALIZATION_MAP = str.maketrans(
+    {
+        "「": "“",
+        "」": "”",
+        "﹁": "“",
+        "﹂": "”",
+        "｢": "“",
+        "｣": "”",
+        "『": "‘",
+        "』": "’",
+        "﹃": "‘",
+        "﹄": "’",
+    }
+)
 
 
 def lint_punctuation(text: str) -> list[PunctuationIssue]:
@@ -88,6 +104,12 @@ def lint_punctuation(text: str) -> list[PunctuationIssue]:
             re.compile(rf"(?<=[{CHINESE_RANGE}])[\"']|[\"'](?=[{CHINESE_RANGE}])"),
         ),
         (
+            "corner-quotes-in-horizontal-prose",
+            "medium",
+            "横排文学正文直接引语应统一使用“”和内层‘’，不要章节间混用「」『』、﹁﹂﹃﹄或｢｣等竖排/角引号。",
+            CORNER_QUOTE_RE,
+        ),
+        (
             "punctuation-spacing",
             "low",
             "中文标点前不应留空格。",
@@ -117,6 +139,16 @@ def lint_punctuation(text: str) -> list[PunctuationIssue]:
 
 def render_punctuation_standard_for_prompt() -> str:
     return PUNCTUATION_STANDARD_PROMPT
+
+
+def normalize_punctuation_for_delivery(text: str) -> str:
+    """Normalize safe delivery-level punctuation variants.
+
+    This intentionally limits itself to quote-style unification so final
+    exports do not silently rewrite literary rhythm or code-like content.
+    """
+
+    return text.translate(QUOTE_NORMALIZATION_MAP)
 
 
 def _lint_literary_punctuation_rhythm(text: str) -> list[PunctuationIssue]:

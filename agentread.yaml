@@ -342,6 +342,8 @@ task_routes:
     output:
       - export package
       - DOCX delivery files
+      - DOCX layout plan files
+      - DOCX inspection files
       - release manifest
       - release notes
       - rollback notes
@@ -349,6 +351,7 @@ task_routes:
       - chapter/work readiness checked
       - approval record verified or pending approval stated
       - requested file formats generated and inspected
+      - DOCX layout/inspection companion files exist when DOCX is requested
       - release notes and rollback notes prepared
 
   optional_cli:

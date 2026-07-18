@@ -39,6 +39,23 @@ class SceneReviewTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("Punctuation Standard Test", report)
         self.assertIn("中文句子中混入英文标点", report)
 
+    def test_punctuation_standard_flags_corner_quote_mixing(self):
+        project = self.make_project()
+        draft = make_passing_scene(project)
+        text = draft.read_text(encoding="utf-8")
+        text = text.replace(
+            "林舟站在旧楼门口，听见楼道深处的电流声断断续续。",
+            "林舟站在旧楼门口，听见楼道深处有人说：「别再往前走。」",
+        )
+        draft.write_text(text, encoding="utf-8")
+
+        review = review_scene_draft(project, draft)
+        report = review.report_path.read_text(encoding="utf-8")
+
+        self.assertEqual(review.conclusion, "revise_required")
+        self.assertIn("corner-quotes-in-horizontal-prose", report)
+        self.assertIn("横排文学正文直接引语", report)
+
     def test_punctuation_lint_flags_literary_rhythm_problems(self):
         text = (
             "林舟停下。雨声贴着窗。灯影落在墙上。门缝慢慢打开。风从楼道灌进来。"

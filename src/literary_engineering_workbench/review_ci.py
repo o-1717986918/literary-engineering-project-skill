@@ -103,7 +103,7 @@ def review_scene_draft(project_root: Path, draft: Path, output: Path | None = No
         issues.append(ReviewIssue("Style Test", "low", "未发现风格约束引用。"))
 
     for punctuation_issue in lint_punctuation(body):
-        message = punctuation_issue.message
+        message = f"{punctuation_issue.message}（rule: {punctuation_issue.rule}）"
         if punctuation_issue.sample:
             message += f" 示例：{punctuation_issue.sample}"
         issues.append(ReviewIssue("Punctuation Standard Test", punctuation_issue.severity, message))

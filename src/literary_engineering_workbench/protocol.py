@@ -403,7 +403,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         completion_gates=(
             "Chapter/work readiness checked.",
             "Approval record verified or pending approval stated.",
-            "Requested file formats generated and inspected.",
+            "Requested file formats generated and inspected; DOCX exports include layout and inspection companion files.",
             "Release notes and rollback notes prepared.",
         ),
         forbidden_shortcuts=COMMON_FORBIDDEN

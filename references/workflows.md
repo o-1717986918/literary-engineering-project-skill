@@ -463,11 +463,15 @@ Outputs:
 - screenplay working draft;
 - long-video prompt pack;
 - optional editable DOCX files for the same artifacts;
+- optional DOCX layout plan JSON files;
+- optional DOCX inspection JSON files;
 - `export_manifest.json`.
 
 By default only `ready` scenes are exported. Use `--include-blocked` only for internal preview.
 
 Final exported prose and screenplay files are cleaned delivery artifacts. They should not expose scene workbench sections, scene IDs such as `scene_0001`, chapter IDs such as `chapter_0001`, scene file paths, context packet paths, writeback candidates, canon notes, prompt manifests, review status, workflow IDs, or “导出规则” text. Audit and provenance remain in `export_manifest.json`, release manifests, review files, and workflow logs.
+
+DOCX delivery follows the migrated Office file-handling subset: editable WordprocessingML, structured headings, real lists, native simple tables, Chinese-capable fonts, companion layout plan, and companion inspection report. It does not include academic PPT workflows, tracked changes, comments, citations, formula layout, or full OOXML schema validation.
 
 `draft_chars` in chapter, longform, and export manifests means cleaned deliverable body characters with whitespace removed. Do not treat raw draft file length as prose length.
 

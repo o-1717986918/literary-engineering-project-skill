@@ -374,6 +374,7 @@ literary-engineering-project-skill/
 - 长篇字数预算与剧情库存门禁：已完成 `word-budget` / `longform-budget`。
 - 流程阅读回执、`pass_with_notes` 小修闭环和生成前硬约束摘要：已完成。
 - 平台 Agent 任务总控、route gate 审计、正式 `revise-scene` 修订闭环、分章分场景字数绑定：已完成。
+- 横排中文引号统一、DOCX layout plan、DOCX inspection、基础 Markdown 表格转 Word 表格：已完成。
 - 可选 CLI 工具箱：可运行。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 

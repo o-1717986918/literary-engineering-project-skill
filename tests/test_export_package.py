@@ -54,6 +54,24 @@ class ExportPackageTests(TempProjectMixin, unittest.TestCase):
         self.assertNotIn("状态变化候选", novel_text)
         self.assertNotIn("canon 信息", novel_text)
 
+    def test_final_export_normalizes_corner_quotes(self):
+        project = self.make_project()
+        draft = make_reviewed_passing_scene(project)
+        text = draft.read_text(encoding="utf-8")
+        text = text.replace(
+            "林舟站在旧楼门口，听见楼道深处的电流声断断续续。",
+            "林舟站在旧楼门口，听见楼道深处有人说：「别再往前走。」",
+        )
+        draft.write_text(text, encoding="utf-8")
+        build_chapter_workspace(project, chapter_id="chapter_0001")
+
+        result = build_export_package(project, chapter_id="chapter_0001")
+        novel_text = result.novel_path.read_text(encoding="utf-8")
+
+        self.assertIn("“别再往前走。”", novel_text)
+        self.assertNotIn("「", novel_text)
+        self.assertNotIn("」", novel_text)
+
     def test_exports_ready_scenes_to_docx_when_requested(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
@@ -66,6 +84,12 @@ class ExportPackageTests(TempProjectMixin, unittest.TestCase):
         manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
         self.assertIn("docx", manifest["requested_formats"])
         self.assertEqual(set(manifest["outputs"]["docx"]), {"novel", "screenplay", "video_prompt_pack"})
+        self.assertEqual(set(manifest["outputs"]["docx_layout_plans"]), {"novel", "screenplay", "video_prompt_pack"})
+        self.assertEqual(set(manifest["outputs"]["docx_inspections"]), {"novel", "screenplay", "video_prompt_pack"})
+        for path in result.docx_layout_plans.values():
+            self.assertTrue(path.exists())
+        for path in result.docx_inspections.values():
+            self.assertTrue(path.exists())
 
     def test_missing_project_fails(self):
         project = self.make_project()

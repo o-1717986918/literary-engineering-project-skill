@@ -12,6 +12,7 @@ from typing import Sequence
 from .chapter_pipeline import build_chapter_workspace
 from .docx_export import export_markdown_to_docx
 from .draft_text import count_delivery_chars, final_body_from_draft_text
+from .punctuation_standard import normalize_punctuation_for_delivery
 
 
 EXPORT_FORMATS = {"md", "docx"}
@@ -27,6 +28,8 @@ class ExportPackageResult:
     screenplay_path: Path
     video_prompt_path: Path
     docx_outputs: dict[str, Path]
+    docx_layout_plans: dict[str, Path]
+    docx_inspections: dict[str, Path]
     requested_formats: tuple[str, ...]
     chapter_id: str
     exported_scene_count: int
@@ -74,22 +77,33 @@ def build_export_package(
     screenplay_path.write_text(_render_screenplay(root, chapter_id, exportable, skipped, include_blocked), encoding="utf-8")
     video_prompt_path.write_text(_render_video_prompt_pack(root, chapter_id, exportable, skipped, include_blocked), encoding="utf-8")
     docx_outputs: dict[str, Path] = {}
+    docx_layout_plans: dict[str, Path] = {}
+    docx_inspections: dict[str, Path] = {}
     if "docx" in requested_formats:
-        docx_outputs["novel"] = export_markdown_to_docx(
+        novel_docx = export_markdown_to_docx(
             novel_path,
             title=f"{_public_chapter_title(chapter_id)} 正文",
             kind="novel",
-        ).docx_path
-        docx_outputs["screenplay"] = export_markdown_to_docx(
+        )
+        docx_outputs["novel"] = novel_docx.docx_path
+        docx_layout_plans["novel"] = novel_docx.layout_plan_path
+        docx_inspections["novel"] = novel_docx.inspection_path
+        screenplay_docx = export_markdown_to_docx(
             screenplay_path,
             title=f"{_public_chapter_title(chapter_id)} 剧本工作稿",
             kind="screenplay",
-        ).docx_path
-        docx_outputs["video_prompt_pack"] = export_markdown_to_docx(
+        )
+        docx_outputs["screenplay"] = screenplay_docx.docx_path
+        docx_layout_plans["screenplay"] = screenplay_docx.layout_plan_path
+        docx_inspections["screenplay"] = screenplay_docx.inspection_path
+        video_docx = export_markdown_to_docx(
             video_prompt_path,
             title=f"{_public_chapter_title(chapter_id)} 长视频提示词包",
             kind="video_prompt_pack",
-        ).docx_path
+        )
+        docx_outputs["video_prompt_pack"] = video_docx.docx_path
+        docx_layout_plans["video_prompt_pack"] = video_docx.layout_plan_path
+        docx_inspections["video_prompt_pack"] = video_docx.inspection_path
 
     manifest = {
         "schema": "literary-engineering-workbench/export-package/v0.1",
@@ -103,6 +117,8 @@ def build_export_package(
             "screenplay": _rel_str(screenplay_path, root),
             "video_prompt_pack": _rel_str(video_prompt_path, root),
             "docx": {key: _rel_str(path, root) for key, path in docx_outputs.items()},
+            "docx_layout_plans": {key: _rel_str(path, root) for key, path in docx_layout_plans.items()},
+            "docx_inspections": {key: _rel_str(path, root) for key, path in docx_inspections.items()},
         },
         "exported_scenes": [_scene_manifest(root, scene) for scene in exportable],
         "skipped_scenes": [_scene_manifest(root, scene) for scene in skipped],
@@ -118,6 +134,8 @@ def build_export_package(
         screenplay_path=screenplay_path,
         video_prompt_path=video_prompt_path,
         docx_outputs=docx_outputs,
+        docx_layout_plans=docx_layout_plans,
+        docx_inspections=docx_inspections,
         requested_formats=requested_formats,
         chapter_id=chapter_id,
         exported_scene_count=len(exportable),
@@ -297,7 +315,8 @@ def _draft_body(root: Path, scene: dict) -> str:
     draft_path = path if path.is_absolute() else root / path
     if not draft_path.exists():
         return ""
-    return final_body_from_draft_text(draft_path.read_text(encoding="utf-8", errors="ignore")).strip()
+    body = final_body_from_draft_text(draft_path.read_text(encoding="utf-8", errors="ignore")).strip()
+    return normalize_punctuation_for_delivery(body)
 
 
 def _public_chapter_title(chapter_id: str) -> str:

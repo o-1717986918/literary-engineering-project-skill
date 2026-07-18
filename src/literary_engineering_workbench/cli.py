@@ -1599,6 +1599,10 @@ def main(argv=None) -> int:
         print(f"video_prompt_pack: {result.video_prompt_path}")
         for key, path in result.docx_outputs.items():
             print(f"{key}_docx: {path}")
+        for key, path in result.docx_layout_plans.items():
+            print(f"{key}_docx_layout: {path}")
+        for key, path in result.docx_inspections.items():
+            print(f"{key}_docx_inspection: {path}")
         print(f"exported_scenes: {result.exported_scene_count}")
         print(f"skipped_scenes: {result.skipped_scene_count}")
         return 0
@@ -1617,6 +1621,8 @@ def main(argv=None) -> int:
             parser.error(str(exc))
         print(f"source: {result.source_path}")
         print(f"docx: {result.docx_path}")
+        print(f"layout_plan: {result.layout_plan_path}")
+        print(f"inspection: {result.inspection_path}")
         print(f"title: {result.title}")
         print(f"paragraphs: {result.paragraph_count}")
         print(f"warnings: {result.warning_count}")

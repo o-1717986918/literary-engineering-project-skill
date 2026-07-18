@@ -8,6 +8,7 @@ workbench can deliver editable Word files without adding runtime dependencies.
 from __future__ import annotations
 
 import re
+import json
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -24,9 +25,12 @@ DOCX_KINDS = {"novel", "screenplay", "video_prompt_pack", "report"}
 class DocxExportResult:
     source_path: Path
     docx_path: Path
+    layout_plan_path: Path
+    inspection_path: Path
     title: str
     paragraph_count: int
     warning_count: int
+    inspection_warnings: tuple[str, ...]
 
 
 def export_markdown_to_docx(
@@ -58,6 +62,10 @@ def export_markdown_to_docx(
     if not paragraphs:
         paragraphs = [_paragraph("未读取到可导出的正文。", style="Normal")]
         warnings.append("source produced no paragraphs")
+    layout_plan = _build_layout_plan(text, title=inferred_title, kind=doc_kind, paragraph_count=len(paragraphs), warnings=warnings)
+    layout_plan_path = out.parent / f"{out.stem}.layout.json"
+    inspection_path = out.parent / f"{out.stem}.inspection.json"
+    layout_plan_path.write_text(json.dumps(layout_plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     _write_docx(
         out,
@@ -66,13 +74,18 @@ def export_markdown_to_docx(
         paragraph_count=len(paragraphs),
         kind=doc_kind,
     )
-    inspect_docx(out)
+    inspection = inspect_docx(out)
+    inspection_path.write_text(json.dumps(inspection, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    inspection_warnings = tuple(str(item) for item in inspection.get("warnings", []))
     return DocxExportResult(
         source_path=source,
         docx_path=out,
+        layout_plan_path=layout_plan_path,
+        inspection_path=inspection_path,
         title=inferred_title,
         paragraph_count=len(paragraphs),
-        warning_count=len(warnings),
+        warning_count=len(warnings) + len(inspection_warnings),
+        inspection_warnings=inspection_warnings,
     )
 
 
@@ -100,12 +113,33 @@ def inspect_docx(path: Path) -> dict[str, object]:
             raise ValueError(f"invalid DOCX package, missing: {', '.join(missing)}")
         document_xml = package.read("word/document.xml")
         styles_xml = package.read("word/styles.xml")
-        ElementTree.fromstring(document_xml)
-        ElementTree.fromstring(styles_xml)
+        numbering_xml = package.read("word/numbering.xml")
+        settings_xml = package.read("word/settings.xml")
+        document_root = ElementTree.fromstring(document_xml)
+        styles_root = ElementTree.fromstring(styles_xml)
+        ElementTree.fromstring(numbering_xml)
+        ElementTree.fromstring(settings_xml)
     paragraph_count = document_xml.count(b"<w:p")
+    ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    document_text = "".join(node.text or "" for node in document_root.findall(".//w:t", ns))
+    style_ids = sorted(
+        item.attrib.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}styleId", "")
+        for item in styles_root.findall(".//w:style", ns)
+        if item.attrib.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}styleId")
+    )
+    warnings = _docx_inspection_warnings(document_xml, styles_xml, numbering_xml, settings_xml, document_text, style_ids)
     return {
         "path": str(docx_path),
         "paragraph_count": paragraph_count,
+        "table_count": document_xml.count(b"<w:tbl>"),
+        "text_chars": len(document_text),
+        "cjk_chars": len(re.findall(r"[\u3400-\u4dbf\u4e00-\u9fff]", document_text)),
+        "styles": style_ids,
+        "has_numbering": b"<w:numbering" in numbering_xml,
+        "has_page_size": b"<w:pgSz" in document_xml,
+        "has_page_margins": b"<w:pgMar" in document_xml,
+        "has_east_asia_fonts": b"w:eastAsia" in styles_xml,
+        "warnings": warnings,
         "missing": [],
     }
 
@@ -126,8 +160,11 @@ def _markdown_to_paragraphs(text: str, *, kind: str) -> tuple[list[str], list[st
     in_code = False
     code_buffer: list[str] = []
     heading1_seen = False
+    lines = text.splitlines()
+    index = 0
 
-    for raw_line in text.splitlines():
+    while index < len(lines):
+        raw_line = lines[index]
         line = raw_line.rstrip()
         stripped = line.strip()
         if stripped.startswith("```"):
@@ -138,45 +175,132 @@ def _markdown_to_paragraphs(text: str, *, kind: str) -> tuple[list[str], list[st
                 in_code = False
             else:
                 in_code = True
+            index += 1
             continue
         if in_code:
             code_buffer.append(line)
+            index += 1
             continue
         if not stripped:
+            index += 1
             continue
         if re.fullmatch(r"[-*_]{3,}", stripped):
             paragraphs.append(_paragraph("", style="Spacer"))
+            index += 1
+            continue
+        if _is_table_start(lines, index):
+            rows, next_index = _parse_table(lines, index)
+            if rows:
+                paragraphs.append(_table(rows))
+            else:
+                warnings.append("markdown table could not be parsed")
+            index = next_index
             continue
         if stripped.startswith("# "):
             paragraphs.append(_paragraph(stripped[2:].strip(), style="Title", alignment="center"))
+            index += 1
             continue
         if stripped.startswith("## "):
             page_break = heading1_seen and kind in {"novel", "screenplay"}
             heading1_seen = True
             paragraphs.append(_paragraph(stripped[3:].strip(), style="Heading1", page_break_before=page_break))
+            index += 1
             continue
         if stripped.startswith("### "):
             paragraphs.append(_paragraph(stripped[4:].strip(), style="Heading2"))
+            index += 1
             continue
         if stripped.startswith("#### "):
             paragraphs.append(_paragraph(stripped[5:].strip(), style="Heading3"))
+            index += 1
             continue
         if stripped.startswith("> "):
             paragraphs.append(_paragraph(stripped[2:].strip(), style="Quote"))
+            index += 1
             continue
         if stripped.startswith("- "):
             paragraphs.append(_paragraph(stripped[2:].strip(), style="ListParagraph", numbering="bullet"))
+            index += 1
             continue
         number_match = re.match(r"^(\d+)[.)]\s+(.*)$", stripped)
         if number_match:
             paragraphs.append(_paragraph(number_match.group(2).strip(), style="ListParagraph", numbering="number"))
+            index += 1
             continue
         paragraphs.append(_paragraph(stripped, style="Normal"))
+        index += 1
 
     if in_code:
         warnings.append("unclosed code fence")
         paragraphs.extend(_code_paragraph(item) for item in code_buffer)
     return paragraphs, warnings
+
+
+def _is_table_start(lines: list[str], index: int) -> bool:
+    if index + 1 >= len(lines):
+        return False
+    first = lines[index].strip()
+    second = lines[index + 1].strip()
+    if "|" not in first or "|" not in second:
+        return False
+    return bool(re.fullmatch(r"\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?", second))
+
+
+def _parse_table(lines: list[str], index: int) -> tuple[list[list[str]], int]:
+    rows = [_split_table_row(lines[index])]
+    index += 2
+    while index < len(lines):
+        stripped = lines[index].strip()
+        if not stripped or "|" not in stripped:
+            break
+        rows.append(_split_table_row(stripped))
+        index += 1
+    max_cols = max((len(row) for row in rows), default=0)
+    normalized = [row + [""] * (max_cols - len(row)) for row in rows if any(cell.strip() for cell in row)]
+    return normalized, index
+
+
+def _split_table_row(line: str) -> list[str]:
+    stripped = line.strip().strip("|")
+    return [cell.strip() for cell in stripped.split("|")]
+
+
+def _table(rows: list[list[str]]) -> str:
+    col_count = max((len(row) for row in rows), default=1)
+    width = max(9000 // max(col_count, 1), 1200)
+    grid = "".join(f'<w:gridCol w:w="{width}"/>' for _ in range(col_count))
+    row_xml = []
+    for row_index, row in enumerate(rows):
+        cells = []
+        for cell in row:
+            shading = '<w:shd w:fill="EAF2F8" w:val="clear"/>' if row_index == 0 else ""
+            text_xml = "".join(_inline_runs(cell))
+            bold = "<w:rPr><w:b/><w:bCs/></w:rPr>" if row_index == 0 else ""
+            if bold:
+                text_xml = "".join(_run(cell, bold=True))
+            cells.append(
+                f'''<w:tc>
+  <w:tcPr><w:tcW w:w="{width}" w:type="dxa"/>{shading}</w:tcPr>
+  <w:p><w:pPr><w:spacing w:before="80" w:after="80"/></w:pPr>{text_xml}</w:p>
+</w:tc>'''
+            )
+        row_xml.append(f"<w:tr>{''.join(cells)}</w:tr>")
+    return f'''<w:tbl>
+  <w:tblPr>
+    <w:tblStyle w:val="TableGrid"/>
+    <w:tblW w:w="0" w:type="auto"/>
+    <w:tblBorders>
+      <w:top w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+      <w:left w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+      <w:bottom w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+      <w:right w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+      <w:insideV w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+    </w:tblBorders>
+  </w:tblPr>
+  <w:tblGrid>{grid}</w:tblGrid>
+  {''.join(row_xml)}
+</w:tbl>'''
 
 
 def _code_paragraph(text: str) -> str:
@@ -236,6 +360,99 @@ def _run(text: str, *, bold: bool = False, code: bool = False) -> str:
     rpr = f"<w:rPr>{''.join(props)}</w:rPr>" if props else ""
     space = ' xml:space="preserve"' if text[:1].isspace() or text[-1:].isspace() else ""
     return f"<w:r>{rpr}<w:t{space}>{escape(text)}</w:t></w:r>"
+
+
+def _build_layout_plan(text: str, *, title: str, kind: str, paragraph_count: int, warnings: list[str]) -> dict[str, object]:
+    stats = _markdown_stats(text)
+    presets = {
+        "novel": {
+            "page": "A4 portrait",
+            "body_font": "SimSun 12pt for Chinese, Times New Roman 12pt for Latin",
+            "line_spacing": "1.5 lines",
+            "chapter_breaks": "Heading1 starts later major sections on a new page",
+        },
+        "screenplay": {
+            "page": "A4 portrait",
+            "body_font": "SimSun 12pt for Chinese, Times New Roman 12pt for Latin",
+            "line_spacing": "1.5 lines",
+            "chapter_breaks": "major scene groups start on a new page",
+        },
+        "video_prompt_pack": {
+            "page": "A4 portrait",
+            "body_font": "Microsoft YaHei / SimSun for Chinese, Calibri for Latin",
+            "line_spacing": "1.5 lines",
+            "chapter_breaks": "prompt sections keep structured headings and real lists",
+        },
+        "report": {
+            "page": "A4 portrait",
+            "body_font": "Microsoft YaHei / SimSun for Chinese, Calibri for Latin",
+            "line_spacing": "1.5 lines",
+            "chapter_breaks": "report sections use Word heading hierarchy",
+        },
+    }
+    return {
+        "schema": "literary-engineering-workbench/docx-layout-plan/v0.2",
+        "title": title,
+        "kind": kind,
+        "preset": presets.get(kind, presets["novel"]),
+        "source_structure": stats,
+        "word_styles": ["Title", "Subtitle", "Heading1", "Heading2", "Heading3", "Normal", "Quote", "Code", "ListParagraph", "TableGrid"],
+        "quality_gates": [
+            "editable WordprocessingML, not flattened image output",
+            "structured headings with outline levels",
+            "real Word numbering for bullets and numbered lists",
+            "native Word tables for simple Markdown tables",
+            "East Asian font declared for Chinese text",
+            "package parts validated after generation",
+            "inspection report written beside DOCX",
+        ],
+        "paragraph_xml_blocks": paragraph_count,
+        "warnings": list(warnings),
+    }
+
+
+def _markdown_stats(text: str) -> dict[str, int]:
+    lines = text.splitlines()
+    return {
+        "heading1_count": sum(1 for line in lines if line.startswith("# ")),
+        "heading2_count": sum(1 for line in lines if line.startswith("## ")),
+        "heading3_count": sum(1 for line in lines if line.startswith("### ")),
+        "bullet_count": sum(1 for line in lines if line.strip().startswith("- ")),
+        "numbered_count": sum(1 for line in lines if re.match(r"^\s*\d+[.)]\s+", line)),
+        "table_count": sum(1 for index in range(len(lines)) if _is_table_start(lines, index)),
+        "code_block_fence_count": sum(1 for line in lines if line.strip().startswith("```")),
+        "cjk_char_count": len(re.findall(r"[\u3400-\u4dbf\u4e00-\u9fff]", text)),
+    }
+
+
+def _docx_inspection_warnings(
+    document_xml: bytes,
+    styles_xml: bytes,
+    numbering_xml: bytes,
+    settings_xml: bytes,
+    document_text: str,
+    style_ids: list[str],
+) -> list[str]:
+    warnings: list[str] = []
+    required_styles = {"Normal", "Title", "Heading1", "Heading2", "Heading3", "ListParagraph"}
+    missing_styles = sorted(required_styles - set(style_ids))
+    if missing_styles:
+        warnings.append("missing required styles: " + ", ".join(missing_styles))
+    if b"w:eastAsia" not in styles_xml:
+        warnings.append("styles.xml does not declare East Asian fonts")
+    if b"<w:numbering" not in numbering_xml:
+        warnings.append("numbering.xml does not contain numbering definitions")
+    if b"<w:pgSz" not in document_xml or b"<w:pgMar" not in document_xml:
+        warnings.append("document.xml lacks explicit page size or margins")
+    if b"<w:docGrid" not in document_xml:
+        warnings.append("document.xml lacks docGrid line pitch")
+    if b"<w:characterSpacingControl" not in settings_xml:
+        warnings.append("settings.xml lacks character spacing control")
+    if "\ufffd" in document_text:
+        warnings.append("document text contains replacement characters, possible garbled source text")
+    if re.search(r"(?m)^\s*[•●○]\s+", document_text):
+        warnings.append("document text may contain fake bullet characters instead of Word numbering")
+    return warnings
 
 
 def _write_docx(path: Path, *, title: str, body_xml: str, paragraph_count: int, kind: str) -> None:
@@ -393,6 +610,21 @@ def _styles() -> str:
   <w:style w:type="paragraph" w:styleId="Spacer">
     <w:name w:val="Spacer"/><w:basedOn w:val="Normal"/>
     <w:pPr><w:spacing w:before="120" w:after="120"/></w:pPr>
+  </w:style>
+  <w:style w:type="table" w:styleId="TableGrid">
+    <w:name w:val="Table Grid"/>
+    <w:basedOn w:val="TableNormal"/>
+    <w:uiPriority w:val="59"/>
+    <w:tblPr>
+      <w:tblBorders>
+        <w:top w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+        <w:left w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+        <w:bottom w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+        <w:right w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+        <w:insideH w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+        <w:insideV w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+      </w:tblBorders>
+    </w:tblPr>
   </w:style>
 </w:styles>
 '''

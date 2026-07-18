@@ -190,6 +190,10 @@
 
 已在 `v0.68.0` 实现 `agent-task-status` / `route-audit`，为工作项目输出 `workflow/agent_task_status.*` 和 `workflow/route_audit.*`，统一扫描 sidecar 未处理、预期产物缺失和 route gate 未完成。新增 `revise-scene`，将草稿、AgentReview notes、文风、canon、标点规范和字数预算汇总为平台 Agent 修订任务，输出修订候选与修订报告。`word-budget` 进一步生成分章预算、场景库存绑定、实际清洗正文字数、缺失场景列表和 `scene_inventory_expansion.agent_tasks.md`，使长篇目标字数与具体章节/场景库存强绑定。
 
+## Phase 69：引号统一与 DOCX 版式规划补强
+
+已在 `v0.69.0` 明确横排文学正文引号标准：直接引语统一“”，内层引语统一‘’，`review-scene` 会报告「」『』等角引号混用，最终导出会对角引号做安全归一化。DOCX 能力吸收 `office-academic-skill` 的可编辑文档、样式、字体、真实列表、表格和质量检查思想：`export-docx` / `export-package --formats md,docx` 会生成 `.layout.json` 与 `.inspection.json`，并把简单 Markdown 表格转换为原生 Word 表格。未迁移学术证据链、PPT、tracked changes、comments 和完整 XSD 校验，避免把学术 Office 工作流污染文学交付主线。
+
 ## Phase 47：前端显式 API Key 配置
 
 已实现前端 API Key 密码输入框、`/config` 明文保存与脱敏响应、空 key 保存保留既有密钥、`model_config.py` 从环境变量或保存的 profile key 读取密钥。
