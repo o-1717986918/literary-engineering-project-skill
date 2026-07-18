@@ -37,13 +37,14 @@ The `protocol` command prints the required references, suggested CLI chain, plat
 7. Run the smallest deterministic command that prepares the next artifact.
 8. Capture and inspect output paths printed by the command.
 9. If the command writes `.agent_tasks.md`, read the task file and have the platform agent fill the expected artifact paths. The CLI has not completed the creative step by writing a task file.
-10. Validate artifacts:
+10. When sidecar or gate status is unclear, run `agent-task-status <project>` or `route-audit <project> --route <route>` and resolve or list pending items.
+11. Validate artifacts:
    - `agent-validate` for agent run outputs.
    - schema-specific review for JSON candidates.
    - `canon-lint` for canon and character consistency.
    - `review-scene`, `agent-review-scene`, or platform review for prose.
    - `word-budget`, `longform-audit`, `chapter-workspace`, and approval summaries for longform/release.
-11. Record whether each output remains a candidate, was revised, was promoted, or needs user approval.
+12. Record whether each output remains a candidate, was revised, was promoted, or needs user approval.
 
 ## Common CLI Chains
 
@@ -74,7 +75,15 @@ python -m literary_engineering_workbench word-budget <project> --target-words 50
 
 The CLI writes `plot/word_budget/word_budget.md`, `plot/word_budget/word_budget.json`, and `plot/word_budget/word_budget.agent_tasks.md`. The platform agent must read the sidecar, create `plot/candidates/outlines/word_budget_expansion.md`, write `reviews/word_budget/word_budget_review.md`, and decide whether the project has enough narrative inventory before bulk generation.
 
+The same command also binds the budget to chapter and scene inventory. It writes `plot/word_budget/scene_inventory_expansion.agent_tasks.md`; the platform agent must use it to create `plot/candidates/scenes/word_budget_scene_inventory.md` and `reviews/word_budget/scene_inventory_review.md`. The scene inventory candidate should list per-chapter target words, existing cleaned body words, missing scenes, and expansion tasks instead of merely asking current scenes to grow longer.
+
 Use `longform-budget` as an alias. Do not treat `word_budget.json` as final plot; it is a numerical scaffold and readiness signal.
+
+Check route readiness before bulk scene generation:
+
+```powershell
+python -m literary_engineering_workbench route-audit <project> --route longform-planning
+```
 
 ### Style Engineering
 
@@ -114,10 +123,11 @@ python -m literary_engineering_workbench branch-simulate <project> --scene scene
 python -m literary_engineering_workbench compose-scene <project> --scene scenes/scene_0001.yaml --agent-tasks
 python -m literary_engineering_workbench generate-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench review-scene <project> --scene scenes/scene_0001.yaml
+python -m literary_engineering_workbench revise-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench state-evolve <project> --scene scenes/scene_0001.yaml --agent-tasks
 ```
 
-The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review character causality and punctuation, then decide whether to revise or request promotion approval.
+The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review character causality and punctuation, then decide whether to revise or request promotion approval. Use `revise-scene` when `agent-review-scene`, `review-scene`, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the platform agent to produce a revision candidate and report without overwriting the formal draft.
 
 ### Review And Audit
 
@@ -127,9 +137,20 @@ python -m literary_engineering_workbench canon-lint <project>
 python -m literary_engineering_workbench agent-canon-review <project>
 python -m literary_engineering_workbench agent-committee <project>
 python -m literary_engineering_workbench longform-audit <project>
+python -m literary_engineering_workbench agent-task-status <project>
+python -m literary_engineering_workbench route-audit <project> --route review-and-audit
 ```
 
 The platform agent turns findings into a ranked revision plan and never treats a clean deterministic report as a substitute for creative review.
+
+### Task And Route Dashboard
+
+```powershell
+python -m literary_engineering_workbench agent-task-status <project>
+python -m literary_engineering_workbench route-audit <project> --route scene-development
+```
+
+`agent-task-status` scans project `.agent_tasks.md` files, checks whether their expected artifact paths exist, and writes `workflow/agent_task_status.md` / `.json`. `route-audit` writes `workflow/route_audit.md` / `.json` and adds route-specific gates such as word-budget expansion, scene sidecar completion, chapter readiness, and export readiness. These commands are diagnostic; the platform agent must still complete creative tasks or record why they remain pending.
 
 ### Export And Release
 
@@ -150,6 +171,7 @@ Do not finish a CLI-backed task until:
 - Reading receipt was recorded or summarized.
 - Command output paths were inspected.
 - `.agent_tasks.md` files were handled by the platform agent or listed as pending.
+- `agent-task-status` or route-specific `route-audit` ran when completion state was ambiguous.
 - Generated artifacts have explicit status.
 - Relevant validation/review commands ran or were deliberately skipped with a reason.
 - Final response reports commands run, important artifacts, checks, and pending approvals.

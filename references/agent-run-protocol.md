@@ -16,15 +16,17 @@ Use this protocol whenever a tool-layer agent runs a literary engineering task t
 7. Execute deterministic preparation with CLI only when useful: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars.
 8. Perform every non-deterministic creative or judgment step as the supervising platform agent. This includes prose, JSON drafting, schema repair, roleplay, branch choice, review findings, style prompts, and promotion recommendations.
 9. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, then inspect the produced artifact. Do not report the task file as completed work by itself.
-10. Validate produced artifacts before acceptance:
+10. If sidecar completion, expected outputs, or route gates are unclear, run or emulate `agent-task-status` and route-specific `route-audit`; resolve the missing items or list them as pending.
+11. Validate produced artifacts before acceptance:
    - JSON: schema validation or explicit schema review.
    - Canon and continuity: canon lint or platform-agent canon review.
    - Character logic: BDI, hidden `background_story`, relationship pressure, and OOC risk.
    - Style: mounted Style Skill and style prompt priority.
    - Chinese prose: `references/punctuation-standard.md`.
    - Release/export: readiness, approval, and target format checks.
-11. Decide the artifact status: revise, keep as candidate, ask user, approve internally for experiment, or promote after explicit user approval.
-12. Finish with an audit summary: files changed, candidate-only files, promoted files, checks run, blocked items, reading receipt, and next high-level creative choices.
+12. If a prose review returns `pass_with_notes`, warnings, or local fixes, run or emulate `revise-scene` and review the revision candidate before promotion, chapter readiness, export, or writeback.
+13. Decide the artifact status: revise, keep as candidate, ask user, approve internally for experiment, or promote after explicit user approval.
+14. Finish with an audit summary: files changed, candidate-only files, promoted files, checks run, blocked items, reading receipt, and next high-level creative choices.
 
 ## Platform Agent Responsibilities
 
@@ -57,7 +59,9 @@ Before final response, check:
 - Required references read for that route.
 - Project state inspected.
 - All `.agent_tasks.md` outputs handled or explicitly listed as pending.
+- `agent-task-status` or route-specific `route-audit` used when route completion state was ambiguous.
 - Reading receipt recorded or summarized.
+- Review notes resolved through revision or explicit waiver before readiness/export/writeback.
 - Generated JSON/prose/reviews are marked candidate, reviewed, approved, or pending.
 - Canon, character, style, punctuation, and release/export gates applied when relevant.
 - User approval requirement is recorded for promotions or final release.

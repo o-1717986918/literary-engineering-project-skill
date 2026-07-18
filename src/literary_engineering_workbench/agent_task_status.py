@@ -1,0 +1,424 @@
+"""Scan platform-agent task sidecars and route completion gates."""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+import re
+
+
+BACKTICK_RE = re.compile(r"`([^`]+)`")
+EXPECTED_HINT_RE = re.compile(r"(完成后写入|创建或覆盖|expected_|写入候选|写入正式|输出到|输出至)")
+IGNORED_PARTS = {".git", "__pycache__", ".pytest_cache", "node_modules", ".venv", "venv"}
+
+
+@dataclass(frozen=True)
+class AgentTaskRecord:
+    path: str
+    route: str
+    status: str
+    expected_paths: tuple[str, ...]
+    existing_expected_paths: tuple[str, ...]
+    missing_expected_paths: tuple[str, ...]
+    source_paths: tuple[str, ...]
+    missing_source_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AgentTaskStatusResult:
+    project_root: Path
+    markdown_path: Path
+    json_path: Path
+    task_count: int
+    pending_count: int
+    partial_count: int
+    complete_count: int
+    missing_expected_count: int
+
+
+@dataclass(frozen=True)
+class RouteAuditResult:
+    project_root: Path
+    markdown_path: Path
+    json_path: Path
+    route: str
+    gate_count: int
+    blocking_count: int
+    warning_count: int
+    pending_task_count: int
+
+
+def build_agent_task_status(
+    project_root: Path,
+    *,
+    output: Path | None = None,
+    json_output: Path | None = None,
+) -> AgentTaskStatusResult:
+    root = project_root.resolve()
+    if not root.exists():
+        raise FileNotFoundError(f"project root not found: {root}")
+    records = _scan_agent_tasks(root)
+    summary = _summary(records)
+    markdown_path = _resolve_output(root, output, "workflow", "agent_task_status.md")
+    json_path = _resolve_output(root, json_output, "workflow", "agent_task_status.json")
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "literary-engineering-workbench/agent-task-status/v0.1",
+        "generated_at": _now(),
+        "project_root": str(root),
+        "summary": summary,
+        "tasks": [asdict(record) for record in records],
+    }
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    markdown_path.write_text(_render_status_markdown(payload), encoding="utf-8")
+    return AgentTaskStatusResult(
+        project_root=root,
+        markdown_path=markdown_path,
+        json_path=json_path,
+        task_count=summary["task_count"],
+        pending_count=summary["pending_count"],
+        partial_count=summary["partial_count"],
+        complete_count=summary["complete_count"],
+        missing_expected_count=summary["missing_expected_count"],
+    )
+
+
+def build_route_audit(
+    project_root: Path,
+    *,
+    route: str = "",
+    output: Path | None = None,
+    json_output: Path | None = None,
+) -> RouteAuditResult:
+    root = project_root.resolve()
+    if not root.exists():
+        raise FileNotFoundError(f"project root not found: {root}")
+    records = _scan_agent_tasks(root)
+    normalized_route = _normalize_route(route)
+    gates = _route_gates(root, normalized_route, records)
+    summary = {
+        "route": normalized_route or "overall",
+        "gate_count": len(gates),
+        "blocking_count": sum(1 for gate in gates if gate["severity"] == "blocking"),
+        "warning_count": sum(1 for gate in gates if gate["severity"] == "warning"),
+        "pass_count": sum(1 for gate in gates if gate["status"] == "pass"),
+        "pending_task_count": sum(1 for record in records if record.status in {"pending", "partial", "unknown"}),
+        "missing_expected_count": sum(len(record.missing_expected_paths) for record in records),
+    }
+    markdown_path = _resolve_output(root, output, "workflow", "route_audit.md")
+    json_path = _resolve_output(root, json_output, "workflow", "route_audit.json")
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "literary-engineering-workbench/route-audit/v0.1",
+        "generated_at": _now(),
+        "project_root": str(root),
+        "summary": summary,
+        "gates": gates,
+        "tasks": [asdict(record) for record in records],
+    }
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    markdown_path.write_text(_render_route_audit_markdown(payload), encoding="utf-8")
+    return RouteAuditResult(
+        project_root=root,
+        markdown_path=markdown_path,
+        json_path=json_path,
+        route=summary["route"],
+        gate_count=summary["gate_count"],
+        blocking_count=summary["blocking_count"],
+        warning_count=summary["warning_count"],
+        pending_task_count=summary["pending_task_count"],
+    )
+
+
+def _scan_agent_tasks(root: Path) -> list[AgentTaskRecord]:
+    records = []
+    for path in sorted(root.rglob("*.agent_tasks.md")):
+        if any(part in IGNORED_PARTS for part in path.parts):
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        expected = _unique(_extract_expected_paths(root, text))
+        sources = _unique(_extract_source_paths(root, text))
+        existing = tuple(item for item in expected if _path_exists(root, item))
+        missing = tuple(item for item in expected if not _path_exists(root, item))
+        missing_sources = tuple(item for item in sources if not _path_exists(root, item))
+        if expected and not missing:
+            status = "complete"
+        elif expected and existing:
+            status = "partial"
+        elif expected:
+            status = "pending"
+        else:
+            status = "unknown"
+        records.append(
+            AgentTaskRecord(
+                path=_rel(path, root),
+                route=_infer_route(path, text),
+                status=status,
+                expected_paths=tuple(expected),
+                existing_expected_paths=existing,
+                missing_expected_paths=missing,
+                source_paths=tuple(sources),
+                missing_source_paths=missing_sources,
+            )
+        )
+    return records
+
+
+def _extract_expected_paths(root: Path, text: str) -> list[str]:
+    results: list[str] = []
+    for line in text.splitlines():
+        if not EXPECTED_HINT_RE.search(line):
+            continue
+        for item in BACKTICK_RE.findall(line):
+            if _looks_like_project_path(item):
+                results.append(_normalize_path(root, item))
+    return results
+
+
+def _extract_source_paths(root: Path, text: str) -> list[str]:
+    results: list[str] = []
+    in_sources = False
+    for line in text.splitlines():
+        if line.strip() == "## Source Artifacts":
+            in_sources = True
+            continue
+        if in_sources and line.startswith("## "):
+            break
+        if not in_sources:
+            continue
+        for item in BACKTICK_RE.findall(line):
+            if _looks_like_project_path(item):
+                results.append(_normalize_path(root, item))
+    return results
+
+
+def _looks_like_project_path(value: str) -> bool:
+    text = value.strip()
+    if not text or text.startswith("literary-engineering-workbench/"):
+        return False
+    if re.search(r"\s", text):
+        return False
+    suffixes = (".md", ".json", ".yaml", ".yml", ".csv", ".txt", ".docx")
+    return "/" in text or "\\" in text or text.lower().endswith(suffixes)
+
+
+def _normalize_path(root: Path, value: str) -> str:
+    path = Path(value.strip())
+    if path.is_absolute():
+        return _rel(path, root)
+    return path.as_posix()
+
+
+def _path_exists(root: Path, value: str) -> bool:
+    path = Path(value)
+    if not path.is_absolute():
+        path = root / path
+    return path.exists()
+
+
+def _infer_route(path: Path, text: str) -> str:
+    joined = (path.as_posix() + "\n" + text[:1000]).lower()
+    if "word_budget" in joined or "longform word budget" in joined:
+        return "longform-planning"
+    if "source_ingest" in joined or "extract_project_files" in joined or "sources/imports" in joined:
+        return "source-ingest"
+    if "style" in joined:
+        return "style-engineering"
+    if "asset" in joined or "candidate asset" in joined or "platform asset" in joined:
+        return "character-and-world-assets"
+    if "scene_review" in joined or "canon_review" in joined or "committee" in joined:
+        return "review-and-audit"
+    if "branch" in joined or "composition" in joined or "candidate" in joined or "state_patch" in joined or "revision" in joined:
+        return "scene-development"
+    if "export" in joined or "publish" in joined or "release" in joined:
+        return "export-and-release"
+    return "optional-cli"
+
+
+def _route_gates(root: Path, route: str, records: list[AgentTaskRecord]) -> list[dict[str, str]]:
+    gates: list[dict[str, str]] = []
+    pending = [record for record in records if record.status in {"pending", "partial", "unknown"}]
+    missing_expected = sum(len(record.missing_expected_paths) for record in records)
+    _add_gate(gates, "project-root", (root / "project.yaml").exists(), "blocking", "project.yaml exists", "不是标准 work project；若扫描 skill root，可忽略本项。")
+    _add_gate(gates, "agent-sidecars-handled", not pending, "blocking", "all .agent_tasks.md sidecars handled", f"仍有 {len(pending)} 个 sidecar 未完整处理。")
+    _add_gate(gates, "expected-artifacts-exist", missing_expected == 0, "blocking", "all expected artifacts exist", f"仍缺 {missing_expected} 个预期产物。")
+    if route == "longform-planning":
+        budget_json = root / "plot" / "word_budget" / "word_budget.json"
+        _add_gate(gates, "word-budget-json", budget_json.exists(), "blocking", "word budget JSON exists", "运行 word-budget / longform-budget。")
+        payload = _read_json(budget_json)
+        candidate = root / "plot" / "candidates" / "outlines" / "word_budget_expansion.md"
+        review = root / "reviews" / "word_budget" / "word_budget_review.md"
+        scene_plan = root / "plot" / "candidates" / "scenes" / "word_budget_scene_inventory.md"
+        if payload.get("status") == "needs_expansion":
+            _add_gate(gates, "budgeted-outline-candidate", candidate.exists(), "blocking", "budgeted outline candidate exists", "平台 Agent 需处理 word_budget.agent_tasks.md。")
+            _add_gate(gates, "word-budget-review", review.exists(), "blocking", "word-budget review exists", "平台 Agent 需写入 reviews/word_budget/word_budget_review.md。")
+            _add_gate(gates, "scene-inventory-expansion", scene_plan.exists(), "warning", "scene inventory expansion candidate exists", "平台 Agent 需处理 scene_inventory_expansion.agent_tasks.md。")
+    if route == "scene-development":
+        _add_gate(gates, "scene-files", any((root / "scenes").glob("*.yaml")) if (root / "scenes").exists() else False, "blocking", "scene yaml exists", "先创建 scenes/{scene_id}.yaml。")
+        scene_pending = [record for record in pending if record.route == "scene-development"]
+        _add_gate(gates, "scene-sidecars-handled", not scene_pending, "blocking", "scene-development sidecars handled", f"仍有 {len(scene_pending)} 个 scene-development sidecar 未完成。")
+        unresolved_reviews = _unresolved_scene_review_count(root)
+        _add_gate(gates, "scene-review-notes-resolved", unresolved_reviews == 0, "warning", "scene review notes resolved", f"仍有 {unresolved_reviews} 个场景 review notes 未进入 revise-scene 修订闭环或缺修订报告。")
+    if route == "export-and-release":
+        chapter_jsons = list((root / "plot" / "chapters").glob("*.json")) if (root / "plot" / "chapters").exists() else []
+        _add_gate(gates, "chapter-workspace-json", bool(chapter_jsons), "blocking", "chapter workspace JSON exists", "先运行 chapter-workspace。")
+        non_ready = _non_ready_scene_count(chapter_jsons)
+        _add_gate(gates, "chapter-scenes-ready", non_ready == 0 and bool(chapter_jsons), "blocking", "chapter scenes ready", f"章节中仍有 {non_ready} 个非 ready 场景。")
+    return gates
+
+
+def _add_gate(gates: list[dict[str, str]], key: str, passed: bool, severity: str, passed_message: str, failed_message: str) -> None:
+    gates.append(
+        {
+            "key": key,
+            "status": "pass" if passed else "fail",
+            "severity": "info" if passed else severity,
+            "message": passed_message if passed else failed_message,
+        }
+    )
+
+
+def _non_ready_scene_count(chapter_jsons: list[Path]) -> int:
+    total = 0
+    for path in chapter_jsons:
+        payload = _read_json(path)
+        for scene in payload.get("scenes", []) if isinstance(payload.get("scenes"), list) else []:
+            if isinstance(scene, dict) and scene.get("status") != "ready":
+                total += 1
+    return total
+
+
+def _unresolved_scene_review_count(root: Path) -> int:
+    review_dir = root / "reviews" / "agent"
+    if not review_dir.exists():
+        return 0
+    unresolved = 0
+    for path in sorted(review_dir.glob("*_scene_review.json")):
+        payload = _read_json(path)
+        scene_id = path.name[: -len("_scene_review.json")]
+        if not _review_needs_revision(payload):
+            continue
+        report = root / "drafts" / "revisions" / f"{scene_id}_revision_report.md"
+        manifest = root / "drafts" / "revisions" / f"{scene_id}_revision.json"
+        if not (report.exists() and manifest.exists()):
+            unresolved += 1
+    return unresolved
+
+
+def _review_needs_revision(payload: dict) -> bool:
+    conclusion = str(payload.get("conclusion") or "").strip().lower()
+    if conclusion in {"pass_with_notes", "revise_required", "reject"}:
+        return True
+    for key in ("revision_actions", "warnings", "style_notes", "blocking_issues"):
+        value = payload.get(key)
+        if isinstance(value, list) and value:
+            return True
+    return False
+
+
+def _summary(records: list[AgentTaskRecord]) -> dict[str, int]:
+    return {
+        "task_count": len(records),
+        "pending_count": sum(1 for record in records if record.status == "pending"),
+        "partial_count": sum(1 for record in records if record.status == "partial"),
+        "complete_count": sum(1 for record in records if record.status == "complete"),
+        "unknown_count": sum(1 for record in records if record.status == "unknown"),
+        "missing_expected_count": sum(len(record.missing_expected_paths) for record in records),
+        "missing_source_count": sum(len(record.missing_source_paths) for record in records),
+    }
+
+
+def _render_status_markdown(payload: dict) -> str:
+    summary = payload["summary"]
+    lines = [
+        "# 平台 Agent 任务总控面板",
+        "",
+        f"- 生成时间：{payload['generated_at']}",
+        f"- 任务数：{summary['task_count']}",
+        f"- Pending：{summary['pending_count']}",
+        f"- Partial：{summary['partial_count']}",
+        f"- Complete：{summary['complete_count']}",
+        f"- Unknown：{summary['unknown_count']}",
+        f"- 缺失预期产物：{summary['missing_expected_count']}",
+        "",
+        "## Sidecars",
+        "",
+        "| 状态 | Route | Task | 缺失预期产物 | 缺失 Source |",
+        "| --- | --- | --- | ---: | ---: |",
+    ]
+    for record in payload["tasks"]:
+        lines.append(
+            f"| {record['status']} | {record['route']} | `{record['path']}` | {len(record['missing_expected_paths'])} | {len(record['missing_source_paths'])} |"
+        )
+    lines.extend(["", "## 下一步", "", "- 先处理 pending / partial sidecar，再进入生成、审查、装配或发布。"])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _render_route_audit_markdown(payload: dict) -> str:
+    summary = payload["summary"]
+    lines = [
+        f"# Route Audit：{summary['route']}",
+        "",
+        f"- 生成时间：{payload['generated_at']}",
+        f"- Gate 数：{summary['gate_count']}",
+        f"- Blocking：{summary['blocking_count']}",
+        f"- Warning：{summary['warning_count']}",
+        f"- 未完成 sidecar：{summary['pending_task_count']}",
+        "",
+        "## Gates",
+        "",
+        "| 状态 | 级别 | Gate | 说明 |",
+        "| --- | --- | --- | --- |",
+    ]
+    for gate in payload["gates"]:
+        lines.append(f"| {gate['status']} | {gate['severity']} | {gate['key']} | {gate['message']} |")
+    lines.extend(["", "## Sidecar Summary", "", "| 状态 | Route | Task |", "| --- | --- | --- |"])
+    for record in payload["tasks"]:
+        lines.append(f"| {record['status']} | {record['route']} | `{record['path']}` |")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _normalize_route(route: str) -> str:
+    return route.strip().lower().replace("_", "-")
+
+
+def _resolve_output(root: Path, output: Path | None, *default_parts: str) -> Path:
+    if output is None:
+        return root.joinpath(*default_parts)
+    return output if output.is_absolute() else root / output
+
+
+def _read_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _unique(items: list[str]) -> list[str]:
+    seen = set()
+    results = []
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        results.append(item)
+    return results
+
+
+def _rel(path: Path, root: Path) -> str:
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()

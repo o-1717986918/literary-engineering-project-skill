@@ -27,6 +27,7 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue(result.markdown_path.exists())
         self.assertTrue(result.json_path.exists())
         self.assertTrue(result.agent_tasks_path.exists())
+        self.assertTrue(result.scene_inventory_tasks_path.exists())
         self.assertEqual(result.target_words, 500000)
         self.assertEqual(result.volume_count, 5)
         self.assertGreater(result.chapter_count, 80)
@@ -37,11 +38,17 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(payload["target"]["target_words"], 500000)
         self.assertEqual(payload["totals"]["target_words"], 500000)
         self.assertEqual(len(payload["volume_budgets"]), 5)
+        self.assertGreater(len(payload["chapter_budgets"]), 80)
+        self.assertIn("scene_inventory_binding", payload)
+        self.assertGreater(payload["scene_inventory_binding"]["missing_scene_count"], 200)
 
         tasks = result.agent_tasks_path.read_text(encoding="utf-8")
         self.assertIn("[AGENT_TASK:", tasks)
         self.assertIn("plot/candidates/outlines/word_budget_expansion.md", tasks)
         self.assertIn("剧情库存", tasks)
+        scene_tasks = result.scene_inventory_tasks_path.read_text(encoding="utf-8")
+        self.assertIn("word_budget_scene_inventory.md", scene_tasks)
+        self.assertIn("扩场景", scene_tasks)
 
     def test_cli_word_budget_alias(self):
         project = self.make_project()
@@ -63,8 +70,10 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertIn("receiver: platform-agent", out.getvalue())
+        self.assertIn("scene_inventory_tasks", out.getvalue())
         self.assertTrue((project / "plot" / "word_budget" / "word_budget.json").exists())
         self.assertTrue((project / "plot" / "word_budget" / "word_budget.agent_tasks.md").exists())
+        self.assertTrue((project / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md").exists())
 
     def test_prompt_manifest_includes_word_budget_standard(self):
         project = self.make_project()

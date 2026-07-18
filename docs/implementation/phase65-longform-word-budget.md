@@ -14,8 +14,11 @@
 - 预算输出：`plot/word_budget/word_budget.md`
 - 机器可读预算：`plot/word_budget/word_budget.json`
 - 平台 agent 任务：`plot/word_budget/word_budget.agent_tasks.md`
+- 分章分场景库存任务：`plot/word_budget/scene_inventory_expansion.agent_tasks.md`
 - 预算化大纲候选目标：`plot/candidates/outlines/word_budget_expansion.md`
+- 分场景库存候选目标：`plot/candidates/scenes/word_budget_scene_inventory.md`
 - 预算审查目标：`reviews/word_budget/word_budget_review.md`
+- 场景库存审查目标：`reviews/word_budget/scene_inventory_review.md`
 
 ## 设计边界
 
@@ -24,7 +27,8 @@ CLI 负责确定性计算：
 - 读取 `project.yaml` 的 `target_length` / `genre` / `longform_budget.volumes`。
 - 根据类型预设估算章数、场景数、平均章字数、平均场景字数。
 - 按卷数分配总字数，保持总和严格等于目标字数。
-- 扫描现有大纲和 `scenes/*.yaml`，判断剧情库存是否明显不足。
+- 扫描现有大纲、`scenes/*.yaml` 和已写草稿的清洗后正文，判断剧情库存、章节库存和实际字数是否明显不足。
+- 生成每章目标字数、实际正文字数、已有场景数、推荐场景数、缺失场景数和扩场景任务入口。
 - 输出 `.agent_tasks.md`，明确平台 agent 下一步要写什么。
 
 平台 agent 负责非确定性判断：
@@ -32,6 +36,7 @@ CLI 负责确定性计算：
 - 类型、时间跨度与目标字数是否匹配。
 - 是否应增加人物线、地点、时间跨度、章节层级或伏笔网络。
 - 预算化大纲是否有足够叙事密度，而不是机械拉长。
+- 分场景库存是否能用具体事件、关系转折、线索、后果链和伏笔回收支撑每章字数。
 - 是否建议缩短目标字数或调整卷数。
 - 是否批准候选大纲进入正式 `plot/outline.md`。
 
@@ -64,7 +69,9 @@ plot/word_budget/word_budget.agent_tasks.md
 
 ```text
 plot/candidates/outlines/word_budget_expansion.md
+plot/candidates/scenes/word_budget_scene_inventory.md
 reviews/word_budget/word_budget_review.md
+reviews/word_budget/scene_inventory_review.md
 ```
 
 最后运行：
@@ -100,4 +107,5 @@ python -m literary_engineering_workbench longform-audit "<work-dir>" --target-le
 - 新建项目包含 `plot/word_budget/` 和 `reviews/word_budget/`。
 - 场景生成 prompt manifest 自动加载预算标准。
 - `longform-audit` 会报告预算缺失和场景库存不足。
+- `route-audit --route longform-planning` 会报告预算化大纲、分场景库存和 route gate 完成情况。
 - 回归测试覆盖 CLI、prompt manifest 和审计联动。

@@ -27,6 +27,7 @@ COMMON_PREFLIGHT = (
     "Select this route in agentread.yaml and avoid starting from an arbitrary command.",
     "Read references/agent-run-protocol.md before changing project artifacts.",
     "Inspect project.yaml plus relevant canon, characters, plot, style, drafts, reviews, workflow, and approvals.",
+    "Run agent-task-status or route-audit when sidecar or route completion state is unclear.",
     "State intended artifacts, review gates, and approval boundary before generation or promotion.",
 )
 
@@ -253,6 +254,8 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "python -m literary_engineering_workbench protocol longform-planning",
             "python -m literary_engineering_workbench word-budget <project> --target-words 500000 --volumes 5 --genre mystery",
             "Read plot/word_budget/word_budget.agent_tasks.md and write plot/candidates/outlines/word_budget_expansion.md plus reviews/word_budget/word_budget_review.md.",
+            "Read plot/word_budget/scene_inventory_expansion.agent_tasks.md and write plot/candidates/scenes/word_budget_scene_inventory.md plus reviews/word_budget/scene_inventory_review.md.",
+            "python -m literary_engineering_workbench route-audit <project> --route longform-planning",
             "python -m literary_engineering_workbench longform-audit <project> --target-length 500000",
         ),
         platform_agent_handoffs=(
@@ -263,7 +266,8 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         completion_gates=(
             "word_budget.md/json and word_budget.agent_tasks.md exist or the reason for skipping is recorded.",
             "Platform agent has written or explicitly deferred the budgeted outline candidate and word-budget review.",
-            "Scene/chapter inventory is sufficient for the target length before batch scene generation.",
+            "Chapter-level and scene-level word targets, actual cleaned body counts, missing scenes, and expansion tasks are reviewed.",
+            "Scene/chapter inventory is sufficient for the target length before batch scene generation or the shortfall is listed as pending.",
             "Prompt manifest and generation flow will load the word-budget standard.",
         ),
         forbidden_shortcuts=COMMON_FORBIDDEN
@@ -304,17 +308,20 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "python -m literary_engineering_workbench compose-scene <project> --scene scenes/scene_0001.yaml --agent-tasks",
             "python -m literary_engineering_workbench generate-scene <project> --scene scenes/scene_0001.yaml",
             "python -m literary_engineering_workbench review-scene <project> --scene scenes/scene_0001.yaml",
+            "python -m literary_engineering_workbench revise-scene <project> --scene scenes/scene_0001.yaml",
             "python -m literary_engineering_workbench state-evolve <project> --scene scenes/scene_0001.yaml --agent-tasks",
+            "python -m literary_engineering_workbench route-audit <project> --route scene-development",
         ),
         platform_agent_handoffs=(
             "Roleplay answers, branch selection, consequence reasoning, and scene composition judgment.",
-            "Prose drafting/revision and scene review.",
+            "Prose drafting, AgentReview notes resolution, formal revision candidate generation, and scene review.",
             "Character state patch interpretation and promotion recommendation.",
         ),
         completion_gates=(
             "Context packet or equivalent project-state inspection completed.",
             "Roleplay, branch, and composition sidecars handled when generated.",
             "Prose candidate reviewed for canon, character, style, and punctuation.",
+            "Any pass_with_notes, warning, or revise_required finding is resolved through revise-scene or a recorded waiver.",
             "State patch remains candidate until reviewed and approved.",
         ),
         forbidden_shortcuts=COMMON_FORBIDDEN
@@ -348,13 +355,16 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "python -m literary_engineering_workbench agent-canon-review <project>",
             "python -m literary_engineering_workbench agent-committee <project>",
             "python -m literary_engineering_workbench longform-audit <project>",
+            "python -m literary_engineering_workbench agent-task-status <project>",
+            "python -m literary_engineering_workbench route-audit <project> --route review-and-audit",
         ),
         platform_agent_handoffs=(
-            "Finding severity judgment, revision planning, committee synthesis, and acceptance of residual risk.",
+            "Finding severity judgment, revision planning, committee synthesis, sidecar backlog triage, and acceptance of residual risk.",
         ),
         completion_gates=(
             "Blocking findings separated from warnings.",
             "Revision plan maps findings to artifacts.",
+            "Pending sidecars, missing expected artifacts, and incomplete route gates are listed or resolved.",
             "Readiness and approval limits stated.",
         ),
         forbidden_shortcuts=COMMON_FORBIDDEN
@@ -419,6 +429,8 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         cli_chain=(
             "python -m literary_engineering_workbench protocol optional-cli",
             "python -m literary_engineering_workbench --help",
+            "python -m literary_engineering_workbench agent-task-status <project>",
+            "python -m literary_engineering_workbench route-audit <project> --route <route>",
         ),
         platform_agent_handoffs=(
             "Any interpretation, creative judgment, review, promotion, or release decision after deterministic CLI output.",

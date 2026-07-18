@@ -182,7 +182,13 @@
 
 已在 `v0.66.0` 强化标准链路：`.agent_tasks.md`、agent-run protocol 和 CLI protocol 要求平台 agent 记录 reading receipt；`pass_with_notes` 不再是静默通过，下一轮生成会读取 `reviews/agent/{scene_id}_scene_review.json` 并注入 `generation_standards.review_notes`；prompt manifest 新增 `generation_standards.hard_constraints`，把 canon、场景编排、人物逻辑、文风、字数预算、AgentReview notes、标点和输出边界整理成生成前硬约束摘要，提高草稿/候选正文质量。
 
+## Phase 67：最终正文口径、字数统计与 RP 门禁
+
 已在 `v0.67.0` 统一最终正文口径：新增共享草稿正文清洗模块，导出、章节统计、长篇审计和 export manifest 均只统计清洗后可交付正文；最终小说、剧本和视频提示词包不再暴露 `scene_0001` / `chapter_0001` 等工程编号；`simulate-scene --agent` 增加平台 Agent 执行门禁和读取回执，防止 RP 推演跳过 scene/context/角色/canon 资料。
+
+## Phase 68：平台 Agent 总控、场景修订闭环与场景库存绑定
+
+已在 `v0.68.0` 实现 `agent-task-status` / `route-audit`，为工作项目输出 `workflow/agent_task_status.*` 和 `workflow/route_audit.*`，统一扫描 sidecar 未处理、预期产物缺失和 route gate 未完成。新增 `revise-scene`，将草稿、AgentReview notes、文风、canon、标点规范和字数预算汇总为平台 Agent 修订任务，输出修订候选与修订报告。`word-budget` 进一步生成分章预算、场景库存绑定、实际清洗正文字数、缺失场景列表和 `scene_inventory_expansion.agent_tasks.md`，使长篇目标字数与具体章节/场景库存强绑定。
 
 ## Phase 47：前端显式 API Key 配置
 

@@ -183,10 +183,21 @@ python -m literary_engineering_workbench word-budget "<work-dir>" --target-words
 - `plot/word_budget/word_budget.md`
 - `plot/word_budget/word_budget.json`
 - `plot/word_budget/word_budget.agent_tasks.md`
+- `plot/word_budget/scene_inventory_expansion.agent_tasks.md`
 
-随后 Codex / Claude 读取任务侧车，把预算转化为 `plot/candidates/outlines/word_budget_expansion.md` 和 `reviews/word_budget/word_budget_review.md`。通过审查和用户批准前，它只是候选大纲，不会覆盖正式 `plot/outline.md`。
+随后 Codex / Claude 读取任务侧车，把预算转化为 `plot/candidates/outlines/word_budget_expansion.md`、`plot/candidates/scenes/word_budget_scene_inventory.md`、`reviews/word_budget/word_budget_review.md` 和 `reviews/word_budget/scene_inventory_review.md`。通过审查和用户批准前，它们只是候选大纲和候选场景库存，不会覆盖正式 `plot/outline.md` 或 `scenes/*.yaml`。
 
 后续场景生成会自动读取预算标准，`longform-audit` 也会检查预算缺失、needs_expansion 和场景库存不足。
+
+当任务链路较长时，可以让 CLI 给平台 Agent 一张总控面板：
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m literary_engineering_workbench agent-task-status "<work-dir>"
+python -m literary_engineering_workbench route-audit "<work-dir>" --route longform-planning
+```
+
+这会列出未处理的 `.agent_tasks.md`、缺失的预期产物和未完成 route gate，方便继续推进而不是漏掉侧车任务。
 
 ## 快速开始
 
@@ -278,7 +289,8 @@ CLI 是可选工具箱，不是必须入口。正常使用时，推荐让 Codex 
 6. 生成场景编排包。
 7. 写出候选正文。
 8. 执行 canon、人物、剧情功能和文风审查。
-9. 提出人物状态变化 patch。
+9. 若审查为 `pass_with_notes`、发现 warning 或需要局部修订，运行 `revise-scene` 生成修订候选和修订报告。
+10. 提出人物状态变化 patch。
 
 ### 学习并挂载文风
 
@@ -361,6 +373,7 @@ literary-engineering-project-skill/
 - 已有作品反推与源文本导入：已完成 `source-ingest` / `extract-existing-work`。
 - 长篇字数预算与剧情库存门禁：已完成 `word-budget` / `longform-budget`。
 - 流程阅读回执、`pass_with_notes` 小修闭环和生成前硬约束摘要：已完成。
+- 平台 Agent 任务总控、route gate 审计、正式 `revise-scene` 修订闭环、分章分场景字数绑定：已完成。
 - 可选 CLI 工具箱：可运行。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 

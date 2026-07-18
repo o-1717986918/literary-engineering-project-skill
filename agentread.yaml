@@ -228,21 +228,26 @@ task_routes:
       - plot/outline.md
       - plot/word_budget/
       - plot/candidates/outlines/
+      - plot/candidates/scenes/
       - scenes/
       - reviews/word_budget/
       - reviews/longform/
     output:
       - word budget markdown/json
       - platform-agent budget expansion task sidecar
+      - platform-agent scene inventory task sidecar
       - budgeted outline candidate
+      - budgeted scene inventory candidate
       - word-budget review report
+      - scene inventory review report
       - updated generation readiness decision
     completion_gates:
       - target words, volume count, genre, and time-span assumptions are explicit
       - CLI budget is treated as deterministic constraint evidence, not creative authority
       - platform agent handled the budget expansion sidecar or listed it as pending
+      - platform agent handled the scene inventory expansion sidecar or listed it as pending
       - budgeted outline remains candidate until review and user approval
-      - scene/chapter inventory can support the target length before bulk generation
+      - chapter target words, cleaned actual body words, missing scenes, and expansion tasks are reviewed before bulk generation
 
   character_and_world_assets:
     protocol: character-and-world-assets
@@ -290,11 +295,13 @@ task_routes:
       - scene composition packet
       - draft candidate
       - review report
+      - revision candidate and revision report when review notes require local fixes
       - character state patch
     completion_gates:
       - context packet or equivalent project-state inspection completed
       - roleplay/branch/composition sidecars handled by platform agent when generated
       - prose candidate reviewed for canon, character, style, and punctuation
+      - pass_with_notes, warnings, or revise_required findings resolved through revise-scene or explicit waiver
       - state patch remains candidate until reviewed and approved
 
   review_and_audit:
@@ -312,10 +319,13 @@ task_routes:
     output:
       - blocking/warning/info findings
       - revision plan
+      - agent task status dashboard when sidecar state is unclear
+      - route audit dashboard when gate state is unclear
       - approval gates
     completion_gates:
       - blocking findings separated from warnings
       - revision plan maps findings to artifacts
+      - pending sidecars, missing expected artifacts, and incomplete gates are resolved or listed as pending
       - readiness and approval limits stated
 
   export_and_release:

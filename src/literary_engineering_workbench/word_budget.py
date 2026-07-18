@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 
 from .agent_tasks import write_agent_tasks
+from .draft_text import count_delivery_chars, final_body_from_draft_path
 
 
 GENRE_PRESETS = {
@@ -86,6 +87,7 @@ class WordBudgetResult:
     markdown_path: Path
     json_path: Path
     agent_tasks_path: Path
+    scene_inventory_tasks_path: Path
     target_words: int
     volume_count: int
     chapter_count: int
@@ -117,6 +119,7 @@ def build_word_budget(
     preset_key, preset = _preset_for(genre or _project_genre(project_text))
     volume_words = _distribute_words(resolved_target, volume_count)
     volume_budgets = [_volume_budget(index + 1, words, preset) for index, words in enumerate(volume_words)]
+    chapter_budgets = _chapter_budgets(volume_budgets)
     totals = {
         "target_words": resolved_target,
         "volume_count": volume_count,
@@ -127,21 +130,26 @@ def build_word_budget(
     }
     outline_path = _resolve(root, outline) if outline else root / "plot" / "outline.md"
     inventory = _outline_inventory(root, outline_path)
-    issues = _budget_issues(totals, inventory)
+    scene_inventory_binding = _scene_inventory_binding(root, chapter_budgets)
+    issues = _budget_issues(totals, inventory, scene_inventory_binding)
     candidate_outputs = {
         "budgeted_outline_candidate": "plot/candidates/outlines/word_budget_expansion.md",
         "budget_review": "reviews/word_budget/word_budget_review.md",
+        "scene_inventory_expansion": "plot/candidates/scenes/word_budget_scene_inventory.md",
+        "scene_inventory_review": "reviews/word_budget/scene_inventory_review.md",
     }
     status = "pass" if not [issue for issue in issues if issue["severity"] in {"high", "medium"}] else "needs_expansion"
 
     markdown_path = _resolve_output(root, output, "plot", "word_budget", "word_budget.md")
     json_path = _resolve_output(root, json_output, "plot", "word_budget", "word_budget.json")
     task_path = _resolve_output(root, agent_tasks_output, "plot", "word_budget", "word_budget.agent_tasks.md")
+    scene_task_path = root / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md"
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.parent.mkdir(parents=True, exist_ok=True)
     task_path.parent.mkdir(parents=True, exist_ok=True)
     (root / "reviews" / "word_budget").mkdir(parents=True, exist_ok=True)
     (root / "plot" / "candidates" / "outlines").mkdir(parents=True, exist_ok=True)
+    (root / "plot" / "candidates" / "scenes").mkdir(parents=True, exist_ok=True)
 
     payload = {
         "schema": "literary-engineering-workbench/word-budget/v1",
@@ -157,7 +165,9 @@ def build_word_budget(
         "preset": {key: value for key, value in preset.items() if key != "aliases"},
         "totals": totals,
         "volume_budgets": volume_budgets,
+        "chapter_budgets": chapter_budgets,
         "outline_inventory": inventory,
+        "scene_inventory_binding": scene_inventory_binding,
         "issues": issues,
         "status": status,
         "candidate_outputs": candidate_outputs,
@@ -174,12 +184,14 @@ def build_word_budget(
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     markdown_path.write_text(_render_markdown(root, payload, json_path), encoding="utf-8")
     _write_agent_tasks(root, markdown_path, json_path, outline_path, task_path, payload)
+    _write_scene_inventory_agent_tasks(root, markdown_path, json_path, outline_path, scene_task_path, payload)
 
     return WordBudgetResult(
         project_root=root,
         markdown_path=markdown_path,
         json_path=json_path,
         agent_tasks_path=task_path,
+        scene_inventory_tasks_path=scene_task_path,
         target_words=resolved_target,
         volume_count=volume_count,
         chapter_count=totals["chapter_count"],
@@ -202,6 +214,8 @@ def load_word_budget_summary(root: Path) -> dict[str, object]:
         "status": payload.get("status", ""),
         "target": payload.get("target", {}),
         "totals": payload.get("totals", {}),
+        "chapter_budgets": payload.get("chapter_budgets", []),
+        "scene_inventory_binding": payload.get("scene_inventory_binding", {}),
         "issues": payload.get("issues", []),
     }
 
@@ -214,6 +228,11 @@ def render_word_budget_generation_standard(root: Path) -> str:
 当前项目尚未生成 `plot/word_budget/word_budget.json`。若目标是中长篇或百万字级项目，进入正式大纲、章节或场景生成前应先运行 `word-budget`，把总字数拆成卷、章、场景和叙事负载。"""
     target = summary.get("target", {})
     totals = summary.get("totals", {})
+    binding = summary.get("scene_inventory_binding", {})
+    binding = binding if isinstance(binding, dict) else {}
+    underbuilt = binding.get("underbuilt_chapter_count", 0)
+    missing_scenes = binding.get("missing_scene_count", 0)
+    shortfall = binding.get("word_shortfall", 0)
     return f"""# 长篇字数预算标准
 
 已加载 `{summary.get("path", "")}`。生成和扩写必须遵守以下预算，不得把大纲压缩成剧情摘要：
@@ -225,8 +244,11 @@ def render_word_budget_generation_standard(root: Path) -> str:
 - 目标场景数：{totals.get("scene_count", 0)}
 - 平均章字数：{totals.get("avg_chapter_words", 0)}
 - 平均场景字数：{totals.get("avg_scene_words", 0)}
+- 欠账章节数：{underbuilt}
+- 缺失场景数：{missing_scenes}
+- 正文缺口：{shortfall}
 
-场景生成前必须确认当前场景承担明确叙事负载：主线行动、关系压力、世界/信息释放、行动后果或节奏调节。若当前大纲没有足够场景库存，先补候选场景，不要用长段总结、空泛抒情或重复心理解释灌字数。"""
+场景生成前必须确认当前场景承担明确叙事负载：主线行动、关系压力、世界/信息释放、行动后果或节奏调节。若 `scene_inventory_binding` 显示当前章节欠场景或正文缺口，先处理 `scene_inventory_expansion.agent_tasks.md`，补候选场景和因果链，不要用长段总结、空泛抒情或重复心理解释灌字数。"""
 
 
 def _write_agent_tasks(root: Path, markdown_path: Path, json_path: Path, outline_path: Path, task_path: Path, payload: dict) -> None:
@@ -267,6 +289,40 @@ def _write_agent_tasks(root: Path, markdown_path: Path, json_path: Path, outline
     )
 
 
+def _write_scene_inventory_agent_tasks(root: Path, markdown_path: Path, json_path: Path, outline_path: Path, task_path: Path, payload: dict) -> None:
+    candidate = payload["candidate_outputs"]["scene_inventory_expansion"]
+    review = payload["candidate_outputs"]["scene_inventory_review"]
+    source_paths = [markdown_path, json_path, root / "project.yaml", root / "scenes"]
+    if outline_path.exists():
+        source_paths.append(outline_path)
+    write_agent_tasks(
+        task_path,
+        title="longform scene inventory expansion",
+        root=root,
+        source_paths=source_paths,
+        notes=[
+            "这是字数预算到场景库存的绑定任务。",
+            "CLI 已计算每章目标字数、目标场景数、实际 scene 文件数、已写正文字符数、缺失场景数和正文缺口。",
+            "平台 agent 必须把缺口转化为新场景候选、关系转折、信息释放、行动后果和伏笔链，不得用灌水描写填字数。",
+            "候选场景列表未经审查和用户批准，不得直接写入 scenes/ 或覆盖 plot/outline.md。",
+        ],
+        tasks=[
+            (
+                "读取欠账章节",
+                """读取 word_budget.json 的 `scene_inventory_binding.chapter_rows`。筛出 status 为 underbuilt / missing_scenes / word_shortfall 的章节，确认每章缺几个场景、缺多少正文字符、缺哪类叙事负载。""",
+            ),
+            (
+                "生成扩场景候选",
+                f"""创建或覆盖 `{candidate}`。按章节列出补足目标字数所需的新场景候选：每个候选包含 scene_id 建议、目标字数、场景功能、参与角色、冲突、信息释放、关系变化、行动后果、伏笔设置/回收、承接前后因果。不得只写“增加描写”。""",
+            ),
+            (
+                "写入扩场景审查报告",
+                f"""创建或覆盖 `{review}`。报告结论使用 pass / pass_with_notes / revise_required / reject，说明候选场景是否足以支撑预算，哪些候选需要用户确认，哪些不能直接晋升。不要写入 `[AGENT_TASK: ...]`。""",
+            ),
+        ],
+    )
+
+
 def _volume_budget(index: int, words: int, preset: dict[str, object]) -> dict[str, object]:
     chapter_count = max(round(words / int(preset["chapter_words"])), 1)
     scene_count = max(round(words / int(preset["scene_words"])), chapter_count * int(preset["scenes_per_chapter_min"]))
@@ -300,7 +356,115 @@ def _volume_budget(index: int, words: int, preset: dict[str, object]) -> dict[st
     }
 
 
-def _budget_issues(totals: dict[str, int], inventory: dict[str, int | str]) -> list[dict[str, str]]:
+def _chapter_budgets(volume_budgets: list[dict[str, object]]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    chapter_index = 1
+    for volume in volume_budgets:
+        chapter_words = _distribute_words(int(volume["target_words"]), int(volume["chapter_count"]))
+        scene_counts = _distribute_counts(int(volume["scene_count"]), int(volume["chapter_count"]))
+        for offset, words in enumerate(chapter_words):
+            scene_count = scene_counts[offset]
+            rows.append(
+                {
+                    "chapter_id": f"chapter_{chapter_index:04d}",
+                    "volume_id": volume["volume_id"],
+                    "target_words": words,
+                    "scene_count": scene_count,
+                    "avg_scene_words": round(words / max(scene_count, 1)),
+                    "scene_load": volume["scene_load"],
+                    "required_functions": [
+                        "mainline_action",
+                        "relationship_pressure",
+                        "information_release",
+                        "consequence_chain",
+                        "setup_or_payoff",
+                    ],
+                }
+            )
+            chapter_index += 1
+    return rows
+
+
+def _distribute_counts(total: int, count: int) -> list[int]:
+    if count <= 0:
+        return []
+    base = total // count
+    remainder = total % count
+    return [base + (1 if index < remainder else 0) for index in range(count)]
+
+
+def _scene_inventory_binding(root: Path, chapter_budgets: list[dict[str, object]]) -> dict[str, object]:
+    scenes = _scan_scene_files(root)
+    by_chapter: dict[str, list[dict[str, object]]] = {}
+    for scene in scenes:
+        by_chapter.setdefault(str(scene["chapter_id"]), []).append(scene)
+    rows = []
+    for chapter in chapter_budgets:
+        chapter_id = str(chapter["chapter_id"])
+        expected_scenes = int(chapter["scene_count"])
+        target_words = int(chapter["target_words"])
+        actual = by_chapter.get(chapter_id, [])
+        actual_scene_count = len(actual)
+        actual_chars = sum(int(scene["draft_chars"]) for scene in actual)
+        missing_scene_count = max(expected_scenes - actual_scene_count, 0)
+        word_shortfall = max(target_words - actual_chars, 0)
+        if missing_scene_count:
+            status = "missing_scenes"
+        elif word_shortfall > max(target_words * 0.2, int(chapter.get("avg_scene_words", 0))):
+            status = "word_shortfall"
+        else:
+            status = "ok"
+        rows.append(
+            {
+                "chapter_id": chapter_id,
+                "volume_id": chapter["volume_id"],
+                "target_words": target_words,
+                "target_scene_count": expected_scenes,
+                "avg_scene_words": chapter["avg_scene_words"],
+                "actual_scene_count": actual_scene_count,
+                "actual_draft_chars": actual_chars,
+                "missing_scene_count": missing_scene_count,
+                "word_shortfall": word_shortfall,
+                "status": status,
+                "scene_ids": [scene["scene_id"] for scene in actual],
+            }
+        )
+    return {
+        "chapter_rows": rows,
+        "underbuilt_chapter_count": sum(1 for row in rows if row["status"] != "ok"),
+        "missing_scene_count": sum(int(row["missing_scene_count"]) for row in rows),
+        "word_shortfall": sum(int(row["word_shortfall"]) for row in rows),
+        "actual_scene_count": len(scenes),
+        "actual_draft_chars": sum(int(scene["draft_chars"]) for scene in scenes),
+    }
+
+
+def _scan_scene_files(root: Path) -> list[dict[str, object]]:
+    scene_dir = root / "scenes"
+    if not scene_dir.exists():
+        return []
+    rows = []
+    for path in sorted(scene_dir.glob("*.yaml")):
+        if path.name.startswith("_"):
+            continue
+        text = _read(path)
+        scene_id = _scalar(text, "scene_id") or path.stem
+        chapter_id = _scalar(text, "chapter_id") or "unassigned"
+        draft_path = root / "drafts" / "scenes" / f"{scene_id}.md"
+        body = final_body_from_draft_path(draft_path) if draft_path.exists() else ""
+        rows.append(
+            {
+                "scene_id": scene_id,
+                "chapter_id": chapter_id,
+                "scene_path": _rel(path, root),
+                "draft_path": _rel(draft_path, root) if draft_path.exists() else "",
+                "draft_chars": count_delivery_chars(body),
+            }
+        )
+    return rows
+
+
+def _budget_issues(totals: dict[str, int], inventory: dict[str, int | str], scene_inventory_binding: dict[str, object]) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
     planned_chapters = int(inventory.get("planned_chapter_count", 0))
     planned_scenes = int(inventory.get("planned_scene_count", 0))
@@ -340,6 +504,18 @@ def _budget_issues(totals: dict[str, int], inventory: dict[str, int | str]) -> l
                 "category": "scene_inventory",
                 "message": f"未检测到明确场景库存，预算需要约 {required_scenes} 个场景。",
                 "recommendation": "先拆出卷-章-场景级候选，不要直接生成正文。",
+            }
+        )
+    missing_scene_count = int(scene_inventory_binding.get("missing_scene_count", 0) or 0)
+    word_shortfall = int(scene_inventory_binding.get("word_shortfall", 0) or 0)
+    underbuilt_chapters = int(scene_inventory_binding.get("underbuilt_chapter_count", 0) or 0)
+    if underbuilt_chapters:
+        issues.append(
+            {
+                "severity": "high" if missing_scene_count else "medium",
+                "category": "chapter_scene_binding",
+                "message": f"预算绑定显示 {underbuilt_chapters} 个章节存在场景或正文缺口，缺失场景 {missing_scene_count} 个，正文缺口约 {word_shortfall} 字。",
+                "recommendation": "处理 scene_inventory_expansion.agent_tasks.md，为欠账章节补足有因果功能的候选场景。",
             }
         )
     return issues
@@ -391,6 +567,37 @@ def _render_markdown(root: Path, payload: dict, json_path: Path) -> str:
     lines.extend(
         [
             "",
+            "## 章节-场景预算绑定",
+            "",
+            f"- 欠账章节：{payload['scene_inventory_binding']['underbuilt_chapter_count']}",
+            f"- 缺失场景：{payload['scene_inventory_binding']['missing_scene_count']}",
+            f"- 正文缺口：{payload['scene_inventory_binding']['word_shortfall']}",
+            f"- 已有 scene 文件：{payload['scene_inventory_binding']['actual_scene_count']}",
+            f"- 已有清洗后正文字符：{payload['scene_inventory_binding']['actual_draft_chars']}",
+            "",
+            "| 章节 | 卷 | 目标字数 | 目标场景 | 已有场景 | 已有正文 | 缺场景 | 正文缺口 | 状态 |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+        ]
+    )
+    for row in payload["scene_inventory_binding"]["chapter_rows"][:40]:
+        lines.append(
+            "| {chapter} | {volume} | {target} | {target_scenes} | {actual_scenes} | {actual_chars} | {missing_scenes} | {shortfall} | {status} |".format(
+                chapter=row["chapter_id"],
+                volume=row["volume_id"],
+                target=row["target_words"],
+                target_scenes=row["target_scene_count"],
+                actual_scenes=row["actual_scene_count"],
+                actual_chars=row["actual_draft_chars"],
+                missing_scenes=row["missing_scene_count"],
+                shortfall=row["word_shortfall"],
+                status=row["status"],
+            )
+        )
+    if len(payload["scene_inventory_binding"]["chapter_rows"]) > 40:
+        lines.append("| ... | ... | ... | ... | ... | ... | ... | ... | 仅显示前 40 行，完整数据见 JSON |")
+    lines.extend(
+        [
+            "",
             "## 现有大纲库存",
             "",
             f"- 大纲：`{inventory.get('outline_path') or 'missing'}`",
@@ -416,8 +623,9 @@ def _render_markdown(root: Path, payload: dict, json_path: Path) -> str:
             "",
             "1. 先用本预算确认卷、章、场景和叙事负载。",
             "2. 平台 Agent 根据 `word_budget.agent_tasks.md` 生成预算化大纲候选。",
-            "3. 预算化大纲通过审查和用户批准前，不得覆盖正式 `plot/outline.md`。",
-            "4. 场景生成必须读取预算标准，避免把长篇目标压缩成短篇摘要。",
+            "3. 平台 Agent 根据 `scene_inventory_expansion.agent_tasks.md` 补足欠账章节的场景候选。",
+            "4. 预算化大纲和扩场景候选通过审查和用户批准前，不得覆盖正式 `plot/outline.md` 或 `scenes/`。",
+            "5. 场景生成必须读取预算标准，避免把长篇目标压缩成短篇摘要。",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"
@@ -463,6 +671,16 @@ def _project_int(project_text: str, key: str) -> int:
 def _project_genre(project_text: str) -> str:
     match = re.search(r"(?m)^[ \t]*genre:[ \t]*(.*?)\s*$", project_text)
     return match.group(1).strip().strip("\"'") if match else ""
+
+
+def _scalar(text: str, key: str) -> str:
+    match = re.search(rf"(?m)^[ \t]*{re.escape(key)}:[ \t]*(.*?)\s*$", text)
+    if not match:
+        return ""
+    value = match.group(1).strip()
+    if value in {"null", "[]", "{}"}:
+        return ""
+    return value.strip("\"'")
 
 
 def _resolve(root: Path, path: Path) -> Path:

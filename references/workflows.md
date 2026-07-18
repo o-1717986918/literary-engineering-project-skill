@@ -29,7 +29,9 @@ Any command that writes creative material, drafts JSON, repairs schema output, s
 
 Before running such a command, the platform agent should choose the task, prompt/context packet, constraints, and approval boundary. After running it, the platform agent must read the task sidecar, write or inspect the expected artifacts, validate schema where relevant, check canon/character/style constraints, and decide whether to revise, keep as candidate, ask the user, or promote after approval.
 
-This rule covers `source-ingest`, `extract-existing-work`, `word-budget`, `longform-budget`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, and `run-workflow`.
+This rule covers `source-ingest`, `extract-existing-work`, `word-budget`, `longform-budget`, `agent-task-status`, `route-audit`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `revise-scene`, `state-evolve`, and `run-workflow`.
+
+Use `agent-task-status` and `route-audit` as diagnostic gates when the workflow state is no longer obvious. They scan sidecars, missing expected outputs, and route gates; they do not replace platform-agent judgment or complete the pending creative work.
 
 `agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, and `director-chat` are legacy/debug paths. Use them only when the user explicitly asks to test local provider behavior.
 
@@ -154,13 +156,16 @@ python -m literary_engineering_workbench word-budget "<work-dir>" `
 - `plot/word_budget/word_budget.md`
 - `plot/word_budget/word_budget.json`
 - `plot/word_budget/word_budget.agent_tasks.md`
+- `plot/word_budget/scene_inventory_expansion.agent_tasks.md`
 
 The platform agent must read the task sidecar and write:
 
 - `plot/candidates/outlines/word_budget_expansion.md`
 - `reviews/word_budget/word_budget_review.md`
+- `plot/candidates/scenes/word_budget_scene_inventory.md`
+- `reviews/word_budget/scene_inventory_review.md`
 
-The budgeted outline candidate should map word count to narrative inventory: volumes, chapters, scenes, relationship turns, world-pressure events, consequences, setup/payoff, and pacing relief. Do not overwrite `plot/outline.md` until the candidate passes review and the user approves it.
+The budgeted outline candidate should map word count to narrative inventory: volumes, chapters, scenes, relationship turns, world-pressure events, consequences, setup/payoff, and pacing relief. The scene-inventory candidate should bind each chapter to target words, actual cleaned-body words, missing scene counts, and expansion tasks. Do not overwrite `plot/outline.md` or formal `scenes/*.yaml` until the candidate passes review and the user approves it.
 
 Then audit:
 
@@ -169,6 +174,12 @@ python -m literary_engineering_workbench longform-audit "<work-dir>" --target-le
 ```
 
 If the budget status is `needs_expansion`, resolve the outline and scene inventory before bulk scene generation. Later `generate-scene` prompt manifests automatically include the word-budget standard when `plot/word_budget/word_budget.json` exists.
+
+Before bulk scene generation, check:
+
+```powershell
+python -m literary_engineering_workbench route-audit "<work-dir>" --route longform-planning
+```
 
 ## Build A Demo Project
 
@@ -352,6 +363,7 @@ python -m literary_engineering_workbench simulate-scene "<work-dir>" --scene sce
 python -m literary_engineering_workbench branch-simulate "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
 python -m literary_engineering_workbench compose-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
 python -m literary_engineering_workbench generate-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
+python -m literary_engineering_workbench revise-scene "<work-dir>" --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench promote-candidate "<work-dir>" --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench draft-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
 python -m literary_engineering_workbench review-scene "<work-dir>" drafts/scenes/scene_0001.md
@@ -381,6 +393,8 @@ The prompt manifest includes `generation_standards.style`, `generation_standards
 Generated candidates and promoted drafts should pass the standard Chinese punctuation gate. `review-scene` reports punctuation issues under `Punctuation Standard Test`; fix those before chapter readiness or export unless the user explicitly approves a recorded exception.
 
 Generated candidates and promoted drafts should also pass the AI trace reduction gate. `review-scene` reports dense “不是……而是……” frames, abstract summary language, explanatory psychology labels, template transitions, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings under `AI Trace Reduction Test`. Treat these as revision signals unless the project records a deliberate stylistic exception.
+
+`revise-scene` reads the scene file, draft, context packet, AgentReview notes, mounted style, canon, punctuation standard, and word budget, then writes a revision prompt manifest plus `drafts/revisions/{scene_id}_revision.agent_tasks.md`. The platform agent fills the expected revision candidate and revision report. This is the formal path for resolving `pass_with_notes`, warnings, local prose defects, or under-length scene bodies without silently overwriting `drafts/scenes/{scene_id}.md`.
 
 `promote-candidate` turns a selected model candidate into `drafts/scenes/{scene_id}.md` and writes `drafts/promotions/{scene_id}_promotion.md` / `.json`. It does not confirm canon and does not write characters.
 

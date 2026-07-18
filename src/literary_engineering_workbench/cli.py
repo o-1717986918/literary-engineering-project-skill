@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .agent_provider import AGENT_PROVIDERS, run_agent_task
 from .agent_schema import repair_agent_run, validate_agent_run
+from .agent_task_status import build_agent_task_status, build_route_audit
 from .approval import build_approval_summary
 from .asset_workshop import (
     ASSET_TYPES,
@@ -54,6 +55,7 @@ from .review_ci import review_scene_draft
 from .scene_composer import build_scene_composition
 from .roleplay_lab import build_roleplay_simulation
 from .scene_draft import build_scene_draft
+from .scene_revision import build_scene_revision_task
 from .protocol import protocol_to_json, render_protocol, render_protocol_list, resolve_protocol_route
 from .source_ingest import INGEST_MODES, ingest_existing_work
 from .style_compiler import StyleCompileOptions, compile_style_profile
@@ -285,6 +287,17 @@ def build_parser() -> argparse.ArgumentParser:
     agent_committee.add_argument("--subject", required=True, help="Review subject label.")
     agent_committee.add_argument("--source", default="", help="Optional source file.")
 
+    agent_task_status = sub.add_parser("agent-task-status", help="Scan platform-agent sidecars and expected artifacts.")
+    agent_task_status.add_argument("project", help="Work project directory.")
+    agent_task_status.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/agent_task_status.md.")
+    agent_task_status.add_argument("--json-out", default="", help="Output JSON path. Defaults to workflow/agent_task_status.json.")
+
+    route_audit = sub.add_parser("route-audit", help="Audit route gates and pending platform-agent tasks.")
+    route_audit.add_argument("project", help="Work project directory.")
+    route_audit.add_argument("--route", default="", help="Route key such as scene-development, longform-planning, or export-and-release.")
+    route_audit.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/route_audit.md.")
+    route_audit.add_argument("--json-out", default="", help="Output JSON path. Defaults to workflow/route_audit.json.")
+
     director_chat = sub.add_parser("director-chat", help="Run the top-level creative director agent for one user direction.")
     director_chat.add_argument("project", help="Work project directory.")
     director_chat.add_argument("--message", required=True, help="High-level creative direction from the user.")
@@ -377,6 +390,19 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--out", default="", help="Output candidate markdown path.")
     generate.add_argument("--agent-tasks", action="store_true", help="Legacy compatibility only; formal command always writes a platform-agent task.")
     generate.add_argument("--allow-unselected-composition", action="store_true", help="Internal experiments only: allow generation task from composition without formal branch_selection.")
+
+    revise = sub.add_parser("revise-scene", help="Write a formal platform-agent scene revision task.")
+    revise.add_argument("project", help="Work project directory.")
+    revise.add_argument("--scene", default="scenes/scene_0001.yaml")
+    revise.add_argument("--draft", default="", help="Draft path. Defaults to drafts/scenes/{scene_id}.md.")
+    revise.add_argument("--review", default="", help="Review JSON/Markdown path. Defaults to platform Agent review JSON or static review.")
+    revise.add_argument("--query", default="", help="Extra retrieval query when context needs rebuilding.")
+    revise.add_argument("--rebuild-context", action="store_true")
+    revise.add_argument("--out", default="", help="Expected revision candidate path. Defaults to drafts/revisions/{scene_id}_revision.md.")
+    revise.add_argument("--report-out", default="", help="Expected revision report path.")
+    revise.add_argument("--manifest-out", default="", help="Expected revision manifest JSON path.")
+    revise.add_argument("--prompt-manifest-out", default="", help="Revision prompt manifest JSON path.")
+    revise.add_argument("--agent-tasks-out", default="", help="Revision task sidecar path.")
 
     promote = sub.add_parser("promote-candidate", help="Promote a generated scene candidate into the draft review lane.")
     promote.add_argument("project", help="Work project directory.")
@@ -1068,6 +1094,38 @@ def main(argv=None) -> int:
         print(f"expected_json: {result.expected_json_path}")
         return 0
 
+    if args.command == "agent-task-status":
+        out = Path(args.out) if args.out else None
+        json_out = Path(args.json_out) if args.json_out else None
+        try:
+            result = build_agent_task_status(Path(args.project), output=out, json_output=json_out)
+        except FileNotFoundError as exc:
+            parser.error(str(exc))
+        print(f"agent_task_status: {result.markdown_path}")
+        print(f"json: {result.json_path}")
+        print(f"tasks: {result.task_count}")
+        print(f"pending: {result.pending_count}")
+        print(f"partial: {result.partial_count}")
+        print(f"complete: {result.complete_count}")
+        print(f"missing_expected: {result.missing_expected_count}")
+        return 0
+
+    if args.command == "route-audit":
+        out = Path(args.out) if args.out else None
+        json_out = Path(args.json_out) if args.json_out else None
+        try:
+            result = build_route_audit(Path(args.project), route=args.route, output=out, json_output=json_out)
+        except FileNotFoundError as exc:
+            parser.error(str(exc))
+        print(f"route_audit: {result.markdown_path}")
+        print(f"json: {result.json_path}")
+        print(f"route: {result.route}")
+        print(f"gates: {result.gate_count}")
+        print(f"blocking: {result.blocking_count}")
+        print(f"warnings: {result.warning_count}")
+        print(f"pending_tasks: {result.pending_task_count}")
+        return 0
+
     if args.command == "director-chat":
         try:
             result = run_director_turn(
@@ -1253,6 +1311,33 @@ def main(argv=None) -> int:
         print(f"prompt_manifest: {prompt_manifest}")
         print("receiver: platform-agent")
         print(f"scene: {scene_id}")
+        return 0
+
+    if args.command == "revise-scene":
+        try:
+            result = build_scene_revision_task(
+                Path(args.project),
+                scene=Path(args.scene),
+                draft=Path(args.draft) if args.draft else None,
+                review=Path(args.review) if args.review else None,
+                query=args.query,
+                rebuild_context=args.rebuild_context,
+                output=Path(args.out) if args.out else None,
+                report_output=Path(args.report_out) if args.report_out else None,
+                manifest_output=Path(args.manifest_out) if args.manifest_out else None,
+                prompt_manifest_output=Path(args.prompt_manifest_out) if args.prompt_manifest_out else None,
+                task_output=Path(args.agent_tasks_out) if args.agent_tasks_out else None,
+            )
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+        print(f"revision_task: {result.task_path}")
+        print(f"prompt_manifest: {result.prompt_manifest_path}")
+        print(f"expected_candidate: {result.expected_candidate_path}")
+        print(f"expected_report: {result.expected_report_path}")
+        print(f"expected_manifest: {result.expected_manifest_path}")
+        print(f"sources: {result.source_count}")
+        print("receiver: platform-agent")
+        print(f"scene: {result.scene_id}")
         return 0
 
     if args.command == "promote-candidate":
@@ -1463,6 +1548,7 @@ def main(argv=None) -> int:
         print(f"word_budget: {result.markdown_path}")
         print(f"json: {result.json_path}")
         print(f"agent_tasks: {result.agent_tasks_path}")
+        print(f"scene_inventory_tasks: {result.scene_inventory_tasks_path}")
         print(f"target_words: {result.target_words}")
         print(f"volumes: {result.volume_count}")
         print(f"chapters: {result.chapter_count}")
