@@ -1,27 +1,18 @@
-# Literary Engineering Project Skill
+# 长篇文学写作工程 Skill
 
-把长篇虚构创作当成一个可以持续维护的工程项目。
+`literary-engineering-project-skill`
 
-`literary-engineering-project-skill` 是一个面向 Codex、Claude 等工具层 Agent 的大型项目型 Skill。它不是一个单纯的“写小说提示词”，也不是一个只能聊天的创作助手，而是一套用于维护百万字级小说、剧本、伪记录文本、短剧和长视频提示词项目的工程化工作方法。
+把 AI 关进程序里：让 Codex / Claude 像维护代码库一样，长期维护一部小说、剧本或伪记录文学项目。
 
-它的目标很直接：让 AI 不只是临时生成一段文本，而是能像维护软件项目一样，长期维护一个复杂文学项目的世界观、人物、剧情、文风、场景、审查记录和发布产物。
+这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-## 这个项目解决什么问题
-
-当前很多 AI 文学创作工作流有几个常见痛点：
-
-- 写得快，但长篇一致性容易崩。
-- 人物一开始鲜明，写到后面逐渐同质化。
-- 世界观、伏笔、人物状态和剧情因果缺乏工程化记录。
-- 文风依赖一次性提示词，难以沉淀和复用。
-- 审查、改稿、版本管理和发布流程不清晰。
-- 多 Agent 协作时，谁负责决策、谁负责审查、哪些内容算正式 canon，边界容易混乱。
-
-这个 Skill 的设计思路是：把作品项目拆成一组可读、可审查、可版本管理的文件资产，让 Codex / Claude 这类工具层 Agent 担任项目总监和创作总监，负责理解项目、维护文件、调用模型、组织子 Agent、生成候选内容并执行审查。
+- 当前版本：`0.72.0`
+- 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
+- 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
 ## 一句话理解
 
-你给创作方向，工具层 Agent 负责项目管理；这个仓库负责告诉 Agent 如何把文学创作做成一个工程。
+用户提供创作方向和审美判断；平台 Agent 担任项目总监、创作总监和审查者；本仓库提供规则、文件契约、提示词结构、流程门禁和可选 CLI 工具箱。
 
 ```mermaid
 flowchart LR
@@ -32,6 +23,22 @@ flowchart LR
     S --> P
     L --> P
 ```
+
+## 这个项目解决什么问题
+
+当前 AI 文学创作最常见的问题不是“不会写”，而是“写出来以后不可维护”：
+
+- 写得快，但长篇一致性容易崩。
+- 人物一开始鲜明，写到后面逐渐同质化。
+- 世界观、伏笔、人物状态和剧情因果缺乏工程化记录。
+- 文风依赖一次性提示词，难以沉淀、复用和挂载。
+- 字数规划失真，目标 50 万字，实际剧情库存只够几万字。
+- 场景推演、分支选择、审查、改稿、晋升和导出容易漏步骤。
+- 输出正文混入 scene 编号、canon 注释、workflow 痕迹和内部提示词。
+- AI 腔明显：抽象总结过多、转折句模板化、标点节奏混乱、表达越来越像同一个模型。
+- 多 Agent 协作时，谁负责决策、谁负责审查、哪些内容算正式 canon，边界容易混乱。
+
+这个 Skill 的答案是：把作品项目拆成一组明确的文件资产和流程门禁。AI 可以自由创作，但每一次创作都要落到候选、审查、修订、晋升、发布这些可追踪步骤里；模型输出不会因为“看起来不错”就自动变成正式设定或最终正文。
 
 ## 适合谁使用
 
@@ -62,6 +69,58 @@ flowchart LR
 - **FastAPI / LangGraph / Dify / 前端**：可选适配层，不是核心依赖。
 
 也就是说，真正“思考”和“决策”的主体是你正在使用的工具层 Agent。本 Skill 负责给它一套清晰、可复用、可审查的工程操作系统。
+
+## 架构亮点
+
+### 1. 把 AI 关在程序里
+
+这个项目允许 AI 做自由创作，但不允许自由漂移。平台 Agent 可以写人物、造世界、推演剧情、生成 JSON、修订正文、选择分支，但所有结果都必须进入明确的工程位置：候选资产、上下文包、分支 manifest、审查报告、修订候选、晋升记录或导出包。
+
+换句话说，AI 负责想象力，工程结构负责边界。模型输出默认只是 candidate，不是 canon；角色模拟只是证据，不是剧情决定；审查通过之前，正文不能直接变成最终作品。
+
+### 2. 平台 Agent 是真实创作引擎
+
+本仓库不把本地 dry-run、HTTP provider 或实验性 `director-chat` 当成正式创作入口。正式路线要求 Codex / Claude 这类工具层平台承担 LLM、子 Agent、推理、自由决策和用户对话，Skill 只提供操作手册、artifact contract、schema、模板和确定性 helper。
+
+这让项目更像一个“文学工程协议”：任何足够强的工具层 Agent 都可以加载它，然后按同一套文件契约维护作品。
+
+### 3. 场景链路有强门禁
+
+正式场景开发不是直接写正文，而是：
+
+```text
+context packet
+-> roleplay simulation
+-> branch simulation
+-> formal branch_selection.md
+-> scene composition
+-> prompt manifest
+-> draft candidate
+-> platform Agent scene review
+-> revise-scene when needed
+-> promote-candidate
+-> state patch / export
+```
+
+`route-audit` 会检查场景是否漏掉角色扮演推演、分支模拟、正式分支选择、文风审查、候选专属审查和晋升门禁。`promote-candidate` 也要求候选正文必须有对应的、干净通过的 AgentReview，避免“写完就合并”。
+
+### 4. 文风是可挂载能力，不是临时修饰
+
+文风学习模块以“作家为项目、作品为子项目”组织语料，最终输出可挂载 Style Skill。一个合格的文风提示词必须足够具体、可执行，覆盖叙述距离、句法节奏、意象系统、心理呈现、对白语气、标点节奏、禁用倾向和自检规则。
+
+挂载后，文风进入生成标准，而不是只在事后审查。场景生成、修订和审查都会读取 style prompt；审查 JSON 中必须包含 `style_adherence`，否则不能进入正式晋升、章节 ready 或发布链路。
+
+### 5. 长篇字数和剧情库存绑定
+
+它不会只告诉模型“写长一点”。`word-budget` / `longform-budget` 会把 10 万字、50 万字、百万字、多卷目标拆成卷、章、场景、叙事密度和扩场景任务，并通过 `longform-audit` 检查剧情库存是否足够。
+
+目标不是机械灌水，而是让时间跨度、人物弧线、冲突层级、线索回收和场景粒度支撑目标体量。
+
+### 6. 输出层会清理工程痕迹
+
+最终作品导出时，正文不应带着 `scene_0001`、上下文包路径、canon 注释、工作流记录、审查状态或 `[AGENT_TASK: ...]`。这些内容保留在工程文件和 manifest 里，最终交付只呈现读者应该看到的作品。
+
+DOCX 能力已经纳入导出参考：支持布局计划、导出检查、可编辑 Word 文件和基础 Markdown 表格转 Word 表格。
 
 ## 能做什么
 
@@ -283,14 +342,23 @@ CLI 是可选工具箱，不是必须入口。正常使用时，推荐让 Codex 
 
 1. 读取场景目标、参与人物、相关 canon、剧情上下文和已挂载文风。
 2. 生成上下文包。
-3. 模拟人物在当前压力下的合理行为。
-4. 给出多个剧情分支。
-5. 选择或推荐最佳分支。
+3. 执行带平台 Agent reading receipt 的角色扮演推演。
+4. 执行分支模拟，给出多个剧情分支及代价。
+5. 在 `branch_selection.md` 中记录正式分支选择。
 6. 生成场景编排包。
-7. 写出候选正文。
-8. 执行 canon、人物、剧情功能和文风审查。
+7. 汇总生成标准、硬约束、文风、标点和反 AI 腔要求，写出候选正文。
+8. 执行 canon、人物、剧情功能、文风、标点和字数审查。
 9. 若审查为 `pass_with_notes`、发现 warning 或需要局部修订，运行 `revise-scene` 生成修订候选和修订报告。
-10. 提出人物状态变化 patch。
+10. 通过候选专属 AgentReview 后再运行 `promote-candidate`。
+11. 提出人物状态变化 patch，但仍以候选形式等待审查或批准。
+
+正式链路可以用下面两类命令检查是否漏步骤：
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m literary_engineering_workbench agent-task-status "<work-dir>"
+python -m literary_engineering_workbench route-audit "<work-dir>" --route scene-development
+```
 
 ### 学习并挂载文风
 
@@ -367,6 +435,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
+- 当前版本：`0.72.0`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -374,6 +443,9 @@ literary-engineering-project-skill/
 - 长篇字数预算与剧情库存门禁：已完成 `word-budget` / `longform-budget`。
 - 流程阅读回执、`pass_with_notes` 小修闭环和生成前硬约束摘要：已完成。
 - 平台 Agent 任务总控、route gate 审计、正式 `revise-scene` 修订闭环、分章分场景字数绑定：已完成。
+- 场景晋升强门禁：已要求候选正文必须具备候选专属、干净通过的 AgentReview。
+- 文风挂载强门禁：已要求正式场景审查包含 `style_adherence`，并把文风约束放入生成标准。
+- 标点与反 AI 腔约束：已纳入生成、审查、修订和导出参考。
 - 横排中文引号统一、DOCX layout plan、DOCX inspection、基础 Markdown 表格转 Word 表格：已完成。
 - 可选 CLI 工具箱：可运行。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
