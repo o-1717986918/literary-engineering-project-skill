@@ -285,6 +285,7 @@ task_routes:
       - references/artifact-contracts.md
       - docs/modules/plot-scene-engine.md
       - docs/modules/character-engine.md
+      - docs/modules/cli-mediated-agent-workflow.md
       - docs/implementation/phase20-branch-simulation.md
       - docs/implementation/phase22-scene-composer.md
       - docs/implementation/phase23-model-provider-prompt-pack.md
@@ -304,6 +305,7 @@ task_routes:
       - revision candidate and revision report when review notes require local fixes
       - character state patch
     completion_gates:
+      - for formal scene-development, task-next/task-open/task-submit/task-complete controls the next formal operation when available
       - CLI-generated context packet or recorded CLI-equivalent workaround completed
       - simulate-scene --agent roleplay, branch-simulate --agent branch manifest, formal branch_selection, and compose-scene --agent-tasks ready composition completed before generation
       - roleplay/branch/composition platform-agent tasks handled before generation; hand-written files are exploratory/debug-only unless command failure and workaround provenance are recorded

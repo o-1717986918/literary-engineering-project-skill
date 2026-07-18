@@ -251,7 +251,11 @@ def _static_review_conclusion(path: Path) -> str:
 def _scene_id(path: Path) -> str:
     text = _read(path)
     match = re.search(r"(?m)^\s*scene_id:\s*['\"]?([^'\"\n#]+)", text)
-    return match.group(1).strip() if match else path.stem
+    if match:
+        scene_id = match.group(1).strip().strip("\"'")
+        if scene_id:
+            return scene_id
+    return path.stem
 
 
 def _read(path: Path) -> str:

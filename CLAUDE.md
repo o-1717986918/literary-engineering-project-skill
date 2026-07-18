@@ -19,6 +19,7 @@ Mandatory protocol:
 - Select one primary route from `agentread.yaml` before acting.
 - Follow `references/agent-run-protocol.md` for every project task.
 - Before using the optional CLI, read `references/cli-run-protocol.md` or run `python -m literary_engineering_workbench protocol <route>`.
+- For formal `scene-development`, use the CLI-mediated loop when available: `task-next`, `task-open`, write or review the requested artifact as Claude/platform agent, `task-submit`, then `task-complete`.
 - Record a reading receipt: route, references read, project files inspected, missing context, and pending sidecars.
 - Treat `.agent_tasks.md` files as instructions for Claude/platform-agent execution, not completed creative artifacts.
 - For existing texts or complete works, keep extracted settings in candidate/review paths with evidence and confidence until reviewed and approved.

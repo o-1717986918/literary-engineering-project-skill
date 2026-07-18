@@ -40,18 +40,21 @@ Do not decide in advance that a documented command is unusable because it sounds
 4. Record or prepare a reading receipt: route, references read, project files inspected, command runbook printed, and missing context.
 5. Set `PYTHONPATH` for the current repository layout.
 6. Run `--help` for unfamiliar commands before use.
-7. Run the smallest deterministic command that prepares the next artifact; do not skip it without a concrete project-state reason.
-8. Capture and inspect output paths printed by the command.
-9. If the command writes `.agent_tasks.md`, read the task file immediately when feasible and have the platform agent fill the expected artifact paths. The CLI has not completed the creative/review step by writing a task file.
-10. After filling sidecars, inspect the produced Markdown/JSON/prose and record whether it is candidate, pass, pass_with_notes, revise_required, or pending.
-11. When sidecar or gate status is unclear, run `agent-task-status <project>` or `route-audit <project> --route <route>` and resolve or list pending items.
-12. Validate artifacts:
+7. For formal `scene-development`, start with `task-next` and `task-open` unless the task is explicitly exploratory. The task package decides which underlying command or platform-agent judgment is next.
+8. Run the smallest deterministic command that prepares the next artifact; do not skip it without a concrete project-state reason.
+9. Capture and inspect output paths printed by the command.
+10. If the command writes `.agent_tasks.md`, read the task file immediately when feasible and have the platform agent fill the expected artifact paths. The CLI has not completed the creative/review step by writing a task file.
+11. After filling sidecars, inspect the produced Markdown/JSON/prose and record whether it is candidate, pass, pass_with_notes, revise_required, or pending.
+12. Submit formal outputs with `task-submit` when the route is CLI-mediated.
+13. Complete the task with `task-complete`; if it blocks, treat the blocking message as the next work item.
+14. When sidecar or gate status is unclear, run `agent-task-status <project>` or `route-audit <project> --route <route>` and resolve or list pending items.
+15. Validate artifacts:
    - `agent-validate` for agent run outputs.
    - schema-specific review for JSON candidates.
    - `canon-lint` for canon and character consistency.
    - `review-scene`, `agent-review-scene`, or platform review for prose.
    - `word-budget`, `longform-audit`, `chapter-workspace`, and approval summaries for longform/release.
-13. Record whether each output remains a candidate, was revised, was promoted, or needs user approval.
+16. Record whether each output remains a candidate, was revised, was promoted, or needs user approval.
 
 ## Common CLI Chains
 
@@ -125,6 +128,23 @@ The platform agent writes candidate content, reviews motive/canon/style risks, a
 
 The following chain is for one scene. In a chapter or volume batch, repeat it for every `scenes/{scene_id}.yaml`; never use one completed scene as a proxy for the remaining scenes.
 
+Preferred formal control loop:
+
+```powershell
+python -m literary_engineering_workbench protocol scene-development
+python -m literary_engineering_workbench task-next <project> --route scene-development --scene scenes/scene_0001.yaml
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
+# Read workflow/tasks/<task-id>.agent_tasks.md.
+# Run the named underlying command or perform the platform-agent judgment/body-writing task.
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
+python -m literary_engineering_workbench workflow-advance <project> --route scene-development
+```
+
+Repeat the `task-next` / `task-open` / `task-submit` / `task-complete` loop until the scene reaches ready. `workflow-advance` only refreshes artifact-derived state; it does not allow manual state jumps.
+
+Underlying commands used by task packages:
+
 ```powershell
 python -m literary_engineering_workbench protocol scene-development
 python -m literary_engineering_workbench context <project> --scene scenes/scene_0001.yaml
@@ -172,6 +192,8 @@ python -m literary_engineering_workbench route-audit <project> --route scene-dev
 `agent-task-status` scans project `.agent_tasks.md` files, checks whether their expected artifact paths exist, and writes `workflow/agent_task_status.md` / `.json`. `route-audit` writes `workflow/route_audit.md` / `.json` and adds route-specific gates such as word-budget expansion, scene sidecar completion, promotion candidate review, mounted-style adherence review, chapter readiness, and export readiness. These commands are diagnostic; the platform agent must still complete creative tasks or record why they remain pending.
 
 `workflow-state` writes `workflow/route_state.md` / `.json` as a persistent scene-development ledger. It records the current step per scene and the next action, including missing sidecar completion markers, missing word-budget contracts, missing review outputs, and missing state patches.
+
+`task-next` reads that state ledger and writes a CLI-mediated task package under `workflow/tasks/`. `task-open` marks the package as opened. `task-submit` records the artifacts produced by the platform Agent. `task-complete` checks expected outputs and writes the task completion marker. `workflow-events` renders `workflow/events/task_events.jsonl` as a readable event report.
 
 ### Export And Release
 

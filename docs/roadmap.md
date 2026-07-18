@@ -252,4 +252,10 @@
 
 已实现统一 `provider=auto`，Agent 任务、设定创作、候选审查、创作总监、文风提示词和场景候选生成默认连接真实 `http-chat` 模型；未配置 API Key 时明确报错，只有显式 `dry-run` 才进入离线调试。
 
-下一步：LangGraph 持久化 checkpointer、真实 Dify 导入验证、更细粒度前端审稿台、多候选比较器、源作品提取候选晋升向导、预算化大纲晋升向导和更多模型 profile 模板。
+## Phase 84：CLI 中介 Agent 工作流内核
+
+已在 `v0.84.0` 实现 `scene-development` 样板闭环：新增 `task-next`、`task-open`、`task-submit`、`task-complete`、`workflow-advance`、`workflow-events` 和 `task_registry.py`。正式场景开发现在可以先由 CLI 基于 `workflow-state` 派发下一项任务，任务包写入 `workflow/tasks/{task_id}.task.json` 和 `.agent_tasks.md`，平台 Agent 写出正文/JSON/review/分支选择等产物后通过 `task-submit` 记录提交，再由 `task-complete` 校验 expected outputs 并写 completion marker。`workflow-advance` 只刷新由真实产物推导出的状态，不允许手动跳状态。
+
+`v0.84.1` 已把 `task-complete` 接入 current_state 深度门禁：除 expected outputs 外，还会验证 RP/branch/composition CLI provenance、formal branch selection、word-budget sidecar 与 review、candidate generation provenance、Style Lint、scene word-budget adherence、exact-candidate AgentReview、promotion debug-waiver、static review clean pass 和 state patch JSON/schema。这样手写同名文件、漏 sidecar、漏 review 或用维护者调试参数绕过的产物不会被任务状态机误判为完成。
+
+下一步规划：Phase 85-90 将继续推进 Prompt Registry、Context Broker、完整持续状态机、Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。

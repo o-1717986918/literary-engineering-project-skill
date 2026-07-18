@@ -73,6 +73,14 @@ from .style_lab import (
     mount_style_skill,
     run_author_style_learning_platform_task,
 )
+from .task_registry import (
+    advance_workflow,
+    build_workflow_events,
+    complete_task,
+    issue_next_task,
+    open_task,
+    submit_task,
+)
 from .workflow_runner import WORKFLOW_MODES, run_workflow
 from .workflow_state import build_workflow_state
 from .word_budget import build_word_budget
@@ -306,6 +314,36 @@ def build_parser() -> argparse.ArgumentParser:
     workflow_state.add_argument("--route", default="scene-development", help="Route key. Defaults to scene-development.")
     workflow_state.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/route_state.md.")
     workflow_state.add_argument("--json-out", default="", help="Output JSON path. Defaults to workflow/route_state.json.")
+
+    task_next = sub.add_parser("task-next", help="Issue the next CLI-mediated platform-agent task for a formal route.")
+    task_next.add_argument("project", help="Work project directory.")
+    task_next.add_argument("--route", default="scene-development", help="Route key. Currently supports scene-development.")
+    task_next.add_argument("--scene", default="", help="Optional scene yaml path. Defaults to the first blocked scene.")
+    task_next.add_argument("--force", action="store_true", help="Refresh an existing active task for the current state.")
+
+    task_open = sub.add_parser("task-open", help="Open a CLI-mediated platform-agent task package.")
+    task_open.add_argument("project", help="Work project directory.")
+    task_open.add_argument("--task-id", required=True)
+
+    task_submit = sub.add_parser("task-submit", help="Record platform-agent outputs for a CLI-mediated task.")
+    task_submit.add_argument("project", help="Work project directory.")
+    task_submit.add_argument("--task-id", required=True)
+    task_submit.add_argument("--from", dest="artifacts", action="append", default=[], help="Artifact path to submit. May be repeated.")
+    task_submit.add_argument("--note", default="")
+
+    task_complete = sub.add_parser("task-complete", help="Validate expected outputs and complete a CLI-mediated task.")
+    task_complete.add_argument("project", help="Work project directory.")
+    task_complete.add_argument("--task-id", required=True)
+    task_complete.add_argument("--handled-by", default="platform-agent")
+    task_complete.add_argument("--note", action="append", default=[])
+
+    workflow_advance = sub.add_parser("workflow-advance", help="Refresh derived workflow state without manually overriding gates.")
+    workflow_advance.add_argument("project", help="Work project directory.")
+    workflow_advance.add_argument("--route", default="scene-development")
+
+    workflow_events = sub.add_parser("workflow-events", help="Render CLI-mediated task event history.")
+    workflow_events.add_argument("project", help="Work project directory.")
+    workflow_events.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/events.md.")
 
     director_chat = sub.add_parser("director-chat", help="Run the top-level creative director agent for one user direction.")
     director_chat.add_argument("project", help="Work project directory.")
@@ -1166,6 +1204,99 @@ def main(argv=None) -> int:
         print(f"ready: {result.ready_count}")
         print(f"blocked: {result.blocked_count}")
         print(f"next_actions: {result.next_action_count}")
+        return 0
+
+    if args.command == "task-next":
+        try:
+            result = issue_next_task(
+                Path(args.project),
+                route=args.route,
+                scene=Path(args.scene) if args.scene else None,
+                force=args.force,
+            )
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+        print(f"status: {result.status}")
+        print(f"route: {result.route}")
+        if result.scene_id:
+            print(f"scene: {result.scene_id}")
+        if result.current_state:
+            print(f"current_state: {result.current_state}")
+        if result.task_id:
+            print(f"task_id: {result.task_id}")
+        if result.task_json_path:
+            print(f"task_json: {result.task_json_path}")
+        if result.task_markdown_path:
+            print(f"task: {result.task_markdown_path}")
+            _print_agent_task_notice(result.task_markdown_path, project=Path(args.project).resolve())
+        print(f"expected_outputs: {result.expected_output_count}")
+        print(f"message: {result.message}")
+        return 0
+
+    if args.command == "task-open":
+        try:
+            result = open_task(Path(args.project), args.task_id)
+        except (FileNotFoundError, ValueError) as exc:
+            parser.error(str(exc))
+        print(f"status: {result.status}")
+        print(f"task_id: {result.task_id}")
+        print(f"task_json: {result.task_json_path}")
+        print(f"task: {result.task_markdown_path}")
+        print(f"route: {result.route}")
+        print(f"scene: {result.scene_id or 'n/a'}")
+        print(f"current_state: {result.current_state}")
+        print(f"expected_outputs: {result.expected_output_count}")
+        return 0
+
+    if args.command == "task-submit":
+        try:
+            result = submit_task(Path(args.project), args.task_id, [Path(item) for item in args.artifacts], note=args.note)
+        except (FileNotFoundError, ValueError) as exc:
+            parser.error(str(exc))
+        print(f"status: {result.status}")
+        print(f"task_id: {result.task_id}")
+        print(f"task_json: {result.task_json_path}")
+        print(f"submission: {result.submission_path}")
+        print(f"artifacts: {result.artifact_count}")
+        print(f"message: {result.message}")
+        return 0
+
+    if args.command == "task-complete":
+        try:
+            result = complete_task(Path(args.project), args.task_id, handled_by=args.handled_by, notes=args.note)
+        except (FileNotFoundError, ValueError) as exc:
+            parser.error(str(exc))
+        print(f"status: {result.status}")
+        print(f"task_id: {result.task_id}")
+        print(f"task_json: {result.task_json_path}")
+        print(f"task: {result.task_markdown_path}")
+        print(f"route: {result.route}")
+        print(f"scene: {result.scene_id or 'n/a'}")
+        print(f"current_state: {result.current_state}")
+        print(f"message: {result.message}")
+        return 0
+
+    if args.command == "workflow-advance":
+        try:
+            result = advance_workflow(Path(args.project), route=args.route)
+        except (FileNotFoundError, ValueError) as exc:
+            parser.error(str(exc))
+        print(f"status: {result.status}")
+        print(f"route: {result.route}")
+        print(f"workflow_state: {result.task_markdown_path}")
+        print(f"json: {result.task_json_path}")
+        print(f"message: {result.message}")
+        return 0
+
+    if args.command == "workflow-events":
+        out = Path(args.out) if args.out else None
+        try:
+            result = build_workflow_events(Path(args.project), output=out)
+        except FileNotFoundError as exc:
+            parser.error(str(exc))
+        print(f"events: {result.events_path}")
+        print(f"report: {result.markdown_path}")
+        print(f"count: {result.event_count}")
         return 0
 
     if args.command == "director-chat":

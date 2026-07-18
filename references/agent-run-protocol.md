@@ -14,21 +14,22 @@ Use this protocol whenever a tool-layer agent runs a literary engineering task t
 5. Inspect current project state before planning: `project.yaml`, relevant canon/character/plot/style files, latest reviews, workflow runs, and approval records.
 6. State a short plan to yourself or in the working trace: objective, route, artifacts to inspect, artifacts to create, review gates, and user approval boundary.
 7. Probe documented tools before declaring them unavailable. Use `--help`, `protocol <route>`, or the smallest safe command attempt; if a command fails, record the exact command, error, and next workaround instead of guessing.
-8. Execute deterministic preparation with CLI whenever the selected formal route declares sidecars, manifests, or provenance gates: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars. Exploratory notes may skip CLI, but formal artifacts may not silently replace CLI outputs with hand-written files.
-9. Perform every non-deterministic creative or judgment step as the supervising platform agent. This includes prose, JSON drafting, schema repair, roleplay, branch choice, review findings, style prompts, and promotion recommendations.
-10. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, inspect the produced artifact, then create the adjacent `.agent_completion.json` marker. Do not report the task file as completed work by itself.
-11. For scene batches, maintain per-scene coverage. Each scene needs its own context, RP, branch selection, composition, prose candidate, exact-candidate review, promotion, promoted draft, and state patch; one completed scene does not cover the rest.
-12. If sidecar completion, expected outputs, or route gates are unclear, run or emulate `agent-task-status` and route-specific `route-audit`; resolve the missing items or list them as pending.
-13. Validate produced artifacts before acceptance:
+8. For formal `scene-development`, ask the CLI for the next formal operation with `task-next`, open the package with `task-open`, complete the work, submit artifacts with `task-submit`, then finalize with `task-complete`. Do not decide the next formal scene step from memory when the task registry is available.
+9. Execute deterministic preparation with CLI whenever the selected formal route declares sidecars, manifests, or provenance gates: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars. Exploratory notes may skip CLI, but formal artifacts may not silently replace CLI outputs with hand-written files.
+10. Perform every non-deterministic creative or judgment step as the supervising platform agent. This includes prose, JSON drafting, schema repair, roleplay, branch choice, review findings, style prompts, and promotion recommendations.
+11. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, inspect the produced artifact, then create the adjacent `.agent_completion.json` marker. Do not report the task file as completed work by itself.
+12. For scene batches, maintain per-scene coverage. Each scene needs its own context, RP, branch selection, composition, prose candidate, exact-candidate review, promotion, promoted draft, and state patch; one completed scene does not cover the rest.
+13. If sidecar completion, expected outputs, or route gates are unclear, run or emulate `agent-task-status` and route-specific `route-audit`; resolve the missing items or list them as pending.
+14. Validate produced artifacts before acceptance:
    - JSON: schema validation or explicit schema review.
    - Canon and continuity: canon lint or platform-agent canon review.
    - Character logic: BDI, hidden `background_story`, relationship pressure, and OOC risk.
    - Style: mounted Style Skill and style prompt priority.
    - Chinese prose: `references/punctuation-standard.md`.
    - Release/export: readiness, approval, and target format checks.
-14. If a prose review returns `pass_with_notes`, warnings, Style Lint findings, anti-evasion risks, or local fixes, run or emulate `revise-scene` and review the revision candidate before promotion, chapter readiness, export, or writeback. Do not replace a banned contrast with another explicit contrast; retained transitions require a burden-of-proof note.
-15. Decide the artifact status: revise, keep as candidate, ask user, or promote after explicit user approval and clean review.
-16. Finish with an audit summary: files changed, candidate-only files, promoted files, checks run, blocked items, reading receipt, and next high-level creative choices.
+15. If a prose review returns `pass_with_notes`, warnings, Style Lint findings, anti-evasion risks, or local fixes, run or emulate `revise-scene` and review the revision candidate before promotion, chapter readiness, export, or writeback. Do not replace a banned contrast with another explicit contrast; retained transitions require a burden-of-proof note.
+16. Decide the artifact status: revise, keep as candidate, ask user, or promote after explicit user approval and clean review.
+17. Finish with an audit summary: files changed, candidate-only files, promoted files, checks run, blocked items, reading receipt, and next high-level creative choices.
 
 ## Platform Agent Responsibilities
 
@@ -61,6 +62,8 @@ Exploratory discussion, throwaway snippets, and analysis notes may be written wi
 Formal artifacts are different. If an artifact may be promoted, counted toward word budget, exported, published, or written back to canon/characters/state, the agent must use the route's deterministic CLI sidecars and manifests where available. A hand-written file with the same path as a CLI output is exploratory/debug-only unless the agent first attempted the documented command, recorded the exact failure, and marked the replacement as a CLI-equivalent workaround for route audit and human review.
 
 For `scene-development`, formal prose generation requires CLI-generated context, `simulate-scene --agent` roleplay, `branch-simulate --agent` branch manifest, formal `branch_selection.md`, `compose-scene --agent-tasks` composition, `generate-scene` prompt/task provenance, and exact-candidate review before promotion.
+
+When `task-next` is available, the platform Agent should let the CLI-mediated task registry choose the next formal scene step. The correct loop is: `task-next`, `task-open`, perform the named command or platform-agent judgment, `task-submit`, `task-complete`, then `workflow-advance` or `route-audit`. The user can still discuss creative direction naturally; the task registry only controls formal artifacts.
 
 ## Command Attempt Rule
 

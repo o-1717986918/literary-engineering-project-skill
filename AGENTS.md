@@ -30,8 +30,9 @@ Every task must run through the protocol loop before it is considered complete:
 9. For scene batches, build a per-scene ledger. One completed scene loop is not evidence for the rest of the chapter or volume.
 10. Do not use debug or bypass flags such as `--allow-unreviewed`, `--allow-review-notes`, `--include-blocked`, or `--allow-unapproved` during formal Skill-host work.
 11. Use `agent-task-status` or `route-audit` whenever pending sidecars, expected artifacts, or route gates are unclear.
-12. Apply route completion gates before final response.
-13. Report changed files, candidate-only outputs, promoted outputs, checks run, reading receipt, and approvals still needed.
+12. For formal `scene-development`, use `task-next`, `task-open`, `task-submit`, and `task-complete` as the controlling loop when available; do not choose the next formal scene step from memory.
+13. Apply route completion gates before final response.
+14. Report changed files, candidate-only outputs, promoted outputs, checks run, reading receipt, and approvals still needed.
 
 ## Operating Model
 
@@ -46,6 +47,7 @@ Every task must run through the protocol loop before it is considered complete:
 - Existing-work reverse extraction is also platform-agent work: the CLI may import and chunk source text, but the platform agent extracts characters, background stories, world rules, outlines, timelines, foreshadowing, and style notes into candidate files.
 - Longform word-budget planning is also platform-agent work: the CLI may calculate target distribution and inventory gaps, but the platform agent expands the outline, judges pacing/load, and decides readiness.
 - `agent-task-status` and `route-audit` are dashboard helpers. They do not complete creative work; they reveal unhandled sidecars, missing expected artifacts, and incomplete route gates for the platform agent to resolve or list as pending.
+- `task-next`, `task-open`, `task-submit`, and `task-complete` are the Phase 84 CLI-mediated task loop for formal scene-development. The loop does not write creative content; it tells the platform agent what to do next, records submitted artifacts, validates expected outputs, and refreshes derived workflow state.
 - Formal non-deterministic commands write platform-agent task sidecars plus expected output paths. The platform agent reads those tasks, performs the creative/review judgment, writes the expected artifacts, applies schema/canon/style checks, and decides the next step.
 - `agent-review-scene` is a sidecar generator, not proof that an external model is required. Run it, read the generated task and its deterministic `Style Lint (auto-detected)` evidence, review the exact candidate yourself as platform agent, and write the expected scene review JSON/Markdown before promotion.
 - `simulate-scene --agent` is not complete until the platform agent has filled the execution gate reading receipt and used scene/context/character/canon evidence for roleplay, world consequences, branch scoring, canon audit, and writeback candidates.
@@ -119,6 +121,10 @@ Print a route runbook before a CLI-backed task:
 ```powershell
 $env:PYTHONPATH = "src"
 python -m literary_engineering_workbench protocol scene-development
+python -m literary_engineering_workbench task-next <project> --route scene-development
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
 ```
 
 ## Git Rules

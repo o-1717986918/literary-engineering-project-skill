@@ -14,6 +14,7 @@ Use this skill to let Codex, Claude, or another capable tool-layer agent manage 
 - Do not assume the local `director-chat` command is the main interface. It is an optional experimental/local helper.
 - Prefer direct tool-layer reasoning, file edits, review passes, and subagent delegation when the platform supports them.
 - Treat the local CLI as optional only for informal brainstorming or exploratory notes. Formal routes that generate, review, promote, or export project artifacts must use the route CLI sidecar/provenance chain where the skill provides one, or record an attempted-command failure and a clearly marked CLI-equivalent workaround.
+- For formal `scene-development`, prefer the CLI-mediated task loop: `task-next` issues the next formal task, `task-open` shows the platform-Agent prompt package, `task-submit` records the Agent's output artifact, and `task-complete` validates expected outputs before the workflow advances.
 
 ## Formal Route CLI Clarification
 
@@ -39,6 +40,8 @@ Require tool-layer planning, prompting, inspection, and acceptance for:
 When using formal local commands such as `source-ingest`, `extract-existing-work`, `word-budget`, `longform-budget`, `agent-task-status`, `route-audit`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `revise-scene`, `state-evolve`, or `run-workflow`, expect `.agent_tasks.md` files plus expected JSON/Markdown paths. The platform agent should read the task, perform the creative or review judgment, write the expected artifacts, then decide whether to revise, keep as candidate, ask the user, or promote after approval.
 
 Every `.agent_tasks.md` sidecar remains pending until the platform agent creates the adjacent `.agent_completion.json` marker after checking expected artifacts. Treat `workflow-state`, `agent-task-status`, and `route-audit` as the three dashboards: current step, pending sidecars, and formal route gate status.
+
+For formal scene work, treat `task-next`, `task-open`, `task-submit`, and `task-complete` as the controlling loop when available. The platform agent still performs the creative judgment and writes prose/reviews/branch choices, but the CLI task registry chooses the next formal operation, provides the execution package, records submissions, and blocks missing expected outputs.
 
 Use `agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, or `director-chat` only for explicit legacy regression, local demos, or debugging. Do not route formal creative generation, JSON creation, scene/canon review, style-prompt creation, or second-level project decisions through local dry-run, HTTP chat, or an external agent service.
 
