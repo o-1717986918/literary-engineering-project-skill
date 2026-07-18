@@ -1,6 +1,6 @@
 # Phase 84：CLI 中介 Agent 工作流内核
 
-版本：`v0.84.1`
+版本：`v0.84.2`
 
 ## 目标
 
@@ -50,7 +50,7 @@ python -m literary_engineering_workbench workflow-events <project>
 
 ## 当前接入范围
 
-第一版只支持 `scene-development`，并将已有 `workflow_state.py` 的当前步骤映射为 task package。覆盖步骤包括：
+第一版以 `scene-development` 为样板，并将已有 `workflow_state.py` 的当前步骤映射为 task package。覆盖步骤包括：
 
 1. context packet
 2. roleplay simulation
@@ -121,6 +121,38 @@ CLI 只负责：
 - `static-review`：要求 `reviews/{scene_id}-review.md` 结论为 `pass`。
 - `state-patch-json` / `state-agent-task`：检查 state patch JSON 可解析、schema 正确、scene_id 匹配且仍处于候选/审查/审批边界。
 
+## v0.84.2 Route Registry 与 Longform 接入
+
+`task_registry.py` 已从单一路线实现改为 route registry 分发表。每条路线定义：
+
+1. `select_work_item`：从 `workflow-state` 中选择当前待处理工作项。
+2. `build_task`：生成 CLI 中介平台 Agent 任务包。
+3. `validate_task`：在 expected outputs 存在后执行路线专属真实门禁。
+4. `ready_message`：路线完成时返回的说明。
+
+当前已注册：
+
+1. `scene-development`
+2. `longform-planning`
+
+`workflow-state --route longform-planning` 现在会输出 Longform State，包含：
+
+1. `word-budget-file`
+2. `budget-agent-task`
+3. `budget-review`
+4. `scene-inventory-agent-task`
+5. `scene-inventory-review`
+
+`task-next --route longform-planning` 使用同一套 `task-open` / `task-submit` / `task-complete` 生命周期。该路线的关键门禁：
+
+1. `word_budget.json` 必须存在、schema 正确、target words 为正、包含 `chapter_budgets` 与 `scene_inventory_binding`。
+2. `word_budget.agent_tasks.md` 与 `scene_inventory_expansion.agent_tasks.md` 必须存在。
+3. `word_budget.agent_completion.json` 不能单独放行，`plot/candidates/outlines/word_budget_expansion.md` 也必须存在。
+4. `scene_inventory_expansion.agent_completion.json` 不能单独放行，`plot/candidates/scenes/word_budget_scene_inventory.md` 也必须存在。
+5. `reviews/word_budget/word_budget_review.md` 和 `reviews/word_budget/scene_inventory_review.md` 结论必须为 clean `pass`；`pass_with_notes` 阻塞。
+
+这一步修复了历史问题：预算工具生成了文件，但平台 Agent 后续写场景时没有读取预算任务、没有把目标字数/场景库存变成硬约束。现在长篇规划可以作为正式 route 被状态机持续追踪。
+
 ## 测试
 
 新增：
@@ -140,6 +172,11 @@ CLI 只负责：
 - `task-complete` 拒绝候选正文 Style Lint blocking。
 - `task-complete` 拒绝 `pass_with_notes` AgentReview。
 - `task-complete` 拒绝未处理 word-budget sidecar。
+- `task-next --route longform-planning` 能发出 word-budget-file 任务。
+- budget scaffold 完成后，`task-next --route longform-planning` 会进入 budget-agent-task。
+- longform budget review 为 `pass_with_notes` 时，`task-complete` 阻塞。
+- 即使 sidecar completion marker 存在，预算化大纲候选缺失时，`task-complete` 仍阻塞。
+- 预算化大纲与分场景库存候选、completion marker、clean review 全部存在后，`task-next --route longform-planning` 返回 ready。
 - `task-complete` 拒绝非 clean pass 的静态 review。
 - `task-complete` 拒绝损坏的 state patch JSON。
 - context 完成后 `task-next` 推进到 roleplay-simulation。

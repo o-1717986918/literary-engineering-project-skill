@@ -226,8 +226,10 @@ task_routes:
       - references/artifact-contracts.md
       - references/workflows.md
       - docs/modules/longform-word-budget.md
+      - docs/modules/cli-mediated-agent-workflow.md
       - docs/implementation/phase65-longform-word-budget.md
       - docs/implementation/phase83-sidecar-state-machine-word-budget-chain.md
+      - docs/implementation/phase84-cli-mediated-agent-workflow.md
     inspect_if_present:
       - project.yaml
       - plot/outline.md
@@ -247,10 +249,15 @@ task_routes:
       - scene inventory review report
       - updated generation readiness decision
     completion_gates:
+      - formal longform work uses task-next/task-open/task-submit/task-complete with route longform-planning until ready
       - target words, volume count, genre, and time-span assumptions are explicit
       - CLI budget is treated as deterministic constraint evidence, not creative authority
-      - platform agent handled the budget expansion sidecar or listed it as pending
-      - platform agent handled the scene inventory expansion sidecar or listed it as pending
+      - platform agent handled the budget expansion sidecar and created word_budget.agent_completion.json
+      - platform agent handled the scene inventory expansion sidecar and created scene_inventory_expansion.agent_completion.json
+      - plot/candidates/outlines/word_budget_expansion.md exists
+      - plot/candidates/scenes/word_budget_scene_inventory.md exists
+      - reviews/word_budget/word_budget_review.md conclusion is pass
+      - reviews/word_budget/scene_inventory_review.md conclusion is pass
       - budgeted outline remains candidate until review and user approval
       - chapter target words, cleaned actual body words, missing scenes, and expansion tasks are reviewed before bulk generation
 

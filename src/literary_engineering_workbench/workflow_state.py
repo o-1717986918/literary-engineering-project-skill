@@ -40,12 +40,16 @@ def build_workflow_state(
         raise FileNotFoundError(f"project root not found: {root}")
     normalized_route = _normalize_route(route) or "scene-development"
     scenes = _scene_states(root) if normalized_route in {"scene-development", "overall"} else []
+    longform = _longform_state(root) if normalized_route in {"longform-planning", "overall"} else {}
+    longform_blocked = 1 if longform and longform.get("status") != "ready" else 0
+    longform_ready = 1 if longform and longform.get("status") == "ready" else 0
     summary = {
         "route": normalized_route,
         "scene_count": len(scenes),
-        "ready_count": sum(1 for scene in scenes if scene["status"] == "ready"),
-        "blocked_count": sum(1 for scene in scenes if scene["status"] != "ready"),
-        "next_action_count": sum(1 for scene in scenes if scene.get("next_action")),
+        "ready_count": sum(1 for scene in scenes if scene["status"] == "ready") + longform_ready,
+        "blocked_count": sum(1 for scene in scenes if scene["status"] != "ready") + longform_blocked,
+        "next_action_count": sum(1 for scene in scenes if scene.get("next_action")) + (1 if longform and longform.get("next_action") else 0),
+        "longform_status": longform.get("status", "") if isinstance(longform, dict) else "",
     }
     payload = {
         "schema": "literary-engineering-workbench/formal-route-state/v1",
@@ -54,6 +58,7 @@ def build_workflow_state(
         "route": normalized_route,
         "summary": summary,
         "scenes": scenes,
+        "longform": longform,
         "rules": [
             "This state ledger is advisory plus auditable; command-level gates remain authoritative.",
             "A step is pass only when the formal CLI artifact and its platform-agent completion marker both exist where required.",
@@ -83,6 +88,94 @@ def _scene_states(root: Path) -> list[dict[str, object]]:
     if not scenes.exists():
         return []
     return [_scene_state(root, path) for path in sorted(scenes.glob("*.yaml")) if not path.name.startswith("_")]
+
+
+def _longform_state(root: Path) -> dict[str, object]:
+    steps = [
+        _word_budget_file_step(root),
+        _longform_task_step(
+            "budget-agent-task",
+            root,
+            root / "plot" / "word_budget" / "word_budget.agent_tasks.md",
+            [root / "plot" / "candidates" / "outlines" / "word_budget_expansion.md"],
+            "complete word_budget.agent_tasks.md, budgeted outline candidate, and budget review",
+        ),
+        _longform_review_step(
+            "budget-review",
+            root / "reviews" / "word_budget" / "word_budget_review.md",
+            "write a clean word-budget review with conclusion: pass",
+        ),
+        _longform_task_step(
+            "scene-inventory-agent-task",
+            root,
+            root / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md",
+            [root / "plot" / "candidates" / "scenes" / "word_budget_scene_inventory.md"],
+            "complete scene_inventory_expansion.agent_tasks.md, scene inventory candidate, and review",
+        ),
+        _longform_review_step(
+            "scene-inventory-review",
+            root / "reviews" / "word_budget" / "scene_inventory_review.md",
+            "write a clean scene inventory review with conclusion: pass",
+        ),
+    ]
+    first_open = next((step for step in steps if step["status"] != "pass"), None)
+    return {
+        "target_id": "longform",
+        "scene_id": "longform",
+        "scene": "project.yaml",
+        "status": "ready" if first_open is None else "blocked",
+        "current_step": first_open["key"] if first_open else "ready",
+        "next_action": first_open["next_action"] if first_open else "",
+        "steps": steps,
+    }
+
+
+def _word_budget_file_step(root: Path) -> dict[str, object]:
+    json_path = root / "plot" / "word_budget" / "word_budget.json"
+    markdown_path = root / "plot" / "word_budget" / "word_budget.md"
+    budget_task = root / "plot" / "word_budget" / "word_budget.agent_tasks.md"
+    scene_task = root / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md"
+    required = [json_path, markdown_path, budget_task, scene_task]
+    missing = [_rel(path, root) for path in required if not path.exists()]
+    if missing:
+        return {
+            "key": "word-budget-file",
+            "status": "missing",
+            "path": _rel(json_path, root),
+            "message": "missing " + ", ".join(missing),
+            "next_action": "run word-budget / longform-budget to create budget JSON, report, and platform-agent sidecars",
+        }
+    payload = _read_json(json_path)
+    if not payload or payload.get("schema") != "literary-engineering-workbench/word-budget/v1":
+        return {
+            "key": "word-budget-file",
+            "status": "invalid",
+            "path": _rel(json_path, root),
+            "message": "word_budget.json is invalid or has wrong schema",
+            "next_action": "rerun word-budget / longform-budget",
+        }
+    totals = payload.get("totals") if isinstance(payload.get("totals"), dict) else {}
+    return {
+        "key": "word-budget-file",
+        "status": "pass",
+        "path": _rel(json_path, root),
+        "message": f"word budget exists; status={payload.get('status', '')}",
+        "target_words": totals.get("target_words", 0),
+        "chapter_count": totals.get("chapter_count", 0),
+        "scene_count": totals.get("scene_count", 0),
+        "next_action": "",
+    }
+
+
+def _longform_review_step(key: str, path: Path, next_action: str) -> dict[str, object]:
+    conclusion = _static_review_conclusion(path)
+    return {
+        "key": key,
+        "status": "pass" if conclusion == "pass" else conclusion or "missing",
+        "path": str(path),
+        "message": f"conclusion={conclusion or 'missing'}",
+        "next_action": "" if conclusion == "pass" else next_action,
+    }
 
 
 def _scene_state(root: Path, scene_path: Path) -> dict[str, object]:
@@ -138,6 +231,23 @@ def _task_step(key: str, root: Path, path: Path, next_action: str) -> dict[str, 
         "path": _rel(path, root),
         "completion": state.get("completion", ""),
         "message": state.get("message", ""),
+        "next_action": "" if complete else next_action,
+    }
+
+
+def _longform_task_step(key: str, root: Path, path: Path, required_outputs: list[Path], next_action: str) -> dict[str, object]:
+    state = agent_task_completion_status(path, root=root)
+    missing = [_rel(item, root) for item in required_outputs if not item.exists()]
+    complete = state.get("complete") is True and not missing
+    message = str(state.get("message") or "")
+    if missing:
+        message = (message + "; " if message else "") + "missing " + ", ".join(missing)
+    return {
+        "key": key,
+        "status": "pass" if complete else str(state.get("status") or "pending"),
+        "path": _rel(path, root),
+        "completion": state.get("completion", ""),
+        "message": message,
         "next_action": "" if complete else next_action,
     }
 
@@ -294,6 +404,17 @@ def _render_markdown(payload: dict[str, object]) -> str:
         lines.append(
             f"| {scene.get('scene_id', '')} | {scene.get('status', '')} | {scene.get('current_step', '')} | {scene.get('next_action', '')} |"
         )
+    longform = payload.get("longform") if isinstance(payload.get("longform"), dict) else {}
+    if longform:
+        lines.extend(["", "## Longform State", ""])
+        lines.append(
+            f"- 状态：`{longform.get('status', '')}`；当前步骤：`{longform.get('current_step', '')}`；下一步：{longform.get('next_action', '') or 'n/a'}"
+        )
+        lines.extend(["", "| 步骤 | 状态 | 信息 |", "| --- | --- | --- |"])
+        for step in longform.get("steps", []):
+            if not isinstance(step, dict):
+                continue
+            lines.append(f"| {step.get('key', '')} | {step.get('status', '')} | {step.get('message', '')} |")
     lines.extend(["", "## Details", ""])
     for scene in payload.get("scenes", []):
         if not isinstance(scene, dict):

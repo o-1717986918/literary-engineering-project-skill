@@ -41,7 +41,9 @@ When using formal local commands such as `source-ingest`, `extract-existing-work
 
 Every `.agent_tasks.md` sidecar remains pending until the platform agent creates the adjacent `.agent_completion.json` marker after checking expected artifacts. Treat `workflow-state`, `agent-task-status`, and `route-audit` as the three dashboards: current step, pending sidecars, and formal route gate status.
 
-For formal scene work, treat `task-next`, `task-open`, `task-submit`, and `task-complete` as the controlling loop when available. The platform agent still performs the creative judgment and writes prose/reviews/branch choices, but the CLI task registry chooses the next formal operation, provides the execution package, records submissions, and blocks missing expected outputs.
+For formal scene work and longform planning, treat `task-next`, `task-open`, `task-submit`, and `task-complete` as the controlling loop when available. The platform agent still performs the creative judgment and writes prose/reviews/branch choices/budgeted outline candidates/scene inventory candidates, but the CLI task registry chooses the next formal operation, provides the execution package, records submissions, and blocks missing expected outputs.
+
+`longform-planning` is now a registered task route. Before bulk scene work, use `task-next --route longform-planning` until it returns ready. The route must complete `word-budget-file`, `budget-agent-task`, `budget-review`, `scene-inventory-agent-task`, and `scene-inventory-review`; both sidecar completion markers, both candidate artifacts, and both clean `pass` reviews are required.
 
 Use `agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, or `director-chat` only for explicit legacy regression, local demos, or debugging. Do not route formal creative generation, JSON creation, scene/canon review, style-prompt creation, or second-level project decisions through local dry-run, HTTP chat, or an external agent service.
 

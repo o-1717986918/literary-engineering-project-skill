@@ -258,4 +258,6 @@
 
 `v0.84.1` 已把 `task-complete` 接入 current_state 深度门禁：除 expected outputs 外，还会验证 RP/branch/composition CLI provenance、formal branch selection、word-budget sidecar 与 review、candidate generation provenance、Style Lint、scene word-budget adherence、exact-candidate AgentReview、promotion debug-waiver、static review clean pass 和 state patch JSON/schema。这样手写同名文件、漏 sidecar、漏 review 或用维护者调试参数绕过的产物不会被任务状态机误判为完成。
 
-下一步规划：Phase 85-90 将继续推进 Prompt Registry、Context Broker、完整持续状态机、Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。
+`v0.84.2` 已把 task registry 从单一路线样板升级为可横向扩展的 route registry，并接入 `longform-planning`。长篇预算现在必须通过 `word-budget-file`、`budget-agent-task`、`budget-review`、`scene-inventory-agent-task`、`scene-inventory-review` 五步；预算化大纲候选、分场景库存候选、completion marker 和 clean `pass` review 缺一项都不能 ready。这样“word_budget 生成了但 nobody reads it”的问题进入正式状态机闭环。
+
+下一步规划：Phase 85-90 将继续推进 Prompt Registry、Context Broker、完整持续状态机、Reader Experience Contract、最小项目总控面板和失败模式回归测试，并继续横向接入 `source-ingest`、`style-engineering`、`character-and-world-assets`、`review-and-audit`、`export-and-release`。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
+from typing import Callable
 
 from .agent_tasks import agent_task_completion_status, default_agent_completion_path, write_agent_completion_marker
 from .anti_ai_style import style_lint_gate, style_lint_gate_message
@@ -20,7 +21,16 @@ from .workflow_state import build_workflow_state
 TASK_SCHEMA = "literary-engineering-workbench/agent-task/v1"
 SUBMISSION_SCHEMA = "literary-engineering-workbench/agent-submission/v1"
 EVENT_SCHEMA = "literary-engineering-workbench/workflow-event/v1"
-SUPPORTED_ROUTES = {"scene-development"}
+SUPPORTED_ROUTES = {"scene-development", "longform-planning"}
+
+
+@dataclass(frozen=True)
+class RouteDefinition:
+    route: str
+    ready_message: str
+    select_work_item: Callable[[Path, dict[str, object], Path | str | None], dict[str, object] | None]
+    build_task: Callable[[Path, str, dict[str, object]], dict[str, object]]
+    validate_task: Callable[[Path, dict[str, object]], tuple[list[str], list[str]]]
 
 
 @dataclass(frozen=True)
@@ -68,10 +78,11 @@ def issue_next_task(
     root = project_root.resolve()
     normalized_route = _normalize_route(route or "scene-development")
     if normalized_route not in SUPPORTED_ROUTES:
-        raise ValueError(f"task registry currently supports only scene-development, got: {normalized_route}")
+        raise ValueError(f"task registry supports {', '.join(sorted(SUPPORTED_ROUTES))}, got: {normalized_route}")
+    route_def = _route_definition(normalized_route)
     state_payload = _workflow_payload(root, normalized_route)
-    scene_state = _select_scene_state(root, state_payload, scene)
-    if scene_state is None:
+    work_item = route_def.select_work_item(root, state_payload, scene)
+    if work_item is None:
         return TaskRegistryResult(
             project_root=root,
             task_id="",
@@ -81,10 +92,10 @@ def issue_next_task(
             route=normalized_route,
             scene_id="",
             current_state="ready",
-            message="no pending scene-development task found",
+            message=route_def.ready_message,
         )
-    scene_id = str(scene_state.get("scene_id") or "")
-    current_state = str(scene_state.get("current_step") or "")
+    scene_id = str(work_item.get("scene_id") or work_item.get("target_id") or "")
+    current_state = str(work_item.get("current_step") or "")
     if not scene_id or current_state == "ready":
         return TaskRegistryResult(
             project_root=root,
@@ -95,10 +106,10 @@ def issue_next_task(
             route=normalized_route,
             scene_id=scene_id,
             current_state="ready",
-            message=f"scene {scene_id or 'n/a'} is ready",
+            message=route_def.ready_message,
         )
 
-    task = _build_task_payload(root, normalized_route, scene_state)
+    task = route_def.build_task(root, normalized_route, work_item)
     task_id = str(task["task_id"])
     task_json = _task_json_path(root, task_id)
     task_markdown = _task_markdown_path(root, task_id)
@@ -116,7 +127,7 @@ def issue_next_task(
                 task_markdown_path=task_markdown,
                 status=existing_status,
                 route=normalized_route,
-                scene_id=scene_id,
+                scene_id=str(existing.get("scene_id") or scene_id),
                 current_state=current_state,
                 message="existing active task returned; use --force to refresh",
                 expected_output_count=len(existing.get("expected_outputs") or []),
@@ -238,7 +249,8 @@ def complete_task(
         _block_task(root, task_json, task, task_id, f"missing expected outputs: {', '.join(missing)}")
         raise FileNotFoundError(f"missing expected outputs: {', '.join(missing)}")
 
-    gate_errors, gate_notes = _state_gate_validation(root, task)
+    route = str(task.get("route") or "scene-development")
+    gate_errors, gate_notes = _route_definition(route).validate_task(root, task)
     if gate_errors:
         message = "; ".join(gate_errors)
         _block_task(root, task_json, task, task_id, message)
@@ -258,7 +270,7 @@ def complete_task(
     task["validation"] = {"status": "pass", "missing_expected_outputs": [], "notes": validation_notes}
     task_json.write_text(json.dumps(task, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     _append_event(root, "task_completed", task_id, {"completion": _rel(completion_path, root)})
-    state = build_workflow_state(root, route=str(task.get("route") or "scene-development"))
+    state = build_workflow_state(root, route=route)
     _append_event(root, "workflow_state_refreshed", task_id, {"state": _rel(state.json_path, root)})
     return TaskRegistryResult(
         project_root=root,
@@ -283,6 +295,8 @@ def advance_workflow(
 
     root = project_root.resolve()
     normalized_route = _normalize_route(route or "scene-development")
+    if normalized_route not in SUPPORTED_ROUTES:
+        raise ValueError(f"task registry supports {', '.join(sorted(SUPPORTED_ROUTES))}, got: {normalized_route}")
     state = build_workflow_state(root, route=normalized_route)
     _append_event(root, "workflow_advanced", "", {"route": normalized_route, "state": _rel(state.json_path, root)})
     return TaskRegistryResult(
@@ -311,6 +325,30 @@ def build_workflow_events(
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
     markdown_path.write_text(_render_events_markdown(events), encoding="utf-8")
     return WorkflowEventsResult(root, events_path, markdown_path, len(events))
+
+
+def _route_definition(route: str) -> RouteDefinition:
+    normalized = _normalize_route(route or "scene-development")
+    definitions = {
+        "scene-development": RouteDefinition(
+            route="scene-development",
+            ready_message="no pending scene-development task found",
+            select_work_item=_select_scene_state,
+            build_task=_build_task_payload,
+            validate_task=_state_gate_validation,
+        ),
+        "longform-planning": RouteDefinition(
+            route="longform-planning",
+            ready_message="longform-planning route is ready",
+            select_work_item=_select_longform_state,
+            build_task=_build_longform_task_payload,
+            validate_task=_longform_state_gate_validation,
+        ),
+    }
+    try:
+        return definitions[normalized]
+    except KeyError as exc:
+        raise ValueError(f"unsupported route: {route}") from exc
 
 
 def _build_task_payload(root: Path, route: str, scene_state: dict[str, object]) -> dict[str, object]:
@@ -360,6 +398,61 @@ def _build_task_payload(root: Path, route: str, scene_state: dict[str, object]) 
             "Do not treat this task as complete until task-submit and task-complete have succeeded.",
             "Do not let subagents draft, revise, polish, expand, or finalize creative body text.",
             "Do not write API keys or provider secrets into the work project.",
+        ],
+        "next_allowed_states": blueprint["next_allowed_states"],
+    }
+
+
+def _build_longform_task_payload(root: Path, route: str, state: dict[str, object]) -> dict[str, object]:
+    current_state = str(state.get("current_step") or "")
+    next_action = str(state.get("next_action") or "")
+    blueprint = _longform_blueprint_for_state(root, current_state, next_action)
+    task_id = _task_id(route, "longform", current_state)
+    expected_outputs = _unique([_normalize_rel(item) for item in blueprint["expected_outputs"]])
+    source_paths = _unique([_normalize_rel(item) for item in blueprint["source_paths"]])
+    now = _now()
+    return {
+        "schema": TASK_SCHEMA,
+        "task_id": task_id,
+        "status": "issued",
+        "created_at": now,
+        "route": route,
+        "scene_id": "longform",
+        "target_id": "longform",
+        "scene": "project.yaml",
+        "current_state": current_state,
+        "task_type": blueprint["task_type"],
+        "prompt_asset_id": blueprint["prompt_asset_id"],
+        "command": blueprint["command"],
+        "required_reading": blueprint.get(
+            "required_reading",
+            [
+                "SKILL.md",
+                "AGENTS.md",
+                "agentread.yaml",
+                "references/agent-run-protocol.md",
+                "references/cli-run-protocol.md",
+                "docs/modules/longform-word-budget.md",
+            ],
+        ),
+        "source_paths": source_paths,
+        "context_trace": blueprint.get("context_trace", ""),
+        "hard_constraints": blueprint["hard_constraints"],
+        "style_constraints": blueprint["style_constraints"],
+        "word_count_target": blueprint.get("word_count_target", 0),
+        "word_count_min": blueprint.get("word_count_min", 0),
+        "word_count_max": blueprint.get("word_count_max", 0),
+        "expected_outputs": expected_outputs,
+        "submission_command": f"python -m literary_engineering_workbench task-submit <project> --task-id {task_id} --from <artifact>",
+        "completion_command": f"python -m literary_engineering_workbench task-complete <project> --task-id {task_id}",
+        "validation_gates": blueprint["validation_gates"],
+        "forbidden_shortcuts": [
+            "Do not treat word_budget.json as final plot or sufficient narrative inventory by itself.",
+            "Do not bypass word_budget.agent_tasks.md or scene_inventory_expansion.agent_tasks.md.",
+            "Do not start bulk scene generation while longform-planning is blocked.",
+            "Do not satisfy target length by making each scene verbose; expand narrative inventory instead.",
+            "Do not overwrite formal plot/outline.md or scenes/ before candidate review and user approval.",
+            "Do not treat this task as complete until task-submit and task-complete have succeeded.",
         ],
         "next_allowed_states": blueprint["next_allowed_states"],
     }
@@ -596,6 +689,136 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
     return table.get(current_state, default)
 
 
+def _longform_blueprint_for_state(root: Path, current_state: str, next_action: str) -> dict[str, object]:
+    project_text = _read_text(root / "project.yaml")
+    target_words = _project_int(project_text, "target_length") or _project_int(project_text, "target_words") or 100000
+    volumes = _project_int(project_text, "volumes")
+    genre = _project_scalar(project_text, "genre")
+    command = f"python -m literary_engineering_workbench word-budget <project> --target-words {target_words}"
+    if volumes:
+        command += f" --volumes {volumes}"
+    if genre:
+        command += f" --genre {genre}"
+    common_sources = ["project.yaml", "plot/outline.md", "scenes/"]
+    table: dict[str, dict[str, object]] = {
+        "word-budget-file": {
+            "task_type": "deterministic-cli",
+            "prompt_asset_id": "route.longform-planning.word-budget.prepare.v1",
+            "command": command,
+            "source_paths": common_sources,
+            "expected_outputs": [
+                "plot/word_budget/word_budget.md",
+                "plot/word_budget/word_budget.json",
+                "plot/word_budget/word_budget.agent_tasks.md",
+                "plot/word_budget/scene_inventory_expansion.agent_tasks.md",
+            ],
+            "hard_constraints": [
+                "Run word-budget / longform-budget before bulk outline or scene generation.",
+                "Inspect both emitted platform-agent sidecars; this task is only the deterministic budget scaffold.",
+            ],
+            "style_constraints": [],
+            "word_count_target": target_words,
+            "validation_gates": ["word_budget.json exists", "word budget schema is valid", "budget and scene inventory sidecars exist"],
+            "next_allowed_states": ["budget-agent-task"],
+        },
+        "budget-agent-task": {
+            "task_type": "platform-agent-judgment",
+            "prompt_asset_id": "route.longform-planning.budget-expansion.execute.v1",
+            "command": "",
+            "source_paths": [
+                "project.yaml",
+                "plot/outline.md",
+                "plot/word_budget/word_budget.md",
+                "plot/word_budget/word_budget.json",
+                "plot/word_budget/word_budget.agent_tasks.md",
+            ],
+            "expected_outputs": [
+                "plot/candidates/outlines/word_budget_expansion.md",
+                "reviews/word_budget/word_budget_review.md",
+                "plot/word_budget/word_budget.agent_completion.json",
+            ],
+            "hard_constraints": [
+                "Read word_budget.agent_tasks.md and write the budgeted outline candidate plus review.",
+                "Judge whether the narrative inventory can support target length; do not solve shortfall by padding scenes.",
+                "Keep expanded outline as candidate material until review and user approval.",
+            ],
+            "style_constraints": [],
+            "word_count_target": target_words,
+            "validation_gates": ["budget sidecar completion marker exists", "budgeted outline candidate exists", "word-budget review conclusion is pass"],
+            "next_allowed_states": ["budget-review", "scene-inventory-agent-task"],
+        },
+        "budget-review": {
+            "task_type": "platform-agent-review",
+            "prompt_asset_id": "route.longform-planning.budget-review.v1",
+            "command": "",
+            "source_paths": [
+                "plot/word_budget/word_budget.json",
+                "plot/candidates/outlines/word_budget_expansion.md",
+                "reviews/word_budget/word_budget_review.md",
+            ],
+            "expected_outputs": ["reviews/word_budget/word_budget_review.md"],
+            "hard_constraints": ["The review conclusion must be pass before scene inventory planning is treated as formal."],
+            "style_constraints": [],
+            "word_count_target": target_words,
+            "validation_gates": ["word-budget review conclusion is pass"],
+            "next_allowed_states": ["scene-inventory-agent-task"],
+        },
+        "scene-inventory-agent-task": {
+            "task_type": "platform-agent-judgment",
+            "prompt_asset_id": "route.longform-planning.scene-inventory.execute.v1",
+            "command": "",
+            "source_paths": [
+                "plot/word_budget/word_budget.json",
+                "plot/word_budget/scene_inventory_expansion.agent_tasks.md",
+                "plot/candidates/outlines/word_budget_expansion.md",
+            ],
+            "expected_outputs": [
+                "plot/candidates/scenes/word_budget_scene_inventory.md",
+                "reviews/word_budget/scene_inventory_review.md",
+                "plot/word_budget/scene_inventory_expansion.agent_completion.json",
+            ],
+            "hard_constraints": [
+                "Read scene_inventory_expansion.agent_tasks.md and create budgeted scene inventory candidates.",
+                "Each added scene candidate needs target words, function, participants, conflict, information release, consequence, and setup/payoff role.",
+                "Scene inventory remains candidate material until review and user approval.",
+            ],
+            "style_constraints": [],
+            "word_count_target": target_words,
+            "validation_gates": ["scene inventory sidecar completion marker exists", "scene inventory candidate exists", "scene inventory review conclusion is pass"],
+            "next_allowed_states": ["scene-inventory-review"],
+        },
+        "scene-inventory-review": {
+            "task_type": "platform-agent-review",
+            "prompt_asset_id": "route.longform-planning.scene-inventory-review.v1",
+            "command": "",
+            "source_paths": [
+                "plot/word_budget/word_budget.json",
+                "plot/candidates/scenes/word_budget_scene_inventory.md",
+                "reviews/word_budget/scene_inventory_review.md",
+            ],
+            "expected_outputs": ["reviews/word_budget/scene_inventory_review.md"],
+            "hard_constraints": ["The scene inventory review conclusion must be pass before longform-planning is ready."],
+            "style_constraints": [],
+            "word_count_target": target_words,
+            "validation_gates": ["scene inventory review conclusion is pass"],
+            "next_allowed_states": ["ready"],
+        },
+    }
+    default = {
+        "task_type": "manual-route-repair",
+        "prompt_asset_id": "route.longform-planning.repair.v1",
+        "command": next_action,
+        "source_paths": common_sources,
+        "expected_outputs": [],
+        "hard_constraints": [next_action or "Inspect workflow-state and route-audit, then repair the missing longform-planning gate."],
+        "style_constraints": [],
+        "word_count_target": target_words,
+        "validation_gates": ["longform-planning gate resolved"],
+        "next_allowed_states": [],
+    }
+    return table.get(current_state, default)
+
+
 def _render_task_markdown(task: dict[str, object], root: Path) -> str:
     task_id = str(task.get("task_id") or "")
     completion = default_agent_completion_path(_task_markdown_path(root, task_id))
@@ -694,6 +917,15 @@ def _select_scene_state(root: Path, payload: dict[str, object], scene: Path | st
     return next((item for item in scenes if item.get("status") != "ready"), None)
 
 
+def _select_longform_state(root: Path, payload: dict[str, object], scene: Path | str | None) -> dict[str, object] | None:
+    _ = root
+    _ = scene
+    state = payload.get("longform") if isinstance(payload.get("longform"), dict) else {}
+    if not state or state.get("status") == "ready":
+        return None
+    return state
+
+
 def _scene_id(scene_path: Path) -> str:
     text = scene_path.read_text(encoding="utf-8", errors="ignore") if scene_path.exists() else ""
     match = re.search(r"(?m)^\s*scene_id:\s*['\"]?([^'\"\n#]+)", text)
@@ -748,6 +980,88 @@ def _state_gate_validation(root: Path, task: dict[str, object]) -> tuple[list[st
     if current_state in {"state-patch-json", "state-agent-task"}:
         errors.extend(_state_patch_gate_errors(root, scene_id))
     return errors, notes
+
+
+def _longform_state_gate_validation(root: Path, task: dict[str, object]) -> tuple[list[str], list[str]]:
+    current_state = str(task.get("current_state") or "")
+    errors: list[str] = []
+    notes: list[str] = []
+    if current_state == "word-budget-file":
+        errors.extend(_word_budget_file_gate_errors(root))
+    if current_state in {"budget-agent-task", "budget-review"}:
+        errors.extend(_word_budget_file_gate_errors(root))
+        errors.extend(_longform_sidecar_completion_errors(root / "plot" / "word_budget" / "word_budget.agent_tasks.md", root, "word-budget expansion"))
+        errors.extend(
+            _longform_required_artifact_errors(
+                root,
+                [root / "plot" / "candidates" / "outlines" / "word_budget_expansion.md"],
+                "word-budget expansion",
+            )
+        )
+        errors.extend(_longform_review_gate_errors(root / "reviews" / "word_budget" / "word_budget_review.md", root, "word-budget review"))
+    if current_state in {"scene-inventory-agent-task", "scene-inventory-review"}:
+        errors.extend(_word_budget_file_gate_errors(root))
+        errors.extend(_longform_sidecar_completion_errors(root / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md", root, "scene-inventory expansion"))
+        errors.extend(
+            _longform_required_artifact_errors(
+                root,
+                [root / "plot" / "candidates" / "scenes" / "word_budget_scene_inventory.md"],
+                "scene-inventory expansion",
+            )
+        )
+        errors.extend(_longform_review_gate_errors(root / "reviews" / "word_budget" / "scene_inventory_review.md", root, "scene-inventory review"))
+    if current_state in {"budget-agent-task", "budget-review"} and not errors:
+        notes.append("word-budget expansion reviewed")
+    if current_state in {"scene-inventory-agent-task", "scene-inventory-review"} and not errors:
+        notes.append("scene inventory reviewed")
+    return errors, notes
+
+
+def _word_budget_file_gate_errors(root: Path) -> list[str]:
+    json_path = root / "plot" / "word_budget" / "word_budget.json"
+    markdown_path = root / "plot" / "word_budget" / "word_budget.md"
+    budget_task = root / "plot" / "word_budget" / "word_budget.agent_tasks.md"
+    scene_task = root / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md"
+    errors: list[str] = []
+    for path in (markdown_path, json_path, budget_task, scene_task):
+        if not path.exists():
+            errors.append(f"missing longform budget artifact: {_rel(path, root)}")
+    payload, error = _read_optional_json(json_path)
+    if error:
+        errors.append(error)
+        return errors
+    if payload.get("schema") != "literary-engineering-workbench/word-budget/v1":
+        errors.append("word_budget.json has wrong or missing schema")
+    target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
+    totals = payload.get("totals") if isinstance(payload.get("totals"), dict) else {}
+    if _to_int(target.get("target_words") or totals.get("target_words")) <= 0:
+        errors.append("word_budget.json target_words must be positive")
+    if not isinstance(payload.get("chapter_budgets"), list) or not payload.get("chapter_budgets"):
+        errors.append("word_budget.json must contain chapter_budgets")
+    if not isinstance(payload.get("scene_inventory_binding"), dict):
+        errors.append("word_budget.json must contain scene_inventory_binding")
+    return errors
+
+
+def _longform_sidecar_completion_errors(task_path: Path, root: Path, label: str) -> list[str]:
+    state = agent_task_completion_status(task_path, root=root)
+    if state.get("complete") is True:
+        return []
+    return [f"{label} sidecar is incomplete: {state.get('message')}"]
+
+
+def _longform_required_artifact_errors(root: Path, paths: list[Path], label: str) -> list[str]:
+    missing = [_rel(path, root) for path in paths if not path.exists()]
+    if not missing:
+        return []
+    return [f"{label} required artifact missing: {', '.join(missing)}"]
+
+
+def _longform_review_gate_errors(path: Path, root: Path, label: str) -> list[str]:
+    conclusion = _static_review_conclusion(path)
+    if conclusion == "pass":
+        return []
+    return [f"{label} conclusion must be pass; got {conclusion or 'missing'} at {_rel(path, root)}"]
 
 
 def _roleplay_gate_errors(root: Path, scene_id: str) -> list[str]:
@@ -1077,6 +1391,33 @@ def _normalize_route(route: str) -> str:
 
 def _normalize_rel(value: str | Path) -> str:
     return Path(str(value)).as_posix()
+
+
+def _project_scalar(text: str, key: str) -> str:
+    match = re.search(rf"(?m)^[ \t]*{re.escape(key)}:[ \t]*(.*?)\s*$", text)
+    if not match:
+        return ""
+    value = match.group(1).strip()
+    if value in {"null", "[]", "{}"}:
+        return ""
+    return value.strip("\"'")
+
+
+def _project_int(text: str, key: str) -> int:
+    return _to_int(_project_scalar(text, key))
+
+
+def _to_int(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    try:
+        return int(str(value).replace(",", "").replace("_", "").strip())
+    except (TypeError, ValueError):
+        return 0
 
 
 def _unique(items: list[str]) -> list[str]:

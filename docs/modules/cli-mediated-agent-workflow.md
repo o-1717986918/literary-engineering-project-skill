@@ -44,7 +44,7 @@ CLI 不负责：
 
 ## 3. 最小命令闭环
 
-当前第一版支持 `scene-development` 路线。
+当前支持 `scene-development` 与 `longform-planning` 两条正式路线。`scene-development` 是逐场景样板；`longform-planning` 是第一条横向接入路线，用来确保长篇字数预算、预算化大纲和分场景库存不会被生成环节跳过。
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -55,6 +55,18 @@ python -m literary_engineering_workbench task-submit <project> --task-id <task-i
 python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
 python -m literary_engineering_workbench workflow-advance <project> --route scene-development
 python -m literary_engineering_workbench workflow-events <project>
+```
+
+长篇规划路线使用同一套控制面：
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m literary_engineering_workbench task-next <project> --route longform-planning
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
+# 平台 Agent 按 task 执行 word-budget、预算化大纲、预算 review、场景库存候选和库存 review
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
+python -m literary_engineering_workbench workflow-advance <project> --route longform-planning
 ```
 
 `task-next` 会写出：
@@ -76,6 +88,8 @@ python -m literary_engineering_workbench workflow-events <project>
 4. 对应 event log
 
 从 `v0.84.1` 起，`task-complete` 不只检查文件是否存在。它会按当前状态验证 CLI provenance、sidecar completion、branch selection、composition readiness、word-budget sidecar/review、candidate generation manifest、Style Lint、exact-candidate AgentReview、promotion waiver、static review 和 state patch JSON。失败时任务会进入 `blocked`，失败信息就是下一步修复任务。
+
+从 `v0.84.2` 起，`task_registry.py` 使用 route registry 分发表、选择器、任务构建器和门禁函数。`longform-planning` 已接入同一生命周期：`word-budget-file`、`budget-agent-task`、`budget-review`、`scene-inventory-agent-task`、`scene-inventory-review`。预算 sidecar 的 completion marker 不能单独放行；预算化大纲候选、分场景库存候选和对应 clean `pass` review 也必须存在。
 
 ## 4. Scene-development 样板状态
 
@@ -101,6 +115,31 @@ python -m literary_engineering_workbench workflow-events <project>
 18. `state-agent-task`
 
 状态不是靠 CLI 手写推进，而是由真实项目文件、sidecar completion marker 和现有 gate 推导。`workflow-advance` 只是刷新账本，不允许把未完成状态强行改成完成。
+
+## 4.1 Longform-planning 状态
+
+长篇规划路线顺序：
+
+1. `word-budget-file`
+2. `budget-agent-task`
+3. `budget-review`
+4. `scene-inventory-agent-task`
+5. `scene-inventory-review`
+
+对应硬产物：
+
+1. `plot/word_budget/word_budget.md`
+2. `plot/word_budget/word_budget.json`
+3. `plot/word_budget/word_budget.agent_tasks.md`
+4. `plot/word_budget/word_budget.agent_completion.json`
+5. `plot/candidates/outlines/word_budget_expansion.md`
+6. `reviews/word_budget/word_budget_review.md`，结论必须为 `pass`
+7. `plot/word_budget/scene_inventory_expansion.agent_tasks.md`
+8. `plot/word_budget/scene_inventory_expansion.agent_completion.json`
+9. `plot/candidates/scenes/word_budget_scene_inventory.md`
+10. `reviews/word_budget/scene_inventory_review.md`，结论必须为 `pass`
+
+这条路线专门堵住“预算文件生成了但没人读”的漏洞。正式批量场景生成前，平台 Agent 必须完成预算化大纲和场景库存两类判断，不能只靠拉长每个场景满足目标字数。
 
 ## 5. Task 包必须包含什么
 
@@ -165,3 +204,4 @@ python -m literary_engineering_workbench workflow-events <project>
 2. Context Broker：让 `task-open` 输出稳定的 context trace。
 3. Reader Experience Contract：让字数和章节义务进入 `task-open` 与 `task-complete`。
 4. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
+5. 继续横向接入 `source-ingest`、`style-engineering`、`character-and-world-assets`、`review-and-audit`、`export-and-release`。

@@ -80,12 +80,22 @@ The CLI writes raw text, chunks, `source_manifest.json`, `source_ingest.md`, and
 
 ```powershell
 python -m literary_engineering_workbench protocol longform-planning
+python -m literary_engineering_workbench task-next <project> --route longform-planning
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
+# Execute the task package, submit artifacts, then complete the task.
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
+```
+
+Preferred formal control now uses the task registry above. The underlying deterministic command for the first task is:
+
+```powershell
 python -m literary_engineering_workbench word-budget <project> --target-words 500000 --volumes 5 --genre mystery
 ```
 
-The CLI writes `plot/word_budget/word_budget.md`, `plot/word_budget/word_budget.json`, and `plot/word_budget/word_budget.agent_tasks.md`. The platform agent must read the sidecar, create `plot/candidates/outlines/word_budget_expansion.md`, write `reviews/word_budget/word_budget_review.md`, and decide whether the project has enough narrative inventory before bulk generation.
+The CLI writes `plot/word_budget/word_budget.md`, `plot/word_budget/word_budget.json`, and `plot/word_budget/word_budget.agent_tasks.md`. The platform agent must read the sidecar, create `plot/candidates/outlines/word_budget_expansion.md`, write `reviews/word_budget/word_budget_review.md`, and decide whether the project has enough narrative inventory before bulk generation. Under `task-next --route longform-planning`, these outputs and the sidecar completion marker are formal task expected outputs, not optional notes.
 
-The same command also binds the budget to chapter and scene inventory. It writes `plot/word_budget/scene_inventory_expansion.agent_tasks.md`; the platform agent must use it to create `plot/candidates/scenes/word_budget_scene_inventory.md` and `reviews/word_budget/scene_inventory_review.md`. The scene inventory candidate should list per-chapter target words, existing cleaned body words, missing scenes, and expansion tasks instead of merely asking current scenes to grow longer.
+The same command also binds the budget to chapter and scene inventory. It writes `plot/word_budget/scene_inventory_expansion.agent_tasks.md`; the platform agent must use it to create `plot/candidates/scenes/word_budget_scene_inventory.md` and `reviews/word_budget/scene_inventory_review.md`. Under the task registry, the route is not ready until both `word_budget.agent_completion.json` and `scene_inventory_expansion.agent_completion.json` exist, both candidate artifacts exist, and both reviews have clean `pass` conclusions. The scene inventory candidate should list per-chapter target words, existing cleaned body words, missing scenes, and expansion tasks instead of merely asking current scenes to grow longer.
 
 Use `longform-budget` as an alias. Do not treat `word_budget.json` as final plot; it is a numerical scaffold and readiness signal.
 

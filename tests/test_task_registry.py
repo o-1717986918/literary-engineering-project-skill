@@ -11,6 +11,7 @@ from literary_engineering_workbench.task_registry import (
     open_task,
     submit_task,
 )
+from literary_engineering_workbench.word_budget import build_word_budget
 
 from helpers import TempProjectMixin, write_formal_candidate_artifacts
 
@@ -282,6 +283,86 @@ class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("simulate-scene", payload["command"])
         self.assertIn("branches/scene_0001/roleplay_simulation.agent_tasks.md", payload["expected_outputs"])
 
+    def test_task_next_supports_longform_planning_with_word_budget_task(self):
+        project = self.make_project()
+
+        result = issue_next_task(project, route="longform-planning")
+
+        self.assertEqual(result.status, "issued")
+        self.assertEqual(result.scene_id, "longform")
+        self.assertEqual(result.current_state, "word-budget-file")
+        payload = json.loads(result.task_json_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["route"], "longform-planning")
+        self.assertEqual(payload["prompt_asset_id"], "route.longform-planning.word-budget.prepare.v1")
+        self.assertIn("word-budget", payload["command"])
+        self.assertIn("plot/word_budget/word_budget.json", payload["expected_outputs"])
+        self.assertIn("plot/word_budget/scene_inventory_expansion.agent_tasks.md", payload["expected_outputs"])
+
+        task_text = result.task_markdown_path.read_text(encoding="utf-8")
+        self.assertIn("docs/modules/longform-word-budget.md", task_text)
+        self.assertIn("不得只手写文件后跳到下一步", task_text)
+
+    def test_task_next_moves_to_longform_budget_agent_task_after_budget_scaffold(self):
+        project = self.make_project()
+        build_word_budget(project, target_words=120000, volumes=2, genre="general")
+
+        result = issue_next_task(project, route="longform-planning")
+
+        self.assertEqual(result.current_state, "budget-agent-task")
+        payload = json.loads(result.task_json_path.read_text(encoding="utf-8"))
+        self.assertIn("plot/candidates/outlines/word_budget_expansion.md", payload["expected_outputs"])
+        self.assertIn("reviews/word_budget/word_budget_review.md", payload["expected_outputs"])
+        self.assertIn("plot/word_budget/word_budget.agent_completion.json", payload["expected_outputs"])
+
+    def test_longform_task_complete_blocks_pass_with_notes_budget_review(self):
+        project = self.make_project()
+        result = build_word_budget(project, target_words=120000, volumes=2, genre="general")
+        outline = project / "plot" / "candidates" / "outlines" / "word_budget_expansion.md"
+        outline.write_text("# 预算化大纲候选\n\n- 测试候选。\n", encoding="utf-8")
+        _write_longform_review(project, "word_budget_review", "pass_with_notes")
+        write_agent_completion_marker(result.agent_tasks_path, root=project, handled_by="platform-agent-test")
+
+        issued = issue_next_task(project, route="longform-planning")
+
+        self.assertEqual(issued.current_state, "budget-review")
+        with self.assertRaises(ValueError) as ctx:
+            complete_task(project, issued.task_id)
+        self.assertIn("word-budget review conclusion must be pass", str(ctx.exception))
+        self.assertIn("pass_with_notes", str(ctx.exception))
+
+    def test_longform_task_complete_blocks_missing_budget_candidate_even_with_marker(self):
+        project = self.make_project()
+        result = build_word_budget(project, target_words=120000, volumes=2, genre="general")
+        _write_longform_review(project, "word_budget_review", "pass")
+        write_agent_completion_marker(result.agent_tasks_path, root=project, handled_by="platform-agent-test")
+
+        issued = issue_next_task(project, route="longform-planning")
+
+        self.assertEqual(issued.current_state, "budget-agent-task")
+        with self.assertRaises(FileNotFoundError) as ctx:
+            complete_task(project, issued.task_id)
+        self.assertIn("plot/candidates/outlines/word_budget_expansion.md", str(ctx.exception))
+
+    def test_longform_task_reaches_scene_inventory_and_ready_after_required_artifacts(self):
+        project = self.make_project()
+        result = build_word_budget(project, target_words=120000, volumes=2, genre="general")
+        outline = project / "plot" / "candidates" / "outlines" / "word_budget_expansion.md"
+        outline.write_text("# 预算化大纲候选\n\n- 测试候选。\n", encoding="utf-8")
+        _write_longform_review(project, "word_budget_review", "pass")
+        write_agent_completion_marker(result.agent_tasks_path, root=project, handled_by="platform-agent-test")
+
+        next_task = issue_next_task(project, route="longform-planning")
+        self.assertEqual(next_task.current_state, "scene-inventory-agent-task")
+
+        inventory = project / "plot" / "candidates" / "scenes" / "word_budget_scene_inventory.md"
+        inventory.write_text("# 分场景库存候选\n\n- 测试场景库存。\n", encoding="utf-8")
+        _write_longform_review(project, "scene_inventory_review", "pass")
+        write_agent_completion_marker(result.scene_inventory_tasks_path, root=project, handled_by="platform-agent-test")
+
+        ready = issue_next_task(project, route="longform-planning")
+        self.assertEqual(ready.status, "ready")
+        self.assertEqual(ready.message, "longform-planning route is ready")
+
     def test_cli_exposes_task_registry_commands(self):
         help_text = build_parser().format_help()
         for command in ("task-next", "task-open", "task-submit", "task-complete", "workflow-advance", "workflow-events"):
@@ -294,6 +375,15 @@ class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(code, 0)
         task_dir = project / "workflow" / "tasks"
         self.assertTrue(any(task_dir.glob("*.task.json")))
+
+    def test_cli_task_next_longform_runs(self):
+        project = self.make_project()
+        code = main(["task-next", str(project), "--route", "longform-planning"])
+
+        self.assertEqual(code, 0)
+        task_dir = project / "workflow" / "tasks"
+        self.assertTrue(any(task_dir.glob("longform-planning-longform-word-budget-file.task.json")))
+
 
 def _write_registry_task(
     project: Path,
@@ -373,6 +463,14 @@ def _write_candidate_review(project: Path, candidate: Path, *, conclusion: str) 
     review_task.write_text("# 平台 Agent 任务说明：fixture candidate review\n", encoding="utf-8")
     write_agent_completion_marker(review_task, root=project, handled_by="platform-agent-test")
     return review_json, review_md, review_task
+
+
+def _write_longform_review(project: Path, name: str, conclusion: str) -> Path:
+    review_dir = project / "reviews" / "word_budget"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    path = review_dir / f"{name}.md"
+    path.write_text(f"# Longform Review\n\n- 结论：`{conclusion}`\n", encoding="utf-8")
+    return path
 
 
 def _rel(project: Path, value: Path | str) -> str:

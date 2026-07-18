@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.84.1`
+- 当前版本：`0.84.2`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -127,6 +127,8 @@ context packet
 `v0.84.0` 起，正式 `scene-development` 进入 CLI-mediated Agent Workflow Kernel 第一版：平台 Agent 不再凭记忆决定下一步，而是通过 `task-next` 获取下一项正式任务，通过 `task-open` 读取包含提示词、必读文件、硬约束、预期产物和禁止捷径的任务包；写出产物后用 `task-submit` 记录提交，再用 `task-complete` 校验 expected outputs 并写完成标记。`workflow-advance` 只刷新由真实产物推导出的状态，不允许手动跳状态；`workflow-events` 记录任务 issued/opened/submitted/completed/blocked 历史。用户仍与平台 Agent 自然对话，但可推广、可计数、可导出、可写回的正式产物必须经 CLI 中介。
 
 `v0.84.1` 起，`task-complete` 不再只做 expected outputs 存在性检查。它会按 `current_state` 调用真实门禁：RP/branch/composition CLI provenance、formal branch selection、word-budget sidecar 与 review、candidate generation provenance、Style Lint、scene word-budget adherence、exact-candidate AgentReview、promotion manifest debug-waiver、static review clean pass、state patch JSON/schema 等。任务失败原因会写入 blocked event，作为下一步修复任务。
+
+`v0.84.2` 起，CLI-mediated task loop 从单一路线样板升级为 route registry：`scene-development` 和 `longform-planning` 共享 `task-next -> task-open -> task-submit -> task-complete` 控制面。长篇规划现在不再只是旁路预算文件：`task-next --route longform-planning` 会先派发 `word-budget-file`，再要求平台 Agent 完成 `word_budget.agent_tasks.md`、预算化大纲候选、预算 review、`scene_inventory_expansion.agent_tasks.md`、分场景库存候选和库存 review。预算 sidecar completion marker、候选产物和 `pass` 结论缺一项都会阻塞路线 readiness。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 
@@ -459,7 +461,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.84.1`。
+- 当前版本：`0.84.2`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -479,7 +481,7 @@ literary-engineering-project-skill/
 - 反规避修订协议：已要求生成任务读取 `generation_standards.anti_evasion`，修订任务输出负担证明表，route-audit 检查静态 review 和修订反规避 manifest。
 - 正式路线 CLI 工具箱：可运行。
 - 平台 Agent sidecar 状态机与字数预算硬接入：已要求 `.agent_completion.json` 完成标记，`run-workflow --agent-tasks` 在 sidecar handoff 停止等待，场景生成与审查读取 `scene.yaml` / `word_budget.json` 的预算契约。
-- CLI 中介 Agent 工作流内核：已新增 `task-next`、`task-open`、`task-submit`、`task-complete`、`workflow-advance`、`workflow-events`，先以 `scene-development` 为样板，把正式场景操作改为 CLI 发任务、平台 Agent 执行、CLI 收提交并校验完成的闭环；`task-complete` 已接入按 current_state 的深度 gate，不承认手写同名文件、漏 sidecar、漏 Style Lint、漏 word-budget review、漏 exact-candidate review 或 debug-waiver promotion。
+- CLI 中介 Agent 工作流内核：已新增 `task-next`、`task-open`、`task-submit`、`task-complete`、`workflow-advance`、`workflow-events`，并升级为 route registry。`scene-development` 已接入深度 gate；`longform-planning` 已接入预算文件、预算 sidecar、预算化大纲候选、预算 review、场景库存 sidecar、分场景库存候选和库存 review 闭环。正式场景操作和长篇预算规划都必须由 CLI 发任务、平台 Agent 执行、CLI 收提交并校验完成。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 
 ## 推荐下一步
