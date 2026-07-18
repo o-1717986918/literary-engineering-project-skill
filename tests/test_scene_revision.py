@@ -23,6 +23,8 @@ class SceneRevisionTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("[AGENT_TASK:", text)
         self.assertIn("reading receipt", text)
         self.assertIn("修订候选", text)
+        self.assertIn("反规避", text)
+        self.assertIn("负担证明", text)
         self.assertIn("pass_with_notes", result.prompt_manifest_path.read_text(encoding="utf-8"))
 
         manifest = json.loads(result.prompt_manifest_path.read_text(encoding="utf-8"))
@@ -30,6 +32,8 @@ class SceneRevisionTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(manifest["revision_inputs"]["agent_review_conclusion"], "pass_with_notes")
         self.assertEqual(manifest["revision_inputs"]["style_adherence"]["status"], "not_applicable")
         self.assertIn("word_budget", manifest["generation_standards"])
+        self.assertIn("style_lint_before", manifest["generation_standards"])
+        self.assertIn("anti_evasion", manifest["generation_standards"])
 
     def test_cli_exposes_revise_scene(self):
         self.assertIn("revise-scene", build_parser().format_help())

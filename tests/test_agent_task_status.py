@@ -216,6 +216,70 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
             any(gate["key"] == "scene_0001:candidate-review-pass" and gate["status"] == "fail" for gate in payload["gates"])
         )
 
+    def test_route_audit_requires_static_review_after_promotion(self):
+        project = self.make_project()
+        add_character(project)
+        _write_roleplay_receipt(project)
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        _select_branch(branch.selection_path, branch.recommended_branch)
+        build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+        _promote_candidate_and_patch_state(project)
+
+        static_review = project / "reviews" / "scene_0001-review.md"
+        if static_review.exists():
+            static_review.unlink()
+
+        result = build_route_audit(project, route="scene-development")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:static-review-pass" and gate["status"] == "fail" for gate in payload["gates"])
+        )
+
+    def test_route_audit_requires_revision_anti_evasion_manifest(self):
+        project = self.make_project()
+        revision = project / "drafts" / "revisions" / "scene_0001_revision.md"
+        revision.parent.mkdir(parents=True, exist_ok=True)
+        revision.write_text("## 修订正文候选\n\n他袖章上是E营。先前那件C营雨衣，是别人丢下的。\n", encoding="utf-8")
+        review = write_platform_scene_review(project, scene_id="scene_0001")
+        payload = json.loads(review.read_text(encoding="utf-8"))
+        payload["candidate"] = "drafts/revisions/scene_0001_revision.md"
+        payload["source_paths"] = [
+            "scenes/scene_0001.yaml",
+            "drafts/revisions/scene_0001_revision.md",
+            "memory/context_packets/scene_0001.md",
+        ]
+        review.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        result = build_route_audit(project, route="scene-development")
+        audit = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:revision-evasion-clean" and gate["status"] == "fail" for gate in audit["gates"])
+        )
+
+        (project / "drafts" / "revisions" / "scene_0001_revision.json").write_text(
+            json.dumps(
+                {
+                    "schema": "literary-engineering-workbench/scene-revision/v0.1",
+                    "scene_id": "scene_0001",
+                    "candidate": "drafts/revisions/scene_0001_revision.md",
+                    "anti_evasion_protocol_applied": True,
+                    "evasion_risks_unresolved": [],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        resolved = build_route_audit(project, route="scene-development")
+        resolved_payload = json.loads(resolved.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:revision-evasion-clean" and gate["status"] == "pass" for gate in resolved_payload["gates"])
+        )
+
     def test_route_audit_requires_word_budget_before_bulk_longform_scene_work(self):
         project = self.make_project()
         project_yaml = project / "project.yaml"

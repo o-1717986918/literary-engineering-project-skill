@@ -94,6 +94,52 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("Style Lint Gate", str(ctx.exception))
         self.assertIn("mechanical-contrast-frame", str(ctx.exception))
 
+    def test_promotes_revision_candidate_body(self):
+        project = self.make_project()
+        _prepare_generation_ready(project)
+        revision = project / "drafts" / "revisions" / "scene_0001_revision.md"
+        revision.parent.mkdir(parents=True, exist_ok=True)
+        revision.write_text(
+            """# 修订候选：scene_0001
+
+## 修订正文候选
+
+他袖章上是E营。先前那件C营雨衣，是别人丢下的。
+
+他把雨衣叠好，塞进柜门后面。楼下有人喊他的名字，他没有应声。
+
+## 状态变化候选
+
+### 新增事实候选
+
+- 林舟确认雨衣来自另一名队员。
+
+### 人物状态变化
+
+- 林舟选择隐藏雨衣线索。
+
+### 关系变化
+
+- 林舟与E营线索建立隐性关联。
+
+### 伏笔变化
+
+- C营雨衣成为误导线索。
+
+### 需要人工确认
+
+- 是否确认E营身份线索。
+""",
+            encoding="utf-8",
+        )
+        _write_candidate_review(project, revision)
+
+        result = promote_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), candidate=revision)
+
+        draft = result.draft_path.read_text(encoding="utf-8")
+        self.assertIn("他袖章上是E营", draft)
+        self.assertIn("## 正文草稿", draft)
+
 
 def _prepare_generation_ready(project: Path):
     branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)

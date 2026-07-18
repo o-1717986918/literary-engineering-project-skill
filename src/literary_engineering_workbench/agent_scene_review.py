@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .anti_ai_style import lint_ai_style, render_ai_style_lint_block
+from .anti_ai_style import ANTI_EVASION_REVISION_PROTOCOL, ANTI_EVASION_SHORT_RULE, lint_ai_style, render_ai_style_lint_block
 from .agent_provider import run_agent_task
 from .agent_schema import validate_agent_run
 
@@ -88,13 +88,17 @@ def review_scene_with_agent(
 def _system_prompt() -> str:
     return """You are a literary engineering scene review agent.
 
-Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, mounted style adherence, punctuation rhythm, deterministic Style Lint evidence, and revision actions. Output JSON only using schema scene_review.v1, including a structured style_adherence object."""
+Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, mounted style adherence, punctuation rhythm, deterministic Style Lint evidence, anti-evasion revision integrity, and revision actions. Output JSON only using schema scene_review.v1, including structured style_adherence and revision_integrity objects."""
 
 
 def _user_prompt(scene_text: str, draft_text: str, context_text: str, style_text: str, source_paths: list[str]) -> str:
     return f"""Source paths: {source_paths}
 
 {render_ai_style_lint_block(draft_text)}
+
+{ANTI_EVASION_REVISION_PROTOCOL}
+
+审查时必须执行：{ANTI_EVASION_SHORT_RULE}
 
 ## Scene YAML
 
@@ -164,6 +168,12 @@ def _dry_scene_review(scene_id: str, draft_text: str, source_paths: list[str]) -
             "evidence": ["dry-run 仅保持审查契约；真实平台 agent 需要引用正文证据。"] if style_source else [],
             "deviations": [],
             "revision_actions": style_revision_actions,
+        },
+        "revision_integrity": {
+            "anti_evasion_checked": True,
+            "evasion_risks": [f"{issue.rule}: {issue.sample}" for issue in blocking_lint if issue.rule in {"mechanical-contrast-frame", "contrast-evasion-frame"}],
+            "retained_transitions": [],
+            "burden_of_proof": [],
         },
         "source_paths": source_paths,
         "agent_confidence": "dry-run",

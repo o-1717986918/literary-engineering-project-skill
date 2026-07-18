@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from .agent_tasks import write_agent_tasks
+from .anti_ai_style import ANTI_EVASION_REVISION_PROTOCOL, ANTI_EVASION_SHORT_RULE, render_ai_style_lint_block
 from .context_packet import build_context_packet
 from .draft_text import count_delivery_chars, final_body_from_draft_text
 from .punctuation_standard import render_punctuation_standard_for_prompt
@@ -122,6 +123,8 @@ def _prompt_manifest(
         "generation_standards": {
             "word_budget": render_word_budget_generation_standard(root),
             "punctuation": render_punctuation_standard_for_prompt(),
+            "style_lint_before": render_ai_style_lint_block(body),
+            "anti_evasion": ANTI_EVASION_REVISION_PROTOCOL,
             "output_boundary": "修订候选不得写入 AGENT_TASK、prompt manifest、canon 解释、审查过程或内部 scene 编号。",
             "notes_resolution": "逐条处理 revision_actions / warnings / style_notes / style_adherence；无法处理时写入 waiver reason。",
         },
@@ -163,16 +166,22 @@ def _write_revision_task(
                 """对照 prompt manifest 的 revision_inputs，逐条判断 revision_actions、warnings、style_notes、style_adherence、blocking_issues。若 style_adherence.status=revise_required 或挂载文风下为 not_applicable/missing，必须优先修正文风执行偏差：叙述距离、句法节奏、意象/感官、心理呈现、对白语气、标点停顿和 AI 腔规避。区分小修、局部重写、需要用户确认、不可执行项。若 review 结论是 pass_with_notes，不得静默通过；若是 revise_required/reject，不得只润色。""",
             ),
             (
+                "执行反规避修订协议",
+                f"""读取 prompt manifest 的 generation_standards.style_lint_before 和 generation_standards.anti_evasion。{ANTI_EVASION_SHORT_RULE}
+
+修订时必须建立“反规避表”：原句 / 原问题 / 修订句 / 是否仍含转折 / 是否换皮 / 保留理由 / 批判性反驳 / 结论。默认从“不合理”开始挑刺；不要用“增强节奏”“体现复杂心理”“更有文学感”作为充分理由。若原句承担信息反转、误判校正或因果揭示，优先改为动作、事实顺序、信息差、物证、对话错位或人物选择，而不是换成另一种显式转折。""",
+            ),
+            (
                 "生成修订候选",
-                f"""创建或覆盖 `{_rel(candidate, root)}`。必须包含 `## 修订正文候选`、`## 状态变化候选`、`## 需要人工确认`。正文必须执行 mounted style / style prompt、长篇字数预算、标准中文标点、降低 AI 腔约束和 review notes。不得输出工作流、自检表、prompt manifest、AGENT_TASK、canon 解释或 scene 编号。""",
+                f"""创建或覆盖 `{_rel(candidate, root)}`。必须包含 `## 修订正文候选`、`## 状态变化候选`、`## 需要人工确认`。正文必须执行 mounted style / style prompt、长篇字数预算、标准中文标点、降低 AI 腔约束、反规避协议和 review notes。不得输出工作流、自检表、prompt manifest、AGENT_TASK、canon 解释或 scene 编号。""",
             ),
             (
                 "写入修订报告",
-                f"""创建或覆盖 `{_rel(report, root)}`。报告必须列出：reading receipt、修订目标、已执行 notes、style_adherence 偏差处理、未执行 notes 及 waiver reason、canon/人物/文风/字数/标点检查、是否建议进入 promote-candidate 或重新 review-scene。不要写入 `[AGENT_TASK: ...]`。""",
+                f"""创建或覆盖 `{_rel(report, root)}`。报告必须列出：reading receipt、修订目标、已执行 notes、style_adherence 偏差处理、反规避表、保留显式转折的负担证明、未执行 notes 及 waiver reason、canon/人物/文风/字数/标点检查、是否建议进入 promote-candidate 或重新 review-scene。不要写入 `[AGENT_TASK: ...]`。""",
             ),
             (
                 "写入修订 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema=`literary-engineering-workbench/scene-revision/v0.1`、scene_id、candidate、report、source_paths、revision_actions_applied、warnings_addressed、style_notes_addressed、style_adherence_addressed、waivers、ready_for_review=false、generated_by=`platform-agent`。""",
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema=`literary-engineering-workbench/scene-revision/v0.1`、scene_id、candidate、report、source_paths、revision_actions_applied、warnings_addressed、style_notes_addressed、style_adherence_addressed、anti_evasion_protocol_applied=true、anti_evasion_rows、retained_transition_proofs、evasion_risks_unresolved、waivers、ready_for_review=false、generated_by=`platform-agent`。""",
             ),
         ],
     )

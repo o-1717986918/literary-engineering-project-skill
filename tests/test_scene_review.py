@@ -107,6 +107,19 @@ class SceneReviewTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("不判断为合理修辞", issues[0].message)
         self.assertIn("不得用脚本", issues[0].message)
 
+    def test_ai_trace_flags_evasive_contrast_replacement(self):
+        text = "看似C营的人，其实是那个E营的年轻人，他把袖章藏在雨衣里面。"
+
+        gate = style_lint_gate(text)
+
+        self.assertEqual(gate["status"], "blocking")
+        self.assertEqual(gate["blocking"][0]["rule"], "contrast-evasion-frame")
+        self.assertIn("换皮转折", gate["blocking"][0]["message"])
+
+        plain = style_lint_gate("他袖章上是E营。先前那件C营雨衣，是别人丢下的。")
+
+        self.assertEqual(plain["status"], "pass")
+
     def test_ai_trace_uses_density_gate_for_plain_narration_risk_terms(self):
         isolated = "她把账本合上。院门外有人敲了两下。她嘴角微扬，又把灯拨暗。"
 

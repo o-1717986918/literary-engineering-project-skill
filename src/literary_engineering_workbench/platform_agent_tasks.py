@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 
 from .agent_tasks import write_agent_tasks
-from .anti_ai_style import render_ai_style_lint_block
+from .anti_ai_style import ANTI_EVASION_REVISION_PROTOCOL, ANTI_EVASION_SHORT_RULE, render_ai_style_lint_block
 from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, ASSET_TYPES
 from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
 from .style_prompt import STYLE_PROMPT_LENGTH_RULE, STYLE_PROMPT_QUALITY_RULE
@@ -69,7 +69,13 @@ def write_platform_scene_review_task(
                 "处理确定性 Style Lint 证据",
                 f"""{style_lint_block}
 
-以上 Style Lint 是审查前由代码自动检出的证据。若存在 medium 或更高风险，必须在 JSON 的 blocking_issues、warnings、revision_actions 或 style_notes 中处理，不得仅用“整体可读”“属于合理修辞”带过。若认为某个 low 风险可保留，必须在 Markdown 报告说明语义理由。禁止用批量脚本直接删除否定、破折号或心理表达。""",
+以上 Style Lint 是审查前由代码自动检出的证据。若存在 medium 或更高风险，必须在 JSON 的 blocking_issues、warnings、revision_actions 或 style_notes 中处理，不得仅用“整体可读”“属于合理修辞”带过。若认为某个 low 风险可保留，必须在 Markdown 报告说明语义理由。禁止用批量脚本直接删除否定、破折号或心理表达。{ANTI_EVASION_SHORT_RULE}""",
+            ),
+            (
+                "执行反规避审查",
+                f"""{ANTI_EVASION_REVISION_PROTOCOL}
+
+若本次审查对象是修订候选，必须对照上一轮 review notes、Style Lint 证据和原草稿，检查是否把生硬对照换成另一种显式转折。若发现换皮转折，`conclusion` 不得为 `pass`；应写入 `revision_actions`，要求改为动作、事实顺序、信息差或直接陈述。若确有转折必须保留，必须在 Markdown 报告写“反规避负担证明”，并从不合理角度提出反驳。""",
             ),
             (
                 "执行挂载文风门禁",
@@ -96,6 +102,12 @@ def write_platform_scene_review_task(
     "deviations": [],
     "revision_actions": []
   }},
+  "revision_integrity": {{
+    "anti_evasion_checked": true,
+    "evasion_risks": [],
+    "retained_transitions": [],
+    "burden_of_proof": []
+  }},
   "source_paths": []
 }}
 `conclusion=pass` 且 warnings / revision_actions / style_notes / style_adherence 偏差为空，才可进入 clean ready。`pass_with_notes` 必须先进入 revise-scene 或记录明确 waiver，不能直接章节装配或导出；新增事实仍保持候选。""",
@@ -106,7 +118,7 @@ def write_platform_scene_review_task(
             ),
             (
                 "写入正式 Markdown 报告",
-                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
+                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。必须新增“反规避负担证明”段落：列出是否存在换皮转折、保留显式转折的理由、批判性反驳和最终判断。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
             ),
         ],
     )
@@ -154,6 +166,11 @@ def write_platform_scene_generation_task(
                 """先读取 prompt manifest 的 generation_standards.hard_constraints，把 canon、场景编排、人物逻辑、文风、字数预算、AgentReview notes、标点和输出边界压缩成内部执行顺序。该摘要必须指导正文生成，但不得作为分析、自检表或工作流痕迹输出。""",
             ),
             (
+                "执行反规避与朴素叙述禁区",
+                f"""读取 prompt manifest 的 generation_standards.anti_evasion，并执行以下约束：{ANTI_EVASION_SHORT_RULE}
+正文中不要先制造生硬转折再期待后续审查修掉。若场景确实需要信息反转、误判修正或因果揭示，优先用动作、事实顺序、信息差、物证、对话错位或人物选择完成，而不是用显式对照句。该判断只指导写作，不得作为分析或自检表输出。""",
+            ),
+            (
                 "执行生成前文风标准",
                 """在写候选正文前，先根据 prompt manifest 的 generation_standards.style 和已挂载 style prompt/profile，内部建立本场景的文风执行策略：叙述距离、句法/段落节奏、意象/感官系统、心理呈现、对白密度与语气、标点停顿节奏。该策略只用于指导写作，不得作为分析、自检表或工作流痕迹写入候选正文。""",
             ),
@@ -167,11 +184,11 @@ def write_platform_scene_generation_task(
             ),
             (
                 "生成候选正文",
-                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选` 和 `## 状态变化候选`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。正文必须先执行文风生成标准和字数预算标准，再通过标准标点和降低 AI 腔自检。""",
+                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选` 和 `## 状态变化候选`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。正文必须先执行文风生成标准、字数预算标准和反规避协议，再通过标准标点和降低 AI 腔自检。""",
             ),
             (
                 "生成候选 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、pass_with_notes_actions_applied=true/false 和待审查事项。""",
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false 和待审查事项。""",
             ),
             (
                 "后续门禁",

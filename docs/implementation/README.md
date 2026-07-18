@@ -76,3 +76,4 @@
 - `phase78-host-debug-ban-main-agent-prose.md`：宿主调试跳审禁令与主 Agent 正文权
 - `phase79-agent-review-style-lint-evidence.md`：AgentReview 确定性 Style Lint 证据注入
 - `phase80-style-lint-gate-hardening.md`：Style Lint 分级硬门禁
+- `phase81-anti-evasion-agent-task-protocol.md`：反规避修订协议与生成任务程序强化

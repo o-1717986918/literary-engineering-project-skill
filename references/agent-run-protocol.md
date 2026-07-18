@@ -26,7 +26,7 @@ Use this protocol whenever a tool-layer agent runs a literary engineering task t
    - Style: mounted Style Skill and style prompt priority.
    - Chinese prose: `references/punctuation-standard.md`.
    - Release/export: readiness, approval, and target format checks.
-14. If a prose review returns `pass_with_notes`, warnings, or local fixes, run or emulate `revise-scene` and review the revision candidate before promotion, chapter readiness, export, or writeback.
+14. If a prose review returns `pass_with_notes`, warnings, Style Lint findings, anti-evasion risks, or local fixes, run or emulate `revise-scene` and review the revision candidate before promotion, chapter readiness, export, or writeback. Do not replace a banned contrast with another explicit contrast; retained transitions require a burden-of-proof note.
 15. Decide the artifact status: revise, keep as candidate, ask user, or promote after explicit user approval and clean review.
 16. Finish with an audit summary: files changed, candidate-only files, promoted files, checks run, blocked items, reading receipt, and next high-level creative choices.
 
@@ -71,7 +71,7 @@ Before final response, check:
 - All `.agent_tasks.md` outputs handled or explicitly listed as pending.
 - `agent-task-status` or route-specific `route-audit` used when route completion state was ambiguous.
 - Reading receipt recorded or summarized.
-- Review notes resolved through revision and re-review before readiness/export/writeback.
+- Review notes and anti-evasion risks resolved through revision and re-review before readiness/export/writeback.
 - Generated JSON/prose/reviews are marked candidate, reviewed, approved, or pending.
 - Canon, character, style, punctuation, and release/export gates applied when relevant.
 - User approval requirement is recorded for promotions or final release.

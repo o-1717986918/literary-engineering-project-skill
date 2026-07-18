@@ -280,6 +280,9 @@ def _candidate_body(text: str) -> str:
     body = _section(text, "正文候选", stop_heading="状态变化候选")
     if body:
         return body
+    body = _section(text, "修订正文候选", stop_heading="状态变化候选")
+    if body:
+        return body
     return _section(text, "正文草稿", stop_heading="状态变化")
 
 

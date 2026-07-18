@@ -6,9 +6,27 @@ from dataclasses import dataclass
 import re
 
 
+ANTI_EVASION_REVISION_PROTOCOL = """## 修订反规避协议
+
+修订不是把一种 AI 腔换成另一种 AI 腔。平台 agent 处理 review notes、Style Lint 或人工批注时，必须按以下程序执行：
+
+1. 先摘出原句、风险类型和它原本想承担的叙事功能：信息反转、人物误判、因果揭示、视角校正、讽刺顿挫或行动后果。
+2. 默认从“不合理”开始挑刺。不要轻易把转折解释为合理修辞；“增强节奏”“体现复杂心理”“更有文学感”不是充分理由。
+3. 禁止同功能换皮：不得把“不是……而是……”改成“并不是……只是……”“倒不是……只是……”“看似……其实……”“表面上……实则……”“没有……只是……”“也不……也不……只是……”等同构转折。
+4. 能用动作、事实顺序、信息差、直接陈述或人物选择表达的，优先不用显式转折。
+5. 若保留显式转折，必须在修订报告中给出负担证明：为什么必须保留、为什么更朴素写法不够、是否仍有换皮嫌疑、最终是否建议继续修订。
+6. 修订报告必须列出“原句 / 原问题 / 修订句 / 是否仍含转折 / 是否换皮 / 保留理由 / 批判性反驳 / 结论”。解释不充分时，结论必须是需要再修。
+"""
+
+ANTI_EVASION_SHORT_RULE = (
+    "修订反规避：不得用“并不是……只是……”“看似……其实……”“表面上……实则……”等同功能转折替换"
+    "“不是……而是……”。保留转折需要负担证明，并默认从不合理开始挑刺。"
+)
+
 ANTI_AI_STYLE_PROMPT = """## 降低 AI 腔与朴素叙述约束
 
 - 生硬对照句式一律禁用：不使用“不是……而是……”“并非……而是……”“与其说……不如说……”“不是……不是……而是……”，也不使用“不是……——是……”“不是……。是……”“不是……，是……”等用标点替代“而是”的变体。此类结构不判断为合理修辞；请改为动作、事实顺序、信息差或直接陈述。
+- 禁止换皮转折：不使用“并不是……只是……”“倒不是……只是……”“不是说……只是……”“看似……其实……”“表面上……实则……”“没有……只是……”“也不……也不……只是……”等同功能替代。修订时若保留任何显式转折，必须给出负担证明，并默认从“不合理”开始挑刺。
 - 叙述标准是“给朋友讲一件事”或“日记里会不会这样写”。过场一句话交代，不恋战；高潮可以多写几句，但细写不等于堆形容词、器官反应或华丽比喻。
 - 器官轮岗、AI 高频套话、万能占位和比喻依赖按密度控制：单个孤例可作为低级复核信号，但总量原则上不超过叙事单元的 2%；超过阈值必须修订。
 - 不用器官轮岗表现情绪：不要轮流写嘴角、眼底、指尖、脊背、胸口、喉咙、胃部。情绪优先通过选择、停顿、动作后果、说话方式和准确细节呈现。
@@ -21,12 +39,13 @@ ANTI_AI_STYLE_PROMPT = """## 降低 AI 腔与朴素叙述约束
 
 ANTI_AI_STYLE_SHORT_RULE = (
     "降低 AI 腔：禁用“不是……而是……”及“不是……——是”等生硬对照，不判断为合理修辞；"
+    "禁用“并不是……只是……”“看似……其实……”等换皮转折；"
     "破折号、器官轮岗、万能占位、比喻依赖和景物强制同步按 2% 左右密度门禁控制。"
     "按朋友讲事/日记标准写，过场简写，高潮靠准确细节，不得用脚本批量删除否定或做语义改写。"
 )
 
 AI_STYLE_SOFT_DENSITY_LIMIT = 0.02
-AI_STYLE_GATE_BLOCKING_RULES = {"mechanical-contrast-frame"}
+AI_STYLE_GATE_BLOCKING_RULES = {"mechanical-contrast-frame", "contrast-evasion-frame"}
 
 BANNED_AI_PHRASES: tuple[str, ...] = (
     "嘴角划过弧度",
@@ -221,7 +240,8 @@ def render_ai_style_lint_block(text: str, *, max_issues: int = 12, max_sample_ch
         "",
         "本区块由确定性代码在审查前生成，是审查证据，不是自动改稿指令。"
         "中级及以上风险必须进入 blocking_issues、warnings 或 revision_actions；"
-        "低级风险至少需要语义复核。不得把“不是 A——是 B”等变体判断为合理修辞，也不得用脚本直接删改正文造成语义反转。",
+        "低级风险至少需要语义复核。不得把“不是 A——是 B”等变体判断为合理修辞，"
+        "也不得用“看似 A，其实 B”等换皮转折替代；不得用脚本直接删改正文造成语义反转。",
         "",
     ]
     if not text.strip():
@@ -245,7 +265,9 @@ def lint_ai_style(text: str) -> list[AIStyleIssue]:
     issues.extend(_banned_phrase_issues(clean))
     contrast_issues = _contrast_frame_issues(clean)
     issues.extend(contrast_issues)
-    issues.extend(_sentence_shape_issues(clean, skip_dash=bool(contrast_issues)))
+    evasion_issues = _contrast_evasion_issues(clean)
+    issues.extend(evasion_issues)
+    issues.extend(_sentence_shape_issues(clean, skip_dash=bool(contrast_issues or evasion_issues)))
     issues.extend(_abstract_summary_issues(clean))
     issues.extend(_explanatory_mind_issues(clean))
     issues.extend(_slogan_ending_issues(clean))
@@ -293,6 +315,29 @@ def _contrast_frame_issues(text: str) -> list[AIStyleIssue]:
             "mechanical-contrast-frame",
             "medium",
             "发现生硬对照句式。此类“不是……而是……”及其破折号/句号变体不判断为合理修辞；请改为动作、事实顺序、信息差或直接陈述。不得用脚本直接删除“不是”导致语义反转。",
+            _sample(text, hits[0]),
+        )
+    ]
+
+
+def _contrast_evasion_issues(text: str) -> list[AIStyleIssue]:
+    patterns = [
+        r"(?:并不是|倒不是|不是说)[^。！？!?；;\n]{1,50}?(?:只是|只不过)",
+        r"(?:看似|看起来|表面上)[^。！？!?；;\n]{1,50}?(?:其实|实则|实际上)",
+        r"没有[^。！？!?；;\n]{1,40}?(?:只是|只不过|不过是)",
+        r"也不[^。！？!?；;\n]{1,18}?[，,]也不[^。！？!?；;\n]{1,18}?[，,]只是",
+    ]
+    hits: list[str] = []
+    for pattern in patterns:
+        hits.extend(match.group(0) for match in re.finditer(pattern, text))
+    hits = list(dict.fromkeys(hits))
+    if not hits:
+        return []
+    return [
+        AIStyleIssue(
+            "contrast-evasion-frame",
+            "medium",
+            "发现疑似换皮转折。不要把“不是……而是……”改写成“并不是……只是……”“看似……其实……”等同功能结构；若保留显式转折，必须给出负担证明，并优先尝试动作、事实顺序、信息差或直接陈述。",
             _sample(text, hits[0]),
         )
     ]

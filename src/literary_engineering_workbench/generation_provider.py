@@ -10,6 +10,7 @@ from typing import Protocol
 from urllib import error, request
 
 from .agent_tasks import default_agent_tasks_path, write_agent_tasks
+from .anti_ai_style import ANTI_EVASION_SHORT_RULE
 from .context_packet import build_context_packet
 from .model_config import MODEL_PROVIDER_CHOICES, get_model_settings, resolve_model_provider
 from .prompt_pack import build_scene_prompt_pack, write_prompt_manifest
@@ -264,7 +265,11 @@ def _write_generation_agent_tasks(
         tasks=[
             (
                 "审查 prompt manifest",
-                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、generation_standards.style、generation_standards.word_budget、generation_standards.review_notes、generation_standards.hard_constraints、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill、文风生成标准、长篇字数预算标准、AgentReview 小修约束、生成前最终硬约束摘要或用户约束。""",
+                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、generation_standards.style、generation_standards.word_budget、generation_standards.review_notes、generation_standards.anti_evasion、generation_standards.hard_constraints、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill、文风生成标准、长篇字数预算标准、AgentReview 小修约束、反规避协议、生成前最终硬约束摘要或用户约束。""",
+            ),
+            (
+                "审查反规避执行",
+                f"""检查候选是否像是在生成前执行过 generation_standards.anti_evasion。{ANTI_EVASION_SHORT_RULE} 若候选把信息反转写成“看似……其实……”等换皮转折，视为阻塞；建议改为动作、事实顺序、信息差、物证或直接陈述。""",
             ),
             (
                 "审查生成前硬约束摘要",

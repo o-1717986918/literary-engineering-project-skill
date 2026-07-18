@@ -450,6 +450,8 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
     promotion_json = root / "drafts" / "promotions" / f"{scene_id}_promotion.json"
     promotion_payload = _read_json(promotion_json)
     promoted_draft = root / "drafts" / "scenes" / f"{scene_id}.md"
+    static_review = root / "reviews" / f"{scene_id}-review.md"
+    static_review_conclusion = _static_review_conclusion(static_review)
     state_patch_json = root / "characters" / "state_patches" / f"{scene_id}_state_patch.json"
     state_patch_report = root / "characters" / "state_patches" / f"{scene_id}_state_patch.md"
 
@@ -551,6 +553,17 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         f"{scene_id} exact prose candidate review passed",
         f"{scene_id} 候选稿未通过 exact-candidate AgentReview：{candidate_gate.get('message') or candidate_gate.get('status') or 'missing'}。",
     )
+    revision_manifest = _revision_manifest_path(root, scene_id, candidate_path)
+    if candidate_path is not None and _is_revision_candidate(root, candidate_path):
+        revision_payload = _read_json(revision_manifest)
+        _add_gate(
+            gates,
+            f"{scene_id}:revision-evasion-clean",
+            _revision_evasion_clean(revision_payload),
+            "blocking",
+            f"{scene_id} revision anti-evasion manifest is clean",
+            f"{scene_id} 使用修订候选但缺少干净的反规避修订记录；需要 revise-scene manifest 写入 anti_evasion_protocol_applied=true，且 evasion_risks_unresolved 为空或 false。",
+        )
     _add_gate(
         gates,
         f"{scene_id}:promotion-manifest",
@@ -566,6 +579,14 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         "blocking",
         f"{scene_id} promoted draft exists",
         f"{scene_id} 缺少 drafts/scenes/{scene_id}.md；不能跳过 promote-candidate 直接进入章节装配。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:static-review-pass",
+        static_review.exists() and static_review_conclusion == "pass",
+        "blocking",
+        f"{scene_id} local static review-scene passed",
+        f"{scene_id} 缺少 clean 本地 review-scene；当前结论：{static_review_conclusion or 'missing'}。promote 后必须运行 review-scene 并处理 notes。",
     )
     if promotion_json.exists():
         promoted_candidate = str(promotion_payload.get("candidate") or "").strip()
@@ -619,16 +640,58 @@ def _promotion_candidate_path(root: Path, scene_id: str) -> Path | None:
 
 def _latest_scene_candidate(root: Path, scene_id: str) -> Path | None:
     candidate_dir = root / "drafts" / "candidates"
-    if not candidate_dir.exists():
-        return None
-    candidates = [
-        path
-        for path in candidate_dir.glob(f"{scene_id}-*.md")
-        if not path.name.endswith(".agent_tasks.md") and not path.name.endswith(".prompt.md")
-    ]
+    revision_dir = root / "drafts" / "revisions"
+    candidates: list[Path] = []
+    if candidate_dir.exists():
+        candidates.extend(
+            path
+            for path in candidate_dir.glob(f"{scene_id}-*.md")
+            if not path.name.endswith(".agent_tasks.md") and not path.name.endswith(".prompt.md")
+        )
+    if revision_dir.exists():
+        candidates.extend(
+            path
+            for path in revision_dir.glob(f"{scene_id}_revision.md")
+            if not path.name.endswith(".agent_tasks.md") and not path.name.endswith(".prompt.md")
+        )
     if not candidates:
         return None
     return sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True)[0]
+
+
+def _revision_manifest_path(root: Path, scene_id: str, candidate_path: Path | None) -> Path:
+    if candidate_path is not None and candidate_path.name.endswith("_revision.md"):
+        return candidate_path.with_suffix(".json")
+    return root / "drafts" / "revisions" / f"{scene_id}_revision.json"
+
+
+def _is_revision_candidate(root: Path, candidate_path: Path) -> bool:
+    try:
+        rel = candidate_path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        rel = str(candidate_path)
+    return rel.startswith("drafts/revisions/") or candidate_path.name.endswith("_revision.md")
+
+
+def _revision_evasion_clean(payload: dict[str, object]) -> bool:
+    if not payload:
+        return False
+    if payload.get("anti_evasion_protocol_applied") is not True:
+        return False
+    unresolved = payload.get("evasion_risks_unresolved")
+    if isinstance(unresolved, bool):
+        return not unresolved
+    if isinstance(unresolved, list):
+        return len(unresolved) == 0
+    if isinstance(unresolved, str):
+        return unresolved.strip().lower() in {"", "false", "none", "no", "[]", "无"}
+    return unresolved in (None, 0)
+
+
+def _static_review_conclusion(path: Path) -> str:
+    text = _read_text(path)
+    match = re.search(r"(?m)^-\s*结论：\s*`?([^`\s]+)`?\s*$", text)
+    return match.group(1).strip().lower() if match else ""
 
 
 def _scene_id(scene_path: Path) -> str:
