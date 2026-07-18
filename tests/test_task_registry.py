@@ -11,6 +11,7 @@ from literary_engineering_workbench.task_registry import (
     open_task,
     submit_task,
 )
+from literary_engineering_workbench.source_ingest import ingest_existing_work
 from literary_engineering_workbench.word_budget import build_word_budget
 
 from helpers import TempProjectMixin, write_formal_candidate_artifacts
@@ -384,6 +385,82 @@ class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
         task_dir = project / "workflow" / "tasks"
         self.assertTrue(any(task_dir.glob("longform-planning-longform-word-budget-file.task.json")))
 
+    def test_task_next_source_ingest_ready_without_imports(self):
+        project = self.make_project()
+
+        result = issue_next_task(project, route="source-ingest")
+
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(result.message, "source-ingest route has no pending imported source")
+
+    def test_task_next_source_ingest_issues_extraction_task_for_import(self):
+        project = self.make_project()
+        ingest_existing_work(
+            project,
+            text="林舟在旧楼里发现档案。档案留下了一个组织编号。",
+            title="旧楼档案",
+            work_id="old-archive",
+        )
+
+        result = issue_next_task(project, route="source-ingest")
+
+        self.assertEqual(result.status, "issued")
+        self.assertEqual(result.scene_id, "old-archive")
+        self.assertEqual(result.current_state, "extraction-agent-task")
+        payload = json.loads(result.task_json_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["route"], "source-ingest")
+        self.assertIn("sources/imports/old-archive/extract_project_files.agent_completion.json", payload["expected_outputs"])
+        self.assertIn("characters/candidates/extracted/old-archive_characters.md", payload["expected_outputs"])
+        self.assertIn("reviews/source_ingest/old-archive_extraction_review.md", payload["expected_outputs"])
+
+    def test_source_ingest_task_complete_blocks_missing_extraction_outputs(self):
+        project = self.make_project()
+        ingest_existing_work(
+            project,
+            text="林舟在旧楼里发现档案。档案留下了一个组织编号。",
+            title="旧楼档案",
+            work_id="old-archive",
+        )
+        issued = issue_next_task(project, route="source-ingest")
+
+        with self.assertRaises(FileNotFoundError) as ctx:
+            complete_task(project, issued.task_id)
+
+        self.assertIn("characters/candidates/extracted/old-archive_characters.md", str(ctx.exception))
+
+    def test_source_ingest_review_with_notes_blocks_ready(self):
+        project = self.make_project()
+        result = ingest_existing_work(
+            project,
+            text="林舟在旧楼里发现档案。档案留下了一个组织编号。",
+            title="旧楼档案",
+            work_id="old-archive",
+        )
+        _write_source_extraction_outputs(project, result.manifest_path, conclusion="pass_with_notes")
+        write_agent_completion_marker(result.task_path, root=project, handled_by="platform-agent-test")
+
+        issued = issue_next_task(project, route="source-ingest")
+
+        self.assertEqual(issued.current_state, "extraction-review")
+        with self.assertRaises(ValueError) as ctx:
+            complete_task(project, issued.task_id)
+        self.assertIn("source-ingest extraction review conclusion must be pass", str(ctx.exception))
+
+    def test_source_ingest_route_ready_after_extraction_and_review(self):
+        project = self.make_project()
+        result = ingest_existing_work(
+            project,
+            text="林舟在旧楼里发现档案。档案留下了一个组织编号。",
+            title="旧楼档案",
+            work_id="old-archive",
+        )
+        _write_source_extraction_outputs(project, result.manifest_path, conclusion="pass")
+        write_agent_completion_marker(result.task_path, root=project, handled_by="platform-agent-test")
+
+        ready = issue_next_task(project, route="source-ingest")
+
+        self.assertEqual(ready.status, "ready")
+
 
 def _write_registry_task(
     project: Path,
@@ -471,6 +548,18 @@ def _write_longform_review(project: Path, name: str, conclusion: str) -> Path:
     path = review_dir / f"{name}.md"
     path.write_text(f"# Longform Review\n\n- 结论：`{conclusion}`\n", encoding="utf-8")
     return path
+
+
+def _write_source_extraction_outputs(project: Path, manifest_path: Path, *, conclusion: str) -> None:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    outputs = manifest["candidate_outputs"]
+    for key, rel in outputs.items():
+        path = project / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if key == "review":
+            path.write_text(f"# Source Ingest Review\n\n- 结论：`{conclusion}`\n", encoding="utf-8")
+        else:
+            path.write_text(f"# {key}\n\n- evidence_refs: chunk_0001\n- confidence: test\n", encoding="utf-8")
 
 
 def _rel(project: Path, value: Path | str) -> str:

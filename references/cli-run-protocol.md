@@ -72,9 +72,14 @@ After scaffolding, the platform agent creates or revises the project brief, init
 ```powershell
 python -m literary_engineering_workbench protocol source-ingest
 python -m literary_engineering_workbench source-ingest <project> --source <source-file-or-dir> --title "<title>" --work-id <work-id>
+python -m literary_engineering_workbench task-next <project> --route source-ingest
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
+# Execute extraction sidecar, submit extracted candidates and review, then complete the task.
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
 ```
 
-The CLI writes raw text, chunks, `source_manifest.json`, `source_ingest.md`, and `extract_project_files.agent_tasks.md`. The platform agent must read the sidecar and write extracted project brief, characters, world, outline, timeline, foreshadowing, style notes, and source-ingest review files as candidates. Do not promote source-derived material without evidence, review, and approval.
+The CLI writes raw text, chunks, `source_manifest.json`, `source_ingest.md`, and `extract_project_files.agent_tasks.md`. The platform agent must read the sidecar and write extracted project brief, characters, world, outline, timeline, foreshadowing, style notes, and source-ingest review files as candidates. Under `task-next --route source-ingest`, these extracted candidates, `extract_project_files.agent_completion.json`, and a clean `pass` extraction review are formal route gates. Do not promote source-derived material without evidence, review, and approval.
 
 ### Longform Planning
 

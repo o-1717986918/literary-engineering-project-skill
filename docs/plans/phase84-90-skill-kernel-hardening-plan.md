@@ -6,7 +6,7 @@
 目标读者：维护本 Skill 的平台 Agent、项目开发者、后续代码实现者  
 生成背景：基于当前 Skill 架构复盘，以及对 ProseForge、ai-novel-writer、AI-Novel-Writing-Assistant 三个外部项目的互补性分析。
 
-执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`。Phase 85-90 仍按本计划继续推进。
+执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`。Phase 85-90 仍按本计划继续推进。
 
 ## 1. 背景与判断
 
@@ -238,12 +238,14 @@ task-next
 8. 外部项目研究文档完成，且没有引入外部受限源码或 prompt。待完成。
 9. `longform-planning` 能通过 `task-next` 派发预算 scaffold、预算 Agent task、预算 review、场景库存 Agent task 和库存 review。`v0.84.2` 已完成。
 10. `task-complete` 能拒绝 longform 的 `pass_with_notes` review、缺失预算化大纲候选、缺失分场景库存候选或缺失 sidecar completion marker。`v0.84.2` 已完成。
+11. `source-ingest` 能通过 `task-next` 派发已有作品反推任务，要求候选项目文件、source extraction completion marker 和 clean review。`v0.84.3` 已完成。
+12. `task-complete` 能拒绝 source-ingest 的缺失候选输出、缺失 completion marker 或 `pass_with_notes` extraction review。`v0.84.3` 已完成。
 
 ### 6.10 横向接入优先级
 
 Phase 84 后续横向接入顺序：
 
-1. `source-ingest`：让已有作品导入、反推设定、证据 review 和候选项目文件生成进入 task loop。
+1. `source-ingest`：让已有作品导入、反推设定、证据 review 和候选项目文件生成进入 task loop。`v0.84.3` 已完成导入后的反推闭环。
 2. `style-engineering`：让作家项目、作品导入、文风 profile、LLM-facing prompt、style eval、Style Skill build/mount 进入 task loop。
 3. `character-and-world-assets`：让角色/世界候选、asset review、approval、promotion 进入 task loop。
 4. `review-and-audit`：让 canon/style/route/longform/chapter 审计作为正式修复任务输出。

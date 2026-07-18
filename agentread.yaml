@@ -209,7 +209,12 @@ task_routes:
       - source-ingest review report
     completion_gates:
       - source manifest and chunks exist
-      - platform agent handled extraction sidecar or listed it as pending
+      - formal source-ingest work uses task-next/task-open/task-submit/task-complete with route source-ingest until ready
+      - platform agent handled extract_project_files.agent_tasks.md and created extract_project_files.agent_completion.json
+      - extracted project brief candidate exists
+      - extracted characters/background stories candidate exists
+      - extracted world, outline, timeline, foreshadowing, and style notes candidates exist
+      - source-ingest extraction review exists with conclusion pass
       - every extracted claim carries evidence references, confidence, unknowns, and contradiction notes when relevant
       - no extracted item is promoted without review and explicit approval
 

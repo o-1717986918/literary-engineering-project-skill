@@ -1,6 +1,6 @@
 # Phase 84：CLI 中介 Agent 工作流内核
 
-版本：`v0.84.2`
+版本：`v0.84.3`
 
 ## 目标
 
@@ -134,6 +134,7 @@ CLI 只负责：
 
 1. `scene-development`
 2. `longform-planning`
+3. `source-ingest`
 
 `workflow-state --route longform-planning` 现在会输出 Longform State，包含：
 
@@ -152,6 +153,26 @@ CLI 只负责：
 5. `reviews/word_budget/word_budget_review.md` 和 `reviews/word_budget/scene_inventory_review.md` 结论必须为 clean `pass`；`pass_with_notes` 阻塞。
 
 这一步修复了历史问题：预算工具生成了文件，但平台 Agent 后续写场景时没有读取预算任务、没有把目标字数/场景库存变成硬约束。现在长篇规划可以作为正式 route 被状态机持续追踪。
+
+## v0.84.3 Source-ingest 接入
+
+`source-ingest` 已成为第三条 registered route。它不替代导入命令本身：起点仍是 `source-ingest` / `extract-existing-work` 写入 raw source、chunks、manifest、report 和 `extract_project_files.agent_tasks.md`。一旦导入存在，正式反推流程由 task registry 接管。
+
+`workflow-state --route source-ingest` 会扫描 `sources/imports/*/source_manifest.json`，为每个导入生成状态：
+
+1. `source-manifest`
+2. `extraction-agent-task`
+3. `extraction-review`
+
+`task-next --route source-ingest` 会派发当前第一个 blocked import。关键门禁：
+
+1. `source_manifest.json` 必须存在、schema 正确、包含 `work_id`、chunks 和 `candidate_outputs`。
+2. `source_ingest.md` 与 `extract_project_files.agent_tasks.md` 必须存在。
+3. `extract_project_files.agent_completion.json` 不能单独放行，manifest 中列出的 candidate outputs 也必须存在。
+4. 候选输出包括 project brief、characters/background stories、world、outline、timeline、foreshadowing、style notes 和 extraction review。
+5. `reviews/source_ingest/{work_id}_extraction_review.md` 结论必须为 clean `pass`；`pass_with_notes` 阻塞。
+
+这一步修复“已有作品导入了，但平台 Agent 没有真正反推标准项目文件”的漏洞。source-derived 内容仍保持候选性质，不能直接覆盖正式 canon、characters、plot、drafts、exports 或 releases。
 
 ## 测试
 
@@ -177,6 +198,10 @@ CLI 只负责：
 - longform budget review 为 `pass_with_notes` 时，`task-complete` 阻塞。
 - 即使 sidecar completion marker 存在，预算化大纲候选缺失时，`task-complete` 仍阻塞。
 - 预算化大纲与分场景库存候选、completion marker、clean review 全部存在后，`task-next --route longform-planning` 返回 ready。
+- `task-next --route source-ingest` 能对已有 import 发 extraction-agent-task。
+- source-ingest extraction 缺候选输出时，`task-complete` 阻塞。
+- source-ingest extraction review 为 `pass_with_notes` 时，`task-complete` 阻塞。
+- source-ingest 候选输出、completion marker 和 clean review 全部存在后，`task-next --route source-ingest` 返回 ready。
 - `task-complete` 拒绝非 clean pass 的静态 review。
 - `task-complete` 拒绝损坏的 state patch JSON。
 - context 完成后 `task-next` 推进到 roleplay-simulation。

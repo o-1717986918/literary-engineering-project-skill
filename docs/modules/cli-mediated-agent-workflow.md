@@ -44,7 +44,7 @@ CLI 不负责：
 
 ## 3. 最小命令闭环
 
-当前支持 `scene-development` 与 `longform-planning` 两条正式路线。`scene-development` 是逐场景样板；`longform-planning` 是第一条横向接入路线，用来确保长篇字数预算、预算化大纲和分场景库存不会被生成环节跳过。
+当前支持 `scene-development`、`longform-planning` 与 `source-ingest` 三条正式路线。`scene-development` 是逐场景样板；`longform-planning` 用来确保长篇字数预算、预算化大纲和分场景库存不会被生成环节跳过；`source-ingest` 用来确保已有作品导入后的反推设定、候选资产和 review 不会被跳过。
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -69,6 +69,18 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 python -m literary_engineering_workbench workflow-advance <project> --route longform-planning
 ```
 
+已有作品导入后的反推路线也使用同一套控制面：
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m literary_engineering_workbench source-ingest <project> --source <source> --title <title> --work-id <work-id>
+python -m literary_engineering_workbench task-next <project> --route source-ingest
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
+# 平台 Agent 读取 source chunks 和 extract_project_files.agent_tasks.md，写候选项目文件与 review
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
+```
+
 `task-next` 会写出：
 
 1. `workflow/tasks/{task_id}.task.json`
@@ -90,6 +102,8 @@ python -m literary_engineering_workbench workflow-advance <project> --route long
 从 `v0.84.1` 起，`task-complete` 不只检查文件是否存在。它会按当前状态验证 CLI provenance、sidecar completion、branch selection、composition readiness、word-budget sidecar/review、candidate generation manifest、Style Lint、exact-candidate AgentReview、promotion waiver、static review 和 state patch JSON。失败时任务会进入 `blocked`，失败信息就是下一步修复任务。
 
 从 `v0.84.2` 起，`task_registry.py` 使用 route registry 分发表、选择器、任务构建器和门禁函数。`longform-planning` 已接入同一生命周期：`word-budget-file`、`budget-agent-task`、`budget-review`、`scene-inventory-agent-task`、`scene-inventory-review`。预算 sidecar 的 completion marker 不能单独放行；预算化大纲候选、分场景库存候选和对应 clean `pass` review 也必须存在。
+
+从 `v0.84.3` 起，`source-ingest` 已接入同一生命周期：`source-manifest`、`extraction-agent-task`、`extraction-review`。已有作品导入只负责源文本、chunk 和 extraction sidecar；反推出的项目简报、人物/背景、世界观、大纲、时间线、伏笔、文风 notes 和 extraction review 必须由平台 Agent 写入候选区。completion marker、候选文件和 clean `pass` review 缺一项都不能 ready。
 
 ## 4. Scene-development 样板状态
 
@@ -140,6 +154,31 @@ python -m literary_engineering_workbench workflow-advance <project> --route long
 10. `reviews/word_budget/scene_inventory_review.md`，结论必须为 `pass`
 
 这条路线专门堵住“预算文件生成了但没人读”的漏洞。正式批量场景生成前，平台 Agent 必须完成预算化大纲和场景库存两类判断，不能只靠拉长每个场景满足目标字数。
+
+## 4.2 Source-ingest 状态
+
+已有作品导入路线顺序：
+
+1. `source-manifest`
+2. `extraction-agent-task`
+3. `extraction-review`
+
+对应硬产物：
+
+1. `sources/imports/{work_id}/source_manifest.json`
+2. `sources/imports/{work_id}/source_ingest.md`
+3. `sources/imports/{work_id}/extract_project_files.agent_tasks.md`
+4. `sources/imports/{work_id}/extract_project_files.agent_completion.json`
+5. `sources/imports/{work_id}/extracted/project_brief.md`
+6. `characters/candidates/extracted/{work_id}_characters.md`
+7. `canon/candidates/extracted/{work_id}_world.md`
+8. `plot/candidates/extracted/{work_id}_outline.md`
+9. `plot/candidates/extracted/{work_id}_timeline.md`
+10. `plot/candidates/extracted/{work_id}_foreshadowing.md`
+11. `style/candidates/{work_id}_style_generation_notes.md`
+12. `reviews/source_ingest/{work_id}_extraction_review.md`，结论必须为 `pass`
+
+这条路线专门堵住“导入了已有文本但没有真正反推项目文件”的漏洞。所有 source-derived 内容仍是 candidate，必须带 evidence_refs、confidence、unknowns 和 contradiction notes，不得直接覆盖正式 canon / characters / plot / drafts。
 
 ## 5. Task 包必须包含什么
 
@@ -204,4 +243,4 @@ python -m literary_engineering_workbench workflow-advance <project> --route long
 2. Context Broker：让 `task-open` 输出稳定的 context trace。
 3. Reader Experience Contract：让字数和章节义务进入 `task-open` 与 `task-complete`。
 4. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
-5. 继续横向接入 `source-ingest`、`style-engineering`、`character-and-world-assets`、`review-and-audit`、`export-and-release`。
+5. 继续横向接入 `style-engineering`、`character-and-world-assets`、`review-and-audit`、`export-and-release`。

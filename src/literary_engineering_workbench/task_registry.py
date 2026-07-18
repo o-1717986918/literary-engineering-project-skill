@@ -21,7 +21,7 @@ from .workflow_state import build_workflow_state
 TASK_SCHEMA = "literary-engineering-workbench/agent-task/v1"
 SUBMISSION_SCHEMA = "literary-engineering-workbench/agent-submission/v1"
 EVENT_SCHEMA = "literary-engineering-workbench/workflow-event/v1"
-SUPPORTED_ROUTES = {"scene-development", "longform-planning"}
+SUPPORTED_ROUTES = {"scene-development", "longform-planning", "source-ingest"}
 
 
 @dataclass(frozen=True)
@@ -344,6 +344,13 @@ def _route_definition(route: str) -> RouteDefinition:
             build_task=_build_longform_task_payload,
             validate_task=_longform_state_gate_validation,
         ),
+        "source-ingest": RouteDefinition(
+            route="source-ingest",
+            ready_message="source-ingest route has no pending imported source",
+            select_work_item=_select_source_ingest_state,
+            build_task=_build_source_ingest_task_payload,
+            validate_task=_source_ingest_state_gate_validation,
+        ),
     }
     try:
         return definitions[normalized]
@@ -452,6 +459,63 @@ def _build_longform_task_payload(root: Path, route: str, state: dict[str, object
             "Do not start bulk scene generation while longform-planning is blocked.",
             "Do not satisfy target length by making each scene verbose; expand narrative inventory instead.",
             "Do not overwrite formal plot/outline.md or scenes/ before candidate review and user approval.",
+            "Do not treat this task as complete until task-submit and task-complete have succeeded.",
+        ],
+        "next_allowed_states": blueprint["next_allowed_states"],
+    }
+
+
+def _build_source_ingest_task_payload(root: Path, route: str, state: dict[str, object]) -> dict[str, object]:
+    work_id = str(state.get("work_id") or state.get("target_id") or "")
+    current_state = str(state.get("current_step") or "")
+    next_action = str(state.get("next_action") or "")
+    import_dir = str(state.get("import_dir") or f"sources/imports/{work_id}")
+    blueprint = _source_ingest_blueprint_for_state(root, work_id, import_dir, current_state, next_action)
+    task_id = _task_id(route, work_id or "source", current_state)
+    expected_outputs = _unique([_normalize_rel(item) for item in blueprint["expected_outputs"]])
+    source_paths = _unique([_normalize_rel(item) for item in blueprint["source_paths"]])
+    now = _now()
+    return {
+        "schema": TASK_SCHEMA,
+        "task_id": task_id,
+        "status": "issued",
+        "created_at": now,
+        "route": route,
+        "scene_id": work_id,
+        "target_id": work_id,
+        "work_id": work_id,
+        "current_state": current_state,
+        "task_type": blueprint["task_type"],
+        "prompt_asset_id": blueprint["prompt_asset_id"],
+        "command": blueprint["command"],
+        "required_reading": blueprint.get(
+            "required_reading",
+            [
+                "SKILL.md",
+                "AGENTS.md",
+                "agentread.yaml",
+                "references/agent-run-protocol.md",
+                "references/cli-run-protocol.md",
+                "references/artifact-contracts.md",
+                "references/workflows.md",
+            ],
+        ),
+        "source_paths": source_paths,
+        "context_trace": blueprint.get("context_trace", ""),
+        "hard_constraints": blueprint["hard_constraints"],
+        "style_constraints": blueprint["style_constraints"],
+        "word_count_target": 0,
+        "word_count_min": 0,
+        "word_count_max": 0,
+        "expected_outputs": expected_outputs,
+        "submission_command": f"python -m literary_engineering_workbench task-submit <project> --task-id {task_id} --from <artifact>",
+        "completion_command": f"python -m literary_engineering_workbench task-complete <project> --task-id {task_id}",
+        "validation_gates": blueprint["validation_gates"],
+        "forbidden_shortcuts": [
+            "Do not write source-derived material directly into canon, character, plot, draft, export, or release files.",
+            "Do not treat extracted claims as confirmed facts without evidence_refs, confidence, unknowns, contradiction notes, review, and approval.",
+            "Do not skip extract_project_files.agent_tasks.md after source-ingest creates it.",
+            "Do not copy long source passages into extraction reports.",
             "Do not treat this task as complete until task-submit and task-complete have succeeded.",
         ],
         "next_allowed_states": blueprint["next_allowed_states"],
@@ -819,6 +883,77 @@ def _longform_blueprint_for_state(root: Path, current_state: str, next_action: s
     return table.get(current_state, default)
 
 
+def _source_ingest_blueprint_for_state(root: Path, work_id: str, import_dir: str, current_state: str, next_action: str) -> dict[str, object]:
+    manifest_path = root / import_dir / "source_manifest.json"
+    manifest = _read_json(manifest_path)
+    candidate_outputs = _source_candidate_outputs_from_manifest(manifest, work_id)
+    task_path = f"{import_dir}/extract_project_files.agent_tasks.md"
+    completion = f"{import_dir}/extract_project_files.agent_completion.json"
+    report = f"{import_dir}/source_ingest.md"
+    chunks = [str(item.get("path") or "") for item in manifest.get("chunks", []) if isinstance(item, dict)]
+    candidate_values = list(candidate_outputs.values())
+    review = candidate_outputs.get("review", f"reviews/source_ingest/{work_id}_extraction_review.md")
+    table: dict[str, dict[str, object]] = {
+        "source-manifest": {
+            "task_type": "deterministic-cli-or-repair",
+            "prompt_asset_id": "route.source-ingest.import.v1",
+            "command": "python -m literary_engineering_workbench source-ingest <project> --source <source> --title <title> --work-id <work-id>",
+            "source_paths": ["project.yaml"],
+            "expected_outputs": [f"{import_dir}/source_manifest.json", report, task_path],
+            "hard_constraints": [
+                "Run source-ingest with explicit source/text/title/work-id when starting a new import.",
+                "If repairing an invalid manifest, preserve source evidence and candidate output paths.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["source manifest exists", "source ingest report exists", "extraction sidecar exists", "source_manifest schema is valid"],
+            "next_allowed_states": ["extraction-agent-task"],
+        },
+        "extraction-agent-task": {
+            "task_type": "platform-agent-extraction",
+            "prompt_asset_id": "route.source-ingest.extract-project-files.v1",
+            "command": "",
+            "source_paths": [f"{import_dir}/source_manifest.json", report, task_path, *chunks],
+            "expected_outputs": [*candidate_values, completion],
+            "hard_constraints": [
+                "Read extract_project_files.agent_tasks.md and all source chunks before writing extracted candidates.",
+                "Every extracted claim must include evidence_refs, confidence, unknowns, and contradiction notes when relevant.",
+                "Write only candidate assets and source-ingest review; do not overwrite confirmed project files.",
+            ],
+            "style_constraints": [
+                "For style notes from non-public-domain or unauthorized sources, abstract high-level craft features only.",
+            ],
+            "validation_gates": ["extraction sidecar completion marker exists", "all candidate outputs exist"],
+            "next_allowed_states": ["extraction-review"],
+        },
+        "extraction-review": {
+            "task_type": "platform-agent-review",
+            "prompt_asset_id": "route.source-ingest.extraction-review.v1",
+            "command": "",
+            "source_paths": [f"{import_dir}/source_manifest.json", *[item for item in candidate_values if item != review], review],
+            "expected_outputs": [review],
+            "hard_constraints": [
+                "The extraction review must be a clean pass before source-derived candidates are treated as route-ready.",
+                "pass_with_notes, missing evidence, copied long passages, or direct canon writeback are blocking.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["source-ingest extraction review conclusion is pass"],
+            "next_allowed_states": ["ready"],
+        },
+    }
+    default = {
+        "task_type": "manual-route-repair",
+        "prompt_asset_id": "route.source-ingest.repair.v1",
+        "command": next_action,
+        "source_paths": [f"{import_dir}/source_manifest.json", report],
+        "expected_outputs": [],
+        "hard_constraints": [next_action or "Inspect workflow-state and route-audit, then repair the missing source-ingest gate."],
+        "style_constraints": [],
+        "validation_gates": ["source-ingest gate resolved"],
+        "next_allowed_states": [],
+    }
+    return table.get(current_state, default)
+
+
 def _render_task_markdown(task: dict[str, object], root: Path) -> str:
     task_id = str(task.get("task_id") or "")
     completion = default_agent_completion_path(_task_markdown_path(root, task_id))
@@ -926,6 +1061,24 @@ def _select_longform_state(root: Path, payload: dict[str, object], scene: Path |
     return state
 
 
+def _select_source_ingest_state(root: Path, payload: dict[str, object], scene: Path | str | None) -> dict[str, object] | None:
+    _ = root
+    items = [item for item in payload.get("source_ingests", []) if isinstance(item, dict)]
+    if scene:
+        target = str(scene).replace("\\", "/").strip("/")
+        return next(
+            (
+                item
+                for item in items
+                if str(item.get("work_id") or "") == target
+                or str(item.get("target_id") or "") == target
+                or str(item.get("import_dir") or "").rstrip("/").endswith(target)
+            ),
+            None,
+        )
+    return next((item for item in items if item.get("status") != "ready"), None)
+
+
 def _scene_id(scene_path: Path) -> str:
     text = scene_path.read_text(encoding="utf-8", errors="ignore") if scene_path.exists() else ""
     match = re.search(r"(?m)^\s*scene_id:\s*['\"]?([^'\"\n#]+)", text)
@@ -1017,6 +1170,27 @@ def _longform_state_gate_validation(root: Path, task: dict[str, object]) -> tupl
     return errors, notes
 
 
+def _source_ingest_state_gate_validation(root: Path, task: dict[str, object]) -> tuple[list[str], list[str]]:
+    current_state = str(task.get("current_state") or "")
+    work_id = str(task.get("work_id") or task.get("target_id") or task.get("scene_id") or "")
+    import_dir = _source_import_dir_for_task(root, task)
+    errors: list[str] = []
+    notes: list[str] = []
+    if current_state == "source-manifest":
+        errors.extend(_source_manifest_gate_errors(root, import_dir))
+    if current_state == "extraction-agent-task":
+        errors.extend(_source_manifest_gate_errors(root, import_dir))
+        errors.extend(_source_extraction_gate_errors(root, import_dir, work_id, require_review_pass=False))
+    if current_state == "extraction-review":
+        errors.extend(_source_manifest_gate_errors(root, import_dir))
+        errors.extend(_source_extraction_gate_errors(root, import_dir, work_id, require_review_pass=True))
+    if current_state == "extraction-agent-task" and not errors:
+        notes.append("source extraction candidates and sidecar completion marker exist")
+    if current_state == "extraction-review" and not errors:
+        notes.append("source extraction review passed")
+    return errors, notes
+
+
 def _word_budget_file_gate_errors(root: Path) -> list[str]:
     json_path = root / "plot" / "word_budget" / "word_budget.json"
     markdown_path = root / "plot" / "word_budget" / "word_budget.md"
@@ -1062,6 +1236,75 @@ def _longform_review_gate_errors(path: Path, root: Path, label: str) -> list[str
     if conclusion == "pass":
         return []
     return [f"{label} conclusion must be pass; got {conclusion or 'missing'} at {_rel(path, root)}"]
+
+
+def _source_manifest_gate_errors(root: Path, import_dir: Path) -> list[str]:
+    manifest_path = import_dir / "source_manifest.json"
+    report_path = import_dir / "source_ingest.md"
+    task_path = import_dir / "extract_project_files.agent_tasks.md"
+    errors: list[str] = []
+    for path in (manifest_path, report_path, task_path):
+        if not path.exists():
+            errors.append(f"missing source-ingest artifact: {_rel(path, root)}")
+    payload, error = _read_optional_json(manifest_path)
+    if error:
+        errors.append(error)
+        return errors
+    if payload.get("schema") != "literary-engineering-workbench/source-ingest/v1":
+        errors.append("source_manifest.json has wrong or missing schema")
+    if not payload.get("work_id"):
+        errors.append("source_manifest.json must contain work_id")
+    if not isinstance(payload.get("chunks"), list) or not payload.get("chunks"):
+        errors.append("source_manifest.json must contain source chunks")
+    if not isinstance(payload.get("candidate_outputs"), dict) or not payload.get("candidate_outputs"):
+        errors.append("source_manifest.json must contain candidate_outputs")
+    return errors
+
+
+def _source_extraction_gate_errors(root: Path, import_dir: Path, work_id: str, *, require_review_pass: bool) -> list[str]:
+    manifest = _read_json(import_dir / "source_manifest.json")
+    outputs = _source_candidate_outputs_from_manifest(manifest, work_id or import_dir.name)
+    task_path = import_dir / "extract_project_files.agent_tasks.md"
+    state = agent_task_completion_status(task_path, root=root)
+    errors: list[str] = []
+    if state.get("complete") is not True:
+        errors.append(f"source extraction sidecar is incomplete: {state.get('message')}")
+    for key, rel in outputs.items():
+        path = root / rel
+        if not path.exists():
+            errors.append(f"source extraction output missing: {key} -> {rel}")
+    if require_review_pass:
+        review = root / outputs.get("review", f"reviews/source_ingest/{work_id}_extraction_review.md")
+        conclusion = _static_review_conclusion(review)
+        if conclusion != "pass":
+            errors.append(f"source-ingest extraction review conclusion must be pass; got {conclusion or 'missing'} at {_rel(review, root)}")
+    return errors
+
+
+def _source_import_dir_for_task(root: Path, task: dict[str, object]) -> Path:
+    work_id = str(task.get("work_id") or task.get("target_id") or task.get("scene_id") or "")
+    source_paths = [str(item) for item in task.get("source_paths") or []]
+    for item in source_paths:
+        normalized = item.replace("\\", "/")
+        if "/source_manifest.json" in f"/{normalized}":
+            return _resolve_project_path(root, normalized).parent
+    return root / "sources" / "imports" / (work_id or "source")
+
+
+def _source_candidate_outputs_from_manifest(manifest: dict[str, object], work_id: str) -> dict[str, str]:
+    outputs = manifest.get("candidate_outputs") if isinstance(manifest.get("candidate_outputs"), dict) else {}
+    if outputs:
+        return {str(key): str(value) for key, value in outputs.items() if str(value).strip()}
+    return {
+        "project_brief": f"sources/imports/{work_id}/extracted/project_brief.md",
+        "characters": f"characters/candidates/extracted/{work_id}_characters.md",
+        "world": f"canon/candidates/extracted/{work_id}_world.md",
+        "outline": f"plot/candidates/extracted/{work_id}_outline.md",
+        "timeline": f"plot/candidates/extracted/{work_id}_timeline.md",
+        "foreshadowing": f"plot/candidates/extracted/{work_id}_foreshadowing.md",
+        "style_notes": f"style/candidates/{work_id}_style_generation_notes.md",
+        "review": f"reviews/source_ingest/{work_id}_extraction_review.md",
+    }
 
 
 def _roleplay_gate_errors(root: Path, scene_id: str) -> list[str]:

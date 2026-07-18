@@ -311,13 +311,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     workflow_state = sub.add_parser("workflow-state", help="Write a persistent formal-route state ledger.")
     workflow_state.add_argument("project", help="Work project directory.")
-    workflow_state.add_argument("--route", default="scene-development", help="Route key. Supports scene-development, longform-planning, and overall.")
+    workflow_state.add_argument("--route", default="scene-development", help="Route key. Supports scene-development, longform-planning, source-ingest, and overall.")
     workflow_state.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/route_state.md.")
     workflow_state.add_argument("--json-out", default="", help="Output JSON path. Defaults to workflow/route_state.json.")
 
     task_next = sub.add_parser("task-next", help="Issue the next CLI-mediated platform-agent task for a formal route.")
     task_next.add_argument("project", help="Work project directory.")
-    task_next.add_argument("--route", default="scene-development", help="Route key. Supports scene-development and longform-planning.")
+    task_next.add_argument("--route", default="scene-development", help="Route key. Supports scene-development, longform-planning, and source-ingest.")
     task_next.add_argument("--scene", default="", help="Optional scene yaml path. Defaults to the first blocked scene.")
     task_next.add_argument("--force", action="store_true", help="Refresh an existing active task for the current state.")
 
@@ -339,7 +339,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     workflow_advance = sub.add_parser("workflow-advance", help="Refresh derived workflow state without manually overriding gates.")
     workflow_advance.add_argument("project", help="Work project directory.")
-    workflow_advance.add_argument("--route", default="scene-development", help="Route key. Supports scene-development and longform-planning.")
+    workflow_advance.add_argument("--route", default="scene-development", help="Route key. Supports scene-development, longform-planning, and source-ingest.")
 
     workflow_events = sub.add_parser("workflow-events", help="Render CLI-mediated task event history.")
     workflow_events.add_argument("project", help="Work project directory.")
