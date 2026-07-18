@@ -75,6 +75,8 @@ def render_agent_tasks_document(
             "",
             "## Execution Rules",
             "",
+            "- 先确认本任务所属 route，并读取 `SKILL.md`、`AGENTS.md`、`agentread.yaml`、`references/agent-run-protocol.md` 以及该 route 在 `agentread.yaml` 中列出的文档。",
+            "- 在最终报告或目标 Markdown 中写明 reading receipt：route、已读文档、已检查项目状态、仍缺失的上下文。",
             "- 先读取 Source Artifacts，再执行下列任务。",
             "- 任何新增事实、人物状态变化、分支选择和发布判断都保持候选状态。",
             "- 不要把本文件中的任务标记写入 JSON、prompt manifest、正稿、canon 或发布包。",

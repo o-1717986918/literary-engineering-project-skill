@@ -230,6 +230,49 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "Do not treat source-derived style notes as a mountable Style Skill until they become a reviewed 500-1500 character prompt.",
         ),
     ),
+    "longform-planning": ProtocolRoute(
+        key="longform-planning",
+        title="Longform Planning",
+        purpose="Plan target length, volumes, chapters, scenes, narrative inventory, and budgeted outline expansion before long-form generation.",
+        read=(
+            "references/agent-run-protocol.md",
+            "references/cli-run-protocol.md",
+            "references/project-director-playbook.md",
+            "references/artifact-contracts.md",
+            "references/workflows.md",
+            "docs/modules/longform-word-budget.md",
+            "docs/implementation/phase65-longform-word-budget.md",
+        ),
+        preflight=COMMON_PREFLIGHT
+        + (
+            "Confirm target length, volume count, genre, time span, and whether the current outline is accepted or only a seed.",
+            "Inspect plot/outline.md, plot/word_budget/, scenes/, chapters, and latest longform reviews.",
+            "Identify whether the task needs a new budget, a budget revision, or a platform-agent budgeted outline expansion.",
+        ),
+        cli_chain=(
+            "python -m literary_engineering_workbench protocol longform-planning",
+            "python -m literary_engineering_workbench word-budget <project> --target-words 500000 --volumes 5 --genre mystery",
+            "Read plot/word_budget/word_budget.agent_tasks.md and write plot/candidates/outlines/word_budget_expansion.md plus reviews/word_budget/word_budget_review.md.",
+            "python -m literary_engineering_workbench longform-audit <project> --target-length 500000",
+        ),
+        platform_agent_handoffs=(
+            "Genre-to-length judgment, time-span/detail calibration, and narrative-load tradeoffs.",
+            "Budgeted outline expansion, scene inventory design, subplot density, and pacing decisions.",
+            "Review of whether the generated outline truly supports the target length without filler or compression.",
+        ),
+        completion_gates=(
+            "word_budget.md/json and word_budget.agent_tasks.md exist or the reason for skipping is recorded.",
+            "Platform agent has written or explicitly deferred the budgeted outline candidate and word-budget review.",
+            "Scene/chapter inventory is sufficient for the target length before batch scene generation.",
+            "Prompt manifest and generation flow will load the word-budget standard.",
+        ),
+        forbidden_shortcuts=COMMON_FORBIDDEN
+        + (
+            "Do not treat a target word count as satisfied by asking scenes to be longer without increasing narrative events.",
+            "Do not overwrite plot/outline.md with a budgeted expansion until review and user approval.",
+            "Do not start bulk prose generation when word_budget status is needs_expansion.",
+        ),
+    ),
     "scene-development": ProtocolRoute(
         key="scene-development",
         title="Scene Development",
@@ -399,6 +442,7 @@ ALIASES.update(
         "work_project_initialization": "work-project-initialization",
         "style_engineering": "style-engineering",
         "source_ingest": "source-ingest",
+        "longform_planning": "longform-planning",
         "character_and_world_assets": "character-and-world-assets",
         "scene_development": "scene-development",
         "review_and_audit": "review-and-audit",

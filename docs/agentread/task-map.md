@@ -34,6 +34,16 @@ Output: source manifest, chunks, extraction task sidecar, extracted project brie
 
 Do not promote extracted material without evidence, review, and approval.
 
+## Longform Planning
+
+Read: `docs/modules/longform-word-budget.md`, `docs/implementation/phase65-longform-word-budget.md`, `references/artifact-contracts.md`, `references/workflows.md`.
+
+Use when the user asks for 100000+ words, multiple volumes,百万字级 projects, or when generated chapters are far shorter than the target.
+
+Output: word budget markdown/JSON, platform-agent expansion sidecar, budgeted outline candidate, word-budget review, and generation readiness decision.
+
+Do not satisfy a long target by asking every scene to be longer. Increase narrative inventory: chapters, scenes, relationship turns, consequences, setups, payoffs, and world-pressure events.
+
 ## Character / World / Outline Assets
 
 Read: `docs/implementation/phase37-asset-candidate-schemas.md` through `docs/implementation/phase41-candidate-review-promotion.md`.

@@ -11,6 +11,7 @@ Act as:
 - editor for prose quality, scene focus, rhythm, and revision;
 - continuity auditor for canon, timeline, character state, and foreshadowing;
 - source analyst for existing texts, old drafts, scripts, and pseudo-record materials;
+- longform budget editor for target length, volume/chapter/scene inventory, and pacing load;
 - style engineer for author-style learning, Style Skill mounting, and expression constraints;
 - release manager for chapter readiness, export, approval, rollback, and delivery notes.
 
@@ -72,6 +73,7 @@ Typical candidate folders:
 - `canon/candidates/locations/`
 - `canon/candidates/organizations/`
 - `plot/candidates/outlines/`
+- `plot/word_budget/`
 - `plot/candidates/relationships/`
 - `characters/candidates/extracted/`
 - `canon/candidates/extracted/`
@@ -119,6 +121,20 @@ When the user supplies existing text for continuation, rewrite, adaptation, or a
 
 Do not paste long source passages into candidate files. Do not convert source-derived style notes directly into a mounted Style Skill; first turn them into a reviewed 500-1500 character LLM-facing style prompt.
 
+## Longform Budget Policy
+
+When the user gives a target such as 10 万字、50 万字、百万字、5 卷或多季，不要 jump straight into prose. First determine whether the current project has enough narrative inventory.
+
+Use `word-budget` / `longform-budget` when deterministic scaffolding is useful. Then, as platform agent:
+
+1. Read `plot/word_budget/word_budget.agent_tasks.md`.
+2. Expand the outline as a candidate under `plot/candidates/outlines/word_budget_expansion.md`.
+3. Write `reviews/word_budget/word_budget_review.md`.
+4. Check whether the target length is supported by scenes, relationship turns, consequences, setup/payoff, world pressure, and time-span progression.
+5. Ask the user to approve major scope changes before replacing formal `plot/outline.md`.
+
+Do not solve an undersized outline by making each scene verbose. If the project asks for 50 万字 but only has a short novella's event inventory, recommend one of four changes: expand plot inventory, add relationship/world/subplot load, increase time-span/volume structure, or reduce the target length.
+
 ## Scene Development Loop
 
 For a scene:
@@ -134,6 +150,8 @@ For a scene:
 9. Propose character state patches; do not auto-apply major state changes.
 
 If optional CLI commands produce roleplay, branch, composition, generation, or state artifacts, inspect their raw output and manifests before using them. Do not let the highest score or recommended branch replace the platform agent's own continuity and story judgment.
+
+When using `simulate-scene --agent`, fill the platform-agent execution gate first: list read scene/context/character/canon files, missing files, hard constraints, and writeback boundaries before treating RP notes as usable evidence.
 
 ## Review Checklist
 
@@ -155,6 +173,7 @@ Prefer direct platform work for creative reasoning. Use CLI when deterministic s
 - `init`
 - `index`, `knowledge-build`, `context`
 - `source-ingest`, `extract-existing-work`
+- `word-budget`, `longform-budget`
 - `style-lab-*`, `style-profile`, `style-prompt`, `style-prompt-eval`, `style-eval`
 - `canon-lint`
 - `chapter-workspace`, `longform-audit`, `export-package`, `publish-chapter`

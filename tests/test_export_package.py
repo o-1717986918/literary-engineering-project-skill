@@ -21,8 +21,12 @@ class ExportPackageTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue(result.video_prompt_path.exists())
         novel_text = result.novel_path.read_text(encoding="utf-8")
         screenplay_text = result.screenplay_path.read_text(encoding="utf-8")
+        video_prompt_text = result.video_prompt_path.read_text(encoding="utf-8")
         self.assertNotIn("导出规则", novel_text)
         self.assertNotIn("新 canon 写回", novel_text)
+        self.assertNotIn("scene_0001", novel_text)
+        self.assertNotIn("scene_0001", screenplay_text)
+        self.assertNotIn("scene_0001", video_prompt_text)
         self.assertNotIn("## 状态变化", novel_text)
         self.assertNotIn("### 新增事实候选", novel_text)
         self.assertNotIn("审查状态", screenplay_text)
@@ -37,7 +41,7 @@ class ExportPackageTests(TempProjectMixin, unittest.TestCase):
         text = draft.read_text(encoding="utf-8")
         text = text.replace(
             "他把手电压低，沿着墙边移动，心里清楚每一步都会改变同伴明天能否继续调查。",
-            "他把手电压低，沿着墙边移动。\n\n## 状态变化候选\n\n### 新增事实候选\n\n- canon 信息不应进入最终作品。",
+            "他把手电压低，沿着墙边移动。\n\nscene_id: scene_0001\n\n## 状态变化候选\n\n### 新增事实候选\n\n- canon 信息不应进入最终作品。",
         )
         draft.write_text(text, encoding="utf-8")
         build_chapter_workspace(project, chapter_id="chapter_0001")
@@ -46,6 +50,7 @@ class ExportPackageTests(TempProjectMixin, unittest.TestCase):
         novel_text = result.novel_path.read_text(encoding="utf-8")
 
         self.assertIn("他把手电压低", novel_text)
+        self.assertNotIn("scene_0001", novel_text)
         self.assertNotIn("状态变化候选", novel_text)
         self.assertNotIn("canon 信息", novel_text)
 

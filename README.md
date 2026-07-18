@@ -43,6 +43,7 @@ flowchart LR
 - 想研究工程化文学创作、AI 叙事系统、多 Agent 创作工作流的人。
 - 想把作家文风学习结果沉淀成可挂载 Style Skill 的人。
 - 想把已有小说、旧稿、剧本或伪记录材料整理成可续写、可改写项目的人。
+- 想让 10 万字、50 万字、百万字、多卷目标真正落到卷章场景和剧情库存的人。
 
 它不适合：
 
@@ -166,6 +167,26 @@ python -m literary_engineering_workbench source-ingest "<work-dir>" --source "<s
 - 证据强度与晋升风险审查
 
 这些内容默认全部是候选，必须带证据引用和置信度；未经审查与用户批准，不会覆盖正式 canon、人物文件、剧情文件或文风挂载。
+
+### 7. 长篇字数预算与剧情库存
+
+当目标是 50 万字、5 卷或百万字级作品时，不能只要求模型“每章写长一点”。本项目把目标字数拆成可检查的卷、章、场景和叙事负载预算：
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m literary_engineering_workbench protocol longform-planning
+python -m literary_engineering_workbench word-budget "<work-dir>" --target-words 500000 --volumes 5 --genre mystery
+```
+
+命令会生成：
+
+- `plot/word_budget/word_budget.md`
+- `plot/word_budget/word_budget.json`
+- `plot/word_budget/word_budget.agent_tasks.md`
+
+随后 Codex / Claude 读取任务侧车，把预算转化为 `plot/candidates/outlines/word_budget_expansion.md` 和 `reviews/word_budget/word_budget_review.md`。通过审查和用户批准前，它只是候选大纲，不会覆盖正式 `plot/outline.md`。
+
+后续场景生成会自动读取预算标准，`longform-audit` 也会检查预算缺失、needs_expansion 和场景库存不足。
 
 ## 快速开始
 
@@ -338,6 +359,8 @@ literary-engineering-project-skill/
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
 - 已有作品反推与源文本导入：已完成 `source-ingest` / `extract-existing-work`。
+- 长篇字数预算与剧情库存门禁：已完成 `word-budget` / `longform-budget`。
+- 流程阅读回执、`pass_with_notes` 小修闭环和生成前硬约束摘要：已完成。
 - 可选 CLI 工具箱：可运行。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 

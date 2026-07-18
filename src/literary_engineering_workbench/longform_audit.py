@@ -10,7 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .agent_schema import validate_payload
-from .scene_draft import extract_draft_body
+from .draft_text import count_delivery_chars, final_body_from_draft_text
+from .word_budget import load_word_budget_summary
 
 
 PASSING_REVIEW_CONCLUSIONS = {"pass", "pass_with_notes"}
@@ -84,7 +85,8 @@ def build_longform_audit(
     characters = _scan_characters(root)
     foreshadowing = _scan_foreshadowing(root)
     chapter_files = sorted((root / "plot" / "chapters").glob("*.json")) if (root / "plot" / "chapters").exists() else []
-    issues = _audit_issues(root, scenes, characters, foreshadowing, chapter_files, target_length)
+    word_budget = load_word_budget_summary(root)
+    issues = _audit_issues(root, scenes, characters, foreshadowing, chapter_files, target_length, word_budget)
     graph = _build_graph(scenes, characters, foreshadowing)
 
     markdown_path = _resolve_output(root, output, "reviews", "longform", "longform_audit.md")
@@ -94,12 +96,13 @@ def build_longform_audit(
     json_path.parent.mkdir(parents=True, exist_ok=True)
     graph_path.parent.mkdir(parents=True, exist_ok=True)
 
-    summary = _summary(scenes, characters, foreshadowing, chapter_files, issues, target_length)
+    summary = _summary(scenes, characters, foreshadowing, chapter_files, issues, target_length, word_budget)
     payload = {
         "schema": "literary-engineering-workbench/longform-audit/v0.1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "project_root": str(root),
         "summary": summary,
+        "word_budget": word_budget,
         "scenes": [asdict(scene) for scene in scenes],
         "characters": characters,
         "foreshadowing": foreshadowing,
@@ -138,7 +141,7 @@ def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
         agent_review_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.md"
         agent_review_json_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
         draft_text = _read(draft_path)
-        body = extract_draft_body(draft_text) if draft_text else ""
+        body = final_body_from_draft_text(draft_text) if draft_text else ""
         review_text = _read(review_path)
         conclusion = _review_conclusion(review_text)
         agent_conclusion, agent_schema_status = _agent_review_state(agent_review_json_path)
@@ -157,7 +160,7 @@ def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
                 agent_review_json=_existing_rel(agent_review_json_path, root),
                 agent_review_conclusion=agent_conclusion,
                 agent_review_schema_status=agent_schema_status,
-                draft_chars=len(body),
+                draft_chars=count_delivery_chars(body),
                 status=_scene_status(draft_path, review_path, agent_review_json_path, body, conclusion, agent_conclusion, agent_schema_status),
             )
         )
@@ -203,10 +206,11 @@ def _audit_issues(
     foreshadowing: list[dict[str, str]],
     chapter_files: list[Path],
     target_length: int,
+    word_budget: dict[str, object],
 ) -> list[LongformIssue]:
     issues: list[LongformIssue] = []
     if not scenes:
-        return [
+        issues.append(
             LongformIssue(
                 "high",
                 "scene_inventory",
@@ -214,7 +218,7 @@ def _audit_issues(
                 "未发现任何场景文件，无法进行长篇连续性审计。",
                 "先用场景模板建立至少一个 scenes/{scene_id}.yaml。",
             )
-        ]
+        )
 
     scene_ids = [scene.scene_id for scene in scenes]
     duplicates = sorted({scene_id for scene_id in scene_ids if scene_ids.count(scene_id) > 1})
@@ -296,6 +300,41 @@ def _audit_issues(
             )
 
     draft_chars = sum(scene.draft_chars for scene in scenes)
+    if target_length >= 100000 and not word_budget:
+        issues.append(
+            LongformIssue(
+                "medium",
+                "word_budget",
+                "plot/word_budget/word_budget.json",
+                "目标字数达到中长篇规模，但缺少长篇字数预算与剧情库存门禁。",
+                "先运行 word-budget / longform-budget，并由平台 agent 根据任务侧车扩充预算化大纲候选。",
+            )
+        )
+    if word_budget:
+        totals = word_budget.get("totals", {})
+        totals = totals if isinstance(totals, dict) else {}
+        planned_scenes = _to_int(totals.get("scene_count"))
+        budget_status = str(word_budget.get("status") or "")
+        if budget_status == "needs_expansion":
+            issues.append(
+                LongformIssue(
+                    "medium",
+                    "word_budget",
+                    "plot/word_budget/word_budget.json",
+                    "预算报告显示现有大纲或场景库存不足，直接生成正文容易把长篇压缩成短篇摘要。",
+                    "让平台 agent 处理 word_budget.agent_tasks.md，写出预算化大纲候选并通过 word-budget review。",
+                )
+            )
+        if planned_scenes and scenes and len(scenes) < planned_scenes * 0.5:
+            issues.append(
+                LongformIssue(
+                    "medium",
+                    "scene_inventory",
+                    "scenes/",
+                    f"预算需要约 {planned_scenes} 个场景，目前仅登记 {len(scenes)} 个场景，剧情库存明显不足。",
+                    "先扩充分卷、分章和场景列表，再进入批量正文生成。",
+                )
+            )
     if target_length > 0 and draft_chars < target_length * 0.2:
         issues.append(
             LongformIssue(
@@ -410,6 +449,7 @@ def _render_markdown(root: Path, payload: dict, graph_path: Path) -> str:
         f"- 人物档案数：{summary['character_count']}",
         f"- 地点数：{summary['location_count']}",
         f"- 正文字符数：{summary['draft_chars']} / 目标 {summary['target_length']}",
+        f"- 字数预算状态：{summary.get('word_budget_status', 'missing')} / 预算场景 {summary.get('word_budget_scene_count', 0)}",
         f"- 可装配场景：{summary['ready_scene_count']}",
         f"- 阻塞场景：{summary['blocked_scene_count']}",
         f"- 问题数：{summary['issue_count']}",
@@ -483,9 +523,12 @@ def _summary(
     chapter_files: list[Path],
     issues: list[LongformIssue],
     target_length: int,
-) -> dict[str, int]:
+    word_budget: dict[str, object],
+) -> dict[str, object]:
     chapter_ids = {scene.chapter_id for scene in scenes if scene.chapter_id != "unassigned"}
     locations = {scene.location for scene in scenes if scene.location}
+    totals = word_budget.get("totals", {}) if word_budget else {}
+    totals = totals if isinstance(totals, dict) else {}
     return {
         "chapter_count": max(len(chapter_ids), len(chapter_files)),
         "scene_count": len(scenes),
@@ -497,6 +540,9 @@ def _summary(
         "ready_scene_count": sum(1 for scene in scenes if scene.status == "ready"),
         "blocked_scene_count": sum(1 for scene in scenes if scene.status != "ready"),
         "issue_count": len(issues),
+        "word_budget_status": str(word_budget.get("status") or "missing") if word_budget else "missing",
+        "word_budget_scene_count": _to_int(totals.get("scene_count")),
+        "word_budget_chapter_count": _to_int(totals.get("chapter_count")),
     }
 
 
@@ -576,6 +622,13 @@ def _read(path: Path) -> str:
     if not path.exists():
         return ""
     return path.read_text(encoding="utf-8", errors="ignore").strip()
+
+
+def _to_int(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _resolve_output(root: Path, output: Path | None, *default_parts: str) -> Path:

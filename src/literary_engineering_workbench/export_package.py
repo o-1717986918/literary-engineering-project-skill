@@ -11,15 +11,11 @@ from typing import Sequence
 
 from .chapter_pipeline import build_chapter_workspace
 from .docx_export import export_markdown_to_docx
-from .scene_draft import extract_draft_body
+from .draft_text import count_delivery_chars, final_body_from_draft_text
 
 
 EXPORT_FORMATS = {"md", "docx"}
 PASSING_REVIEW_CONCLUSIONS = {"pass", "pass_with_notes"}
-INTERNAL_HEADING_RE = re.compile(
-    r"(?im)^\s{0,3}#{1,6}\s*(状态变化|状态变化候选|写回|写回清单|写回候选|自检|创作说明|工作流程|"
-    r"审查|审查状态|canon|Canon|上下文|提示词|Prompt|需要人工确认|新增事实候选|人物状态变化|关系变化|伏笔变化)\b.*$"
-)
 
 
 @dataclass(frozen=True)
@@ -79,11 +75,19 @@ def build_export_package(
     video_prompt_path.write_text(_render_video_prompt_pack(root, chapter_id, exportable, skipped, include_blocked), encoding="utf-8")
     docx_outputs: dict[str, Path] = {}
     if "docx" in requested_formats:
-        docx_outputs["novel"] = export_markdown_to_docx(novel_path, title=f"{chapter_id} 正文", kind="novel").docx_path
-        docx_outputs["screenplay"] = export_markdown_to_docx(screenplay_path, title=f"{chapter_id} 剧本工作稿", kind="screenplay").docx_path
+        docx_outputs["novel"] = export_markdown_to_docx(
+            novel_path,
+            title=f"{_public_chapter_title(chapter_id)} 正文",
+            kind="novel",
+        ).docx_path
+        docx_outputs["screenplay"] = export_markdown_to_docx(
+            screenplay_path,
+            title=f"{_public_chapter_title(chapter_id)} 剧本工作稿",
+            kind="screenplay",
+        ).docx_path
         docx_outputs["video_prompt_pack"] = export_markdown_to_docx(
             video_prompt_path,
-            title=f"{chapter_id} 长视频提示词包",
+            title=f"{_public_chapter_title(chapter_id)} 长视频提示词包",
             kind="video_prompt_pack",
         ).docx_path
 
@@ -141,7 +145,7 @@ def normalize_export_formats(formats: str | Sequence[str] | None) -> tuple[str, 
 
 def _render_novel(root: Path, chapter_id: str, scenes: list[dict], skipped: list[dict], include_blocked: bool) -> str:
     lines = [
-        f"# {chapter_id}",
+        f"# {_public_chapter_title(chapter_id)}",
         "",
     ]
     if include_blocked:
@@ -153,8 +157,6 @@ def _render_novel(root: Path, chapter_id: str, scenes: list[dict], skipped: list
         lines.append("- 当前章节没有 ready 场景。")
         lines.append("")
     for scene in scenes:
-        lines.append(f"## {scene.get('scene_id', 'scene')}")
-        lines.append("")
         body = _draft_body(root, scene)
         lines.append(body or "- 未读取到正文。")
         lines.append("")
@@ -163,7 +165,7 @@ def _render_novel(root: Path, chapter_id: str, scenes: list[dict], skipped: list
 
 def _render_screenplay(root: Path, chapter_id: str, scenes: list[dict], skipped: list[dict], include_blocked: bool) -> str:
     lines = [
-        f"# 剧本导出草稿：{chapter_id}",
+        f"# 剧本导出草稿：{_public_chapter_title(chapter_id)}",
         "",
         "## 使用规则",
         "",
@@ -173,13 +175,12 @@ def _render_screenplay(root: Path, chapter_id: str, scenes: list[dict], skipped:
     ]
     if include_blocked:
         lines.extend(["> 注意：包含未通过审查的场景。", ""])
-    for scene in scenes:
-        sid = scene.get("scene_id", "scene")
+    for index, scene in enumerate(scenes, 1):
         location = scene.get("location") or "未填写地点"
         participants = "、".join(scene.get("participants") or []) or "未填写"
         lines.extend(
             [
-                f"## SCENE {sid}",
+                f"## {_public_scene_label(index)}",
                 "",
                 f"**场景**：{location}",
                 f"**人物**：{participants}",
@@ -192,14 +193,14 @@ def _render_screenplay(root: Path, chapter_id: str, scenes: list[dict], skipped:
         )
     if skipped:
         lines.extend(["## 未进入剧本导出的场景", ""])
-        for scene in skipped:
-            lines.append(f"- `{scene.get('scene_id', '')}`：{scene.get('status', 'unknown')}")
+        for index, scene in enumerate(skipped, 1):
+            lines.append(f"- 未导出条目 {index}：{scene.get('status', 'unknown')}")
     return "\n".join(lines).rstrip() + "\n"
 
 
 def _render_video_prompt_pack(root: Path, chapter_id: str, scenes: list[dict], skipped: list[dict], include_blocked: bool) -> str:
     lines = [
-        f"# 长视频提示词包：{chapter_id}",
+        f"# 长视频提示词包：{_public_chapter_title(chapter_id)}",
         "",
         f"生成时间：{datetime.now(timezone.utc).isoformat()}",
         "",
@@ -222,7 +223,7 @@ def _render_video_prompt_pack(root: Path, chapter_id: str, scenes: list[dict], s
         location = scene.get("location") or "未填写地点"
         lines.extend(
             [
-                f"## {index}. {scene.get('scene_id', 'scene')}",
+                f"## 镜头组 {index}",
                 "",
                 f"- 地点：{location}",
                 f"- 人物：{participants}",
@@ -259,8 +260,8 @@ def _render_video_prompt_pack(root: Path, chapter_id: str, scenes: list[dict], s
         )
     if skipped:
         lines.extend(["## 未生成视频提示词的场景", ""])
-        for scene in skipped:
-            lines.append(f"- `{scene.get('scene_id', '')}`：{scene.get('status', 'unknown')}")
+        for index, scene in enumerate(skipped, 1):
+            lines.append(f"- 未生成条目 {index}：{scene.get('status', 'unknown')}")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -273,7 +274,7 @@ def _scene_manifest(root: Path, scene: dict) -> dict:
         "agent_review_schema_status": scene.get("agent_review_schema_status", ""),
         "agent_review_json": scene.get("agent_review_json", ""),
         "draft_path": scene.get("draft_path", ""),
-        "draft_chars": len(_draft_body(root, scene)),
+        "draft_chars": count_delivery_chars(_draft_body(root, scene)),
     }
 
 
@@ -296,26 +297,18 @@ def _draft_body(root: Path, scene: dict) -> str:
     draft_path = path if path.is_absolute() else root / path
     if not draft_path.exists():
         return ""
-    return clean_final_body(extract_draft_body(draft_path.read_text(encoding="utf-8", errors="ignore"))).strip()
+    return final_body_from_draft_text(draft_path.read_text(encoding="utf-8", errors="ignore")).strip()
 
 
-def clean_final_body(text: str) -> str:
-    """Remove workbench-only traces from prose before final export."""
+def _public_chapter_title(chapter_id: str) -> str:
+    match = re.search(r"(?:chapter|卷|章)[_-]?0*(\d+)", chapter_id, flags=re.IGNORECASE)
+    if not match:
+        return "正文"
+    return f"第{int(match.group(1))}章"
 
-    body = re.sub(r"<!--.*?-->", "", text, flags=re.S).strip()
-    match = INTERNAL_HEADING_RE.search(body)
-    if match:
-        body = body[: match.start()].strip()
-    cleaned_lines = []
-    for raw_line in body.splitlines():
-        line = raw_line.strip()
-        if not line:
-            cleaned_lines.append("")
-            continue
-        if re.search(r"(canon|Canon|workflow|prompt manifest|AGENT_TASK|上下文包|写回候选|新增事实候选|人物状态变化|需要人工确认)", line):
-            continue
-        cleaned_lines.append(raw_line.rstrip())
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(cleaned_lines)).strip()
+
+def _public_scene_label(index: int) -> str:
+    return f"第{index}场"
 
 
 def _is_export_ready(scene: dict) -> bool:

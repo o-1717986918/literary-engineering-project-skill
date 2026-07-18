@@ -53,6 +53,8 @@ class ProtocolTests(unittest.TestCase):
                 "project-director",
                 "work-project-initialization",
                 "style-engineering",
+                "source-ingest",
+                "longform-planning",
                 "character-and-world-assets",
                 "scene-development",
                 "review-and-audit",

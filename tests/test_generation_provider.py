@@ -14,7 +14,7 @@ from literary_engineering_workbench.scene_composer import build_scene_compositio
 from literary_engineering_workbench.style_compiler import StyleCompileOptions, compile_style_profile
 from literary_engineering_workbench.style_prompt import build_style_prompt
 
-from helpers import TempProjectMixin, make_reviewed_passing_scene
+from helpers import TempProjectMixin, make_reviewed_passing_scene, write_platform_scene_review
 
 
 class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
@@ -42,7 +42,9 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("输出契约", prompt_manifest["messages"][1]["content"])
         self.assertIn("标准中文标点约束", prompt_manifest["messages"][1]["content"])
         self.assertIn("文风生成标准", prompt_manifest["messages"][1]["content"])
+        self.assertIn("生成前最终硬约束摘要", prompt_manifest["messages"][1]["content"])
         self.assertIn("生成前硬约束", prompt_manifest["generation_standards"]["style"])
+        self.assertIn("hard_constraints", prompt_manifest["generation_standards"])
         self.assertIsNone(result.agent_tasks_path)
 
     def test_agent_tasks_sidecar_reviews_prompt_manifest_without_pollution(self):
@@ -64,10 +66,33 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("审查 prompt manifest", tasks)
         self.assertIn("生成前文风标准", tasks)
         self.assertIn("generation_standards.style", tasks)
+        self.assertIn("generation_standards.hard_constraints", tasks)
+        self.assertIn("reading receipt", tasks)
         self.assertIn("punctuation-standard.md", tasks)
         self.assertIn("标准中文标点", tasks)
         self.assertNotIn("[AGENT_TASK:", result.prompt_manifest_path.read_text(encoding="utf-8"))
         self.assertNotIn("[AGENT_TASK:", result.manifest_path.read_text(encoding="utf-8"))
+
+    def test_prompt_pack_injects_pass_with_notes_revision_constraints(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+        write_platform_scene_review(project, conclusion="pass_with_notes")
+
+        result = generate_scene_candidate(
+            project,
+            scene=Path("scenes/scene_0001.yaml"),
+            rebuild_context=True,
+            provider="dry-run",
+        )
+        prompt_manifest = json.loads(result.prompt_manifest_path.read_text(encoding="utf-8"))
+        user_prompt = prompt_manifest["messages"][1]["content"]
+
+        self.assertTrue(prompt_manifest["generation_standards"]["review_notes_loaded"])
+        self.assertEqual(prompt_manifest["generation_standards"]["review_notes_path"], "reviews/agent/scene_0001_scene_review.json")
+        self.assertIn("AgentReview 小修约束", user_prompt)
+        self.assertIn("pass_with_notes", user_prompt)
+        self.assertIn("revision_actions", user_prompt)
+        self.assertIn("必须执行轻微修订", user_prompt)
 
     def test_prompt_pack_uses_scene_composition_when_available(self):
         project = self.make_project()

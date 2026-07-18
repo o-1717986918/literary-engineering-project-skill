@@ -33,9 +33,17 @@
 drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json
 ```
 
-该文件记录 system/user messages、场景、上下文包、场景创作编排包、文风 profile、`generation_standards.style` 和来源清单，便于复盘模型输入。
+该文件记录 system/user messages、场景、上下文包、场景创作编排包、文风 profile、`generation_standards.style`、`generation_standards.word_budget`、`generation_standards.review_notes`、`generation_standards.hard_constraints` 和来源清单，便于复盘模型输入。
 
 `generation_standards.style` 是生成前置契约，不是审查后置清单。平台 agent 或 provider 在写正文候选前，应先把 Style Skill / style profile 转译为本场景的叙述距离、句法节奏、意象系统、心理呈现、对白密度和标点停顿策略；这些策略只用于指导写作，不应作为工作流痕迹输出到候选正文。
+
+`v0.66.0` 起，Prompt Pack 会额外注入：
+
+- `generation_standards.hard_constraints`：把 canon、场景编排、人物逻辑、文风、字数预算、AgentReview notes、标点和输出边界压缩成生成前执行顺序。
+- `generation_standards.review_notes`：读取上一轮 `reviews/agent/{scene_id}_scene_review.json` 或静态 review；若结论为 `pass_with_notes`，要求 writing agent 执行局部小修或记录豁免理由。
+- `generation_standards.word_budget`：读取 `plot/word_budget/word_budget.json`，避免长篇目标被压缩成短篇摘要。
+
+这些都是生成前硬约束，不是候选正文的一部分。正文不得输出硬约束摘要、review notes、prompt manifest 或自检过程。
 
 ### Provider
 

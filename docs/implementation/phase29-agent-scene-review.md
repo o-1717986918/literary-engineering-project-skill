@@ -30,3 +30,5 @@ python -m literary_engineering_workbench agent-review-scene work/demo --scene sc
 ## 边界
 
 Agent 场景审查与 `review-scene` 并行存在。它不能替代人工审批，也不能直接发布或写 canon。
+
+`v0.66.0` 起，`pass_with_notes` 必须进入小修闭环：审查 JSON 的 `revision_actions` / `warnings` / `style_notes` 应给出可由 writing agent 局部执行的修改目标。下一轮场景生成会把这些 notes 注入 prompt manifest 的 `generation_standards.review_notes`，并要求 writing agent 执行或说明豁免。

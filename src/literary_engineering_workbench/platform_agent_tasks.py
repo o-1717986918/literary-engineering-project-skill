@@ -82,8 +82,12 @@ def write_platform_scene_review_task(
 `conclusion` 只有 `pass` 或 `pass_with_notes` 才能进入 ready；新增事实仍保持候选。""",
             ),
             (
+                "处理 pass_with_notes 语义",
+                """如果 conclusion=`pass_with_notes`，必须满足三条：1）warnings 或 revision_actions 至少有一项具体、可执行、局部的小修；2）revision_actions 必须说明写作 agent 应改哪类文字、信息、语气、标点或结构；3）next_gate 使用 `minor_revision_required` 或明确说明需要人工接受 notes 后才可装配。不得用 pass_with_notes 掩盖需要重写的问题；需要重写时用 revise_required。""",
+            ),
+            (
                 "写入正式 Markdown 报告",
-                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。不要写入 `[AGENT_TASK: ...]`。""",
+                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
             ),
         ],
     )
@@ -124,19 +128,31 @@ def write_platform_scene_generation_task(
         tasks=[
             (
                 "读取创作材料",
-                f"""读取 scene.yaml、context packet、composition packet、prompt manifest、style prompt/profile、标点规范和相关 canon/character 文件。确认人物 BDI、hidden background_story、scene goal、output_state、用户约束、文风生成标准和标点边界。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+                f"""读取 scene.yaml、context packet、composition packet、prompt manifest、style prompt/profile、长篇字数预算、上一轮 AgentReview 小修约束、生成前最终硬约束摘要、标点规范和相关 canon/character 文件。确认人物 BDI、hidden background_story、scene goal、output_state、用户约束、文风生成标准、长篇字数预算标准、pass_with_notes 小修项和标点边界。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+            ),
+            (
+                "执行生成前最终硬约束摘要",
+                """先读取 prompt manifest 的 generation_standards.hard_constraints，把 canon、场景编排、人物逻辑、文风、字数预算、AgentReview notes、标点和输出边界压缩成内部执行顺序。该摘要必须指导正文生成，但不得作为分析、自检表或工作流痕迹输出。""",
             ),
             (
                 "执行生成前文风标准",
                 """在写候选正文前，先根据 prompt manifest 的 generation_standards.style 和已挂载 style prompt/profile，内部建立本场景的文风执行策略：叙述距离、句法/段落节奏、意象/感官系统、心理呈现、对白密度与语气、标点停顿节奏。该策略只用于指导写作，不得作为分析、自检表或工作流痕迹写入候选正文。""",
             ),
             (
+                "执行生成前字数预算标准",
+                """在写候选正文前，检查 prompt manifest 的 generation_standards.word_budget。若 word_budget_loaded=true，本场景必须承担明确剧情功能、信息变化、关系压力、后果链或伏笔推进，服务卷/章/场景预算；不得靠水化描写拉长，也不得把预算需要的剧情量压缩为摘要。若预算状态是 needs_expansion，先暂停批量生成并回到 longform-planning。""",
+            ),
+            (
+                "执行 AgentReview 小修约束",
+                """若 prompt manifest 中 generation_standards.review_notes_loaded=true，尤其上一轮结论为 pass_with_notes，必须执行 revision_actions / warnings / style_notes 中的局部小修。候选 manifest 记录 pass_with_notes_actions_applied=true；若任何小修无法执行，写入“需要人工确认”，不得静默忽略。""",
+            ),
+            (
                 "生成候选正文",
-                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选` 和 `## 状态变化候选`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。正文必须先执行文风生成标准，再通过标准标点和降低 AI 腔自检。""",
+                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选` 和 `## 状态变化候选`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。正文必须先执行文风生成标准和字数预算标准，再通过标准标点和降低 AI 腔自检。""",
             ),
             (
                 "生成候选 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true 和待审查事项。""",
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、pass_with_notes_actions_applied=true/false 和待审查事项。""",
             ),
             (
                 "后续门禁",

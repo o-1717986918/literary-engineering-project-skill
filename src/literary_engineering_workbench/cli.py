@@ -70,6 +70,7 @@ from .style_lab import (
     run_author_style_learning_platform_task,
 )
 from .workflow_runner import WORKFLOW_MODES, run_workflow
+from .word_budget import build_word_budget
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -456,6 +457,21 @@ def build_parser() -> argparse.ArgumentParser:
     chapter.add_argument("--agent-review", action="store_true", help="Write platform-agent review tasks and require completed platform review JSON for ready scenes.")
     chapter.add_argument("--out", default="", help="Output chapter markdown path.")
     chapter.add_argument("--json-out", default="", help="Output chapter JSON path.")
+
+    for command, help_text in (
+        ("word-budget", "Build a long-form word budget and platform-agent expansion task."),
+        ("longform-budget", "Alias for word-budget."),
+    ):
+        word_budget = sub.add_parser(command, help=help_text)
+        word_budget.add_argument("project", help="Work project directory.")
+        word_budget.add_argument("--target-words", type=int, default=0, help="Target total character count. Defaults to project.yaml target_length.")
+        word_budget.add_argument("--volumes", type=int, default=0, help="Volume count. Defaults to project.yaml volumes or an inferred value.")
+        word_budget.add_argument("--genre", default="", help="Genre preset, such as general, mystery, speculative, urban, or literary.")
+        word_budget.add_argument("--time-span", default="", help="Story time-span note for platform-agent planning.")
+        word_budget.add_argument("--outline", default="", help="Existing outline path. Defaults to plot/outline.md.")
+        word_budget.add_argument("--out", default="", help="Output markdown path. Defaults to plot/word_budget/word_budget.md.")
+        word_budget.add_argument("--json-out", default="", help="Output JSON path. Defaults to plot/word_budget/word_budget.json.")
+        word_budget.add_argument("--agent-tasks-out", default="", help="Output agent task sidecar. Defaults to plot/word_budget/word_budget.agent_tasks.md.")
 
     longform = sub.add_parser("longform-audit", help="Audit long-form continuity, readiness, and graph structure.")
     longform.add_argument("project", help="Work project directory.")
@@ -1427,6 +1443,33 @@ def main(argv=None) -> int:
         print(f"scenes: {result.scene_count}")
         print(f"ready: {result.ready_count}")
         print(f"blocked: {result.blocked_count}")
+        return 0
+
+    if args.command in {"word-budget", "longform-budget"}:
+        try:
+            result = build_word_budget(
+                Path(args.project),
+                target_words=args.target_words,
+                volumes=args.volumes,
+                genre=args.genre,
+                time_span=args.time_span,
+                outline=Path(args.outline) if args.outline else None,
+                output=Path(args.out) if args.out else None,
+                json_output=Path(args.json_out) if args.json_out else None,
+                agent_tasks_output=Path(args.agent_tasks_out) if args.agent_tasks_out else None,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            parser.error(str(exc))
+        print(f"word_budget: {result.markdown_path}")
+        print(f"json: {result.json_path}")
+        print(f"agent_tasks: {result.agent_tasks_path}")
+        print(f"target_words: {result.target_words}")
+        print(f"volumes: {result.volume_count}")
+        print(f"chapters: {result.chapter_count}")
+        print(f"scenes: {result.scene_count}")
+        print(f"status: {result.status}")
+        print(f"issues: {result.issue_count}")
+        print("receiver: platform-agent")
         return 0
 
     if args.command == "longform-audit":

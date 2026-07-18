@@ -19,7 +19,7 @@ $env:PYTHONPATH = "<skill-root>\\src"       # development copy
 python -m literary_engineering_workbench protocol <route>
 ```
 
-Use route keys such as `project-director`, `work-project-initialization`, `style-engineering`, `character-and-world-assets`, `scene-development`, `review-and-audit`, `export-and-release`, and `optional-cli`.
+Use route keys such as `project-director`, `work-project-initialization`, `style-engineering`, `source-ingest`, `longform-planning`, `character-and-world-assets`, `scene-development`, `review-and-audit`, `export-and-release`, and `optional-cli`.
 
 The task is not complete until the route completion gates in the runbook are accounted for.
 
@@ -29,7 +29,7 @@ Any command that writes creative material, drafts JSON, repairs schema output, s
 
 Before running such a command, the platform agent should choose the task, prompt/context packet, constraints, and approval boundary. After running it, the platform agent must read the task sidecar, write or inspect the expected artifacts, validate schema where relevant, check canon/character/style constraints, and decide whether to revise, keep as candidate, ask the user, or promote after approval.
 
-This rule covers `source-ingest`, `extract-existing-work`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, and `run-workflow`.
+This rule covers `source-ingest`, `extract-existing-work`, `word-budget`, `longform-budget`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `state-evolve`, and `run-workflow`.
 
 `agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, and `director-chat` are legacy/debug paths. Use them only when the user explicitly asks to test local provider behavior.
 
@@ -135,6 +135,40 @@ The platform agent must then read `extract_project_files.agent_tasks.md` and wri
 - `reviews/source_ingest/{work_id}_extraction_review.md`
 
 Every extracted claim should include evidence references, confidence, unknowns, and contradiction notes. Do not copy long source passages into project files. Do not promote extracted settings into formal canon, character files, plot files, or mounted style without review and user approval.
+
+## Plan Longform Word Budget
+
+Use this before generating or expanding a work with a large target length. A 50 万字 / 5 卷 project needs enough scene inventory; it cannot be solved by asking a small outline to produce longer prose.
+
+```powershell
+python -m literary_engineering_workbench protocol longform-planning
+python -m literary_engineering_workbench word-budget "<work-dir>" `
+  --target-words 500000 `
+  --volumes 5 `
+  --genre mystery `
+  --time-span "三年"
+```
+
+`word-budget` writes:
+
+- `plot/word_budget/word_budget.md`
+- `plot/word_budget/word_budget.json`
+- `plot/word_budget/word_budget.agent_tasks.md`
+
+The platform agent must read the task sidecar and write:
+
+- `plot/candidates/outlines/word_budget_expansion.md`
+- `reviews/word_budget/word_budget_review.md`
+
+The budgeted outline candidate should map word count to narrative inventory: volumes, chapters, scenes, relationship turns, world-pressure events, consequences, setup/payoff, and pacing relief. Do not overwrite `plot/outline.md` until the candidate passes review and the user approves it.
+
+Then audit:
+
+```powershell
+python -m literary_engineering_workbench longform-audit "<work-dir>" --target-length 500000
+```
+
+If the budget status is `needs_expansion`, resolve the outline and scene inventory before bulk scene generation. Later `generate-scene` prompt manifests automatically include the word-budget standard when `plot/word_budget/word_budget.json` exists.
 
 ## Build A Demo Project
 
@@ -342,7 +376,7 @@ When character `background_story` is present, scene and branch work should conve
 
 `generate-scene` writes a prompt manifest and `drafts/candidates/{scene_id}-platform-agent.agent_tasks.md`. It does not call a local provider, does not overwrite `drafts/scenes/`, and does not write canon. If a composition packet exists, `generate-scene` requires `selection_source: selection`; unselected or recommended-only composition packets are blocked unless `--allow-unselected-composition` is explicitly passed for internal preview. The platform agent reads the prompt manifest, writes the expected candidate Markdown and manifest JSON, then reviews the candidate before promotion.
 
-The prompt manifest includes `generation_standards.style`. This is a generation-time contract, not merely a review checklist: before drafting, the platform agent should translate the mounted Style Skill / style profile into concrete scene tactics for narrative distance, syntax/paragraph rhythm, imagery and sensory routing, psychological presentation, dialogue density, and punctuation cadence. Do not output that plan in the candidate; use it to reduce style-review failures before they happen.
+The prompt manifest includes `generation_standards.style`, `generation_standards.word_budget`, `generation_standards.review_notes`, and `generation_standards.hard_constraints`. These are generation-time contracts, not merely review checklists: before drafting, the platform agent should translate the mounted Style Skill / style profile into concrete scene tactics, apply any `pass_with_notes` revision actions, honor longform budget load, and follow the hard-constraint priority order. Do not output that plan in the candidate; use it to reduce review failures before they happen.
 
 Generated candidates and promoted drafts should pass the standard Chinese punctuation gate. `review-scene` reports punctuation issues under `Punctuation Standard Test`; fix those before chapter readiness or export unless the user explicitly approves a recorded exception.
 
@@ -355,7 +389,7 @@ The prompt manifest records system/user messages and source files for the platfo
 Review conclusions:
 
 - `pass`: ready for chapter workspace.
-- `pass_with_notes`: usable after human acceptance.
+- `pass_with_notes`: usable only after local notes are applied by the writing agent, or after the platform agent/user records a specific acceptance/waiver reason.
 - `revise_required`: not exportable.
 - `reject`: not exportable.
 
@@ -419,7 +453,9 @@ Outputs:
 
 By default only `ready` scenes are exported. Use `--include-blocked` only for internal preview.
 
-Final exported prose and screenplay files are cleaned delivery artifacts. They should not expose scene workbench sections, writeback candidates, canon notes, prompt manifests, review status, workflow IDs, or “导出规则” text. Audit and provenance remain in `export_manifest.json`, release manifests, review files, and workflow logs.
+Final exported prose and screenplay files are cleaned delivery artifacts. They should not expose scene workbench sections, scene IDs such as `scene_0001`, chapter IDs such as `chapter_0001`, scene file paths, context packet paths, writeback candidates, canon notes, prompt manifests, review status, workflow IDs, or “导出规则” text. Audit and provenance remain in `export_manifest.json`, release manifests, review files, and workflow logs.
+
+`draft_chars` in chapter, longform, and export manifests means cleaned deliverable body characters with whitespace removed. Do not treat raw draft file length as prose length.
 
 ## Publish Chapter
 

@@ -64,3 +64,6 @@
 - `phase62-style-lab-frontend-loop.md`：文风学习前端闭环
 - `phase63-style-lab-regression-package.md`：回归测试、打包与版本
 - `phase64-existing-work-ingest.md`：已有作品反推与源文本导入
+- `phase65-longform-word-budget.md`：长篇字数预算与剧情库存门禁
+- `phase66-route-receipt-review-notes-generation-brief.md`：流程阅读回执、Review Notes 小修闭环与生成硬约束摘要
+- `phase67-delivery-body-stats-roleplay-gate.md`：最终正文口径、字数统计与 RP 门禁

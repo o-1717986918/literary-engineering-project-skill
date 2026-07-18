@@ -43,6 +43,7 @@ LoadProjectState
 | --- | --- |
 | LoadProjectState | file read / `init` |
 | RetrieveMemory | `index`, `search` |
+| PlanWordBudget | `word-budget`, `longform-budget` |
 | BuildContextPacket | `context` |
 | CharacterSimulation | `simulate-scene` |
 | DraftWorkspace | `draft-scene` |

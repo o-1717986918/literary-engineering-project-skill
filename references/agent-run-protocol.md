@@ -10,20 +10,21 @@ Use this protocol whenever a tool-layer agent runs a literary engineering task t
    - Style library: contains `authors/`, `works/`, `profiles/`, or `style_skills/`.
 2. Select exactly one primary route from `agentread.yaml`. Add a secondary route only when the task truly crosses boundaries, such as style learning plus scene drafting.
 3. Read the route references before changing artifacts. Do not read the whole repository by default.
-4. Inspect current project state before planning: `project.yaml`, relevant canon/character/plot/style files, latest reviews, workflow runs, and approval records.
-5. State a short plan to yourself or in the working trace: objective, route, artifacts to inspect, artifacts to create, review gates, and user approval boundary.
-6. Execute deterministic preparation with CLI only when useful: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars.
-7. Perform every non-deterministic creative or judgment step as the supervising platform agent. This includes prose, JSON drafting, schema repair, roleplay, branch choice, review findings, style prompts, and promotion recommendations.
-8. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, then inspect the produced artifact. Do not report the task file as completed work by itself.
-9. Validate produced artifacts before acceptance:
+4. Record a reading receipt in the working report or produced task artifact: selected route, references read, project-state files inspected, missing context, and whether any `.agent_tasks.md` remains pending.
+5. Inspect current project state before planning: `project.yaml`, relevant canon/character/plot/style files, latest reviews, workflow runs, and approval records.
+6. State a short plan to yourself or in the working trace: objective, route, artifacts to inspect, artifacts to create, review gates, and user approval boundary.
+7. Execute deterministic preparation with CLI only when useful: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars.
+8. Perform every non-deterministic creative or judgment step as the supervising platform agent. This includes prose, JSON drafting, schema repair, roleplay, branch choice, review findings, style prompts, and promotion recommendations.
+9. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, then inspect the produced artifact. Do not report the task file as completed work by itself.
+10. Validate produced artifacts before acceptance:
    - JSON: schema validation or explicit schema review.
    - Canon and continuity: canon lint or platform-agent canon review.
    - Character logic: BDI, hidden `background_story`, relationship pressure, and OOC risk.
    - Style: mounted Style Skill and style prompt priority.
    - Chinese prose: `references/punctuation-standard.md`.
    - Release/export: readiness, approval, and target format checks.
-10. Decide the artifact status: revise, keep as candidate, ask user, approve internally for experiment, or promote after explicit user approval.
-11. Finish with an audit summary: files changed, candidate-only files, promoted files, checks run, blocked items, and next high-level creative choices.
+11. Decide the artifact status: revise, keep as candidate, ask user, approve internally for experiment, or promote after explicit user approval.
+12. Finish with an audit summary: files changed, candidate-only files, promoted files, checks run, blocked items, reading receipt, and next high-level creative choices.
 
 ## Platform Agent Responsibilities
 
@@ -40,6 +41,7 @@ The following must never be delegated to local dry-run, HTTP helper, or CLI outp
 - New prose, revision, synopsis, outline, scene, or script text.
 - Character profiles, hidden background stories, relationship graphs, world rules, locations, and organizations.
 - Existing-work reverse extraction into project brief, character, world, outline, timeline, foreshadowing, or style candidates.
+- Longform word-budget interpretation, budgeted outline expansion, narrative-inventory sufficiency, and target-length tradeoffs.
 - Style prompts, style effectiveness judgments, back-translation judgments, and mount decisions.
 - JSON creation or repair when the JSON encodes creative judgment.
 - Roleplay, branch simulation, consequence simulation, character-state evolution, and scene composition decisions.
@@ -55,6 +57,7 @@ Before final response, check:
 - Required references read for that route.
 - Project state inspected.
 - All `.agent_tasks.md` outputs handled or explicitly listed as pending.
+- Reading receipt recorded or summarized.
 - Generated JSON/prose/reviews are marked candidate, reviewed, approved, or pending.
 - Canon, character, style, punctuation, and release/export gates applied when relevant.
 - User approval requirement is recorded for promotions or final release.

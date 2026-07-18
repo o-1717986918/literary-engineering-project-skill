@@ -63,6 +63,12 @@ creative_brief:
   themes: []
   forbidden_elements: []
 
+longform_budget:
+  target_words: {options.target_length}
+  volumes: 0
+  status: pending_word_budget
+  note: "正式长篇生成前运行 word-budget / longform-budget，并由平台 Agent 处理预算化大纲任务。"
+
 style:
   mode: {options.style_mode}
   target_profiles: []
@@ -118,6 +124,7 @@ def _agents_md(title: str) -> str:
 - 角色推演必须基于人物 BDI。
 - 每个角色单独维护在 `characters/{{character_id}}.yaml`；`importance: major` 的主要角色常驻上下文，次要角色只在场景 `participants`、`referenced_characters` 或 `character_refs` 命中时完整载入。
 - 可挂载文风 `prompt.md` 必须是 500-1500 字的高质量 LLM 提示词，并包含身份/边界、优先级、核心机制、叙述距离、句法节奏、标点、意象感官、心理行为、对白语气、禁止倾向和自检。
+- 中长篇或百万字级目标必须先运行 `word-budget` / `longform-budget`，把目标字数拆成卷、章、场景和叙事负载；预算化大纲候选通过平台 Agent 审查前，不得批量生成正文。
 - 正文生成和审查要降低 AI 腔：限制“不是……而是……”等机械对照，避免抽象总结、解释性心理标签、模板化转折、对称排比和金句化结尾。
 - 从已有文本反推设定时，必须先写入 `sources/imports/` 和候选区，由平台 Agent 提取并审查，不得直接写入正式 canon、characters 或 plot。
 - 审查未通过的草稿不能进入正稿。
@@ -167,6 +174,13 @@ task_routes:
       - plot/
       - style/
       - reviews/source_ingest/
+  longform_planning:
+    read:
+      - project.yaml
+      - plot/outline.md
+      - plot/word_budget/
+      - scenes/
+      - reviews/word_budget/
 """
 
 
@@ -206,8 +220,10 @@ def init_work_project(options: InitOptions) -> InitResult:
     _copy_template("style/style-profile.md", root / "style" / "style-profile.md", files)
     _copy_template("review-report.md", root / "reviews" / "review-report-template.md", files)
     _write(root / "reviews" / "longform" / "README.md", "# longform\n\n长篇连续性审计报告放在这里。\n", files)
+    _write(root / "reviews" / "word_budget" / "README.md", "# word_budget\n\n长篇字数预算、剧情库存和预算化大纲审查报告放在这里。\n", files)
 
     _write(root / "plot" / "outline.md", f"# {options.title} 大纲\n\n## Premise\n\n{options.premise or '尚未填写。'}\n", files)
+    _write(root / "plot" / "word_budget" / "README.md", "# word_budget\n\n运行 `word-budget` / `longform-budget` 后，预算报告、JSON 和平台 Agent 任务侧车放在这里。\n", files)
     _write(root / "plot" / "candidates" / "outlines" / "README.md", "# outline candidates\n\nAgent 生成的大纲、章节计划和场景列表候选放在这里。\n", files)
     _write(root / "plot" / "candidates" / "relationships" / "README.md", "# relationship candidates\n\nAgent 生成的人物关系网候选放在这里。\n", files)
     _write(root / "plot" / "candidates" / "extracted" / "README.md", "# extracted plot candidates\n\n从已有作品反推的大纲、时间线、伏笔和未解问题候选放在这里。\n", files)

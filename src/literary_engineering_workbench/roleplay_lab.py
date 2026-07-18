@@ -218,6 +218,38 @@ def _agent_task_if(enabled: bool, instruction: str) -> str:
     return render_agent_task_block(instruction) + "\n\n"
 
 
+def _agent_mode_execution_gate(
+    enabled: bool,
+    *,
+    root: Path,
+    scene_rel: str,
+    context_rel: str,
+    cards: list[CharacterCard],
+) -> str:
+    if not enabled:
+        return ""
+    character_files = "\n".join(f"- `{card.file.relative_to(root).as_posix()}`" for card in cards) or "- 未发现正式人物档案。"
+    return f"""## 平台 Agent 执行门禁
+
+{render_agent_task_block(f"""在补全任何 RP 推演内容前，先完成读取回执：
+1. 读取场景文件 `{scene_rel}`。
+2. 读取上下文包 `{context_rel}`。
+3. 读取本轮参与角色或所有正式人物档案：
+{character_files}
+4. 读取存在的 canon/world_rules.yaml、canon/forbidden_changes.yaml、plot/outline.md、plot/foreshadowing.csv。
+5. 用下方“读取回执”列出已读文件、缺失文件、不可突破硬约束和写回边界。
+6. 若关键资料缺失，仍可提出候选推演，但必须标注“依据不足”，不得把候选当成 canon。""")}
+
+### 读取回执
+
+- 已读取：
+- 缺失文件：
+- 不可突破硬约束：
+- 写回边界：本文件只生成推演与候选，不直接写入 canon、characters、scenes 或 drafts。
+
+"""
+
+
 def _agent_mode_usage_rule(enabled: bool) -> str:
     if not enabled:
         return ""
@@ -309,13 +341,15 @@ def build_roleplay_simulation(
     character_sections = "\n\n".join(_character_prompt(card, root, agent_mode=agent_mode) for card in cards)
     if not character_sections:
         character_sections = "未发现正式人物档案。请先在 `characters/` 下创建非 `_template.yaml` 的人物文件。"
+    scene_rel = scene_path.relative_to(root).as_posix()
+    context_rel = context_path.relative_to(root).as_posix()
 
     content = f"""# 角色推演实验室：{sid}
 
 生成时间：{datetime.now(timezone.utc).isoformat()}
 
-场景文件：`{scene_path.relative_to(root).as_posix()}`
-上下文包：`{context_path.relative_to(root).as_posix()}`
+场景文件：`{scene_rel}`
+上下文包：`{context_rel}`
 
 ## 使用规则
 
@@ -327,6 +361,7 @@ def build_roleplay_simulation(
 - 合并任何分支前必须人工确认。
 {_agent_mode_usage_rule(agent_mode)}
 
+{_agent_mode_execution_gate(agent_mode, root=root, scene_rel=scene_rel, context_rel=context_rel, cards=cards)}
 ## 场景摘要
 
 ```yaml

@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Iterable
 
 from .agent_schema import validate_payload
+from .draft_text import count_delivery_chars, final_body_from_draft_text
 from .platform_agent_tasks import write_platform_scene_review_task
 from .review_ci import review_scene_draft
-from .scene_draft import build_scene_draft, extract_draft_body
+from .scene_draft import build_scene_draft
 
 
 PASSING_REVIEW_CONCLUSIONS = {"pass", "pass_with_notes"}
@@ -167,7 +168,7 @@ def _build_scene_record(
 
     draft_text = _read(draft_path)
     review_text = _read(review_path)
-    body = extract_draft_body(draft_text) if draft_text else ""
+    body = final_body_from_draft_text(draft_text) if draft_text else ""
     conclusion = _review_conclusion(review_text)
     agent_conclusion, agent_schema_status, agent_validation_path = _agent_review_state(root, agent_review_json_path)
     status = _scene_status(
@@ -197,7 +198,7 @@ def _build_scene_record(
         agent_review_validation=agent_validation_path,
         agent_review_conclusion=agent_conclusion,
         agent_review_schema_status=agent_schema_status,
-        draft_chars=len(body),
+        draft_chars=count_delivery_chars(body),
         status=status,
         writeback_candidates=tuple(_writeback_candidates(draft_text)),
     )
@@ -312,7 +313,7 @@ def _draft_excerpt_lines(root: Path, record: SceneChapterRecord) -> list[str]:
         lines.append("")
         return lines
     draft_path = root / record.draft_path if record.draft_path else Path()
-    body = extract_draft_body(_read(draft_path)) if draft_path.exists() else ""
+    body = final_body_from_draft_text(_read(draft_path)) if draft_path.exists() else ""
     if not body:
         lines.append("- 审查通过记录存在，但未读取到正文。")
     else:

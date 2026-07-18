@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Any
 from .anti_ai_style import ANTI_AI_STYLE_PROMPT
 from .flow_gates import ensure_composition_ready_for_generation
 from .punctuation_standard import render_punctuation_standard_for_prompt
+from .word_budget import render_word_budget_generation_standard
 
 
 DEFAULT_CONTEXT_LIMIT = 18000
@@ -74,7 +76,12 @@ class PromptPack:
     context_path: Path
     composition_path: Path | None
     style_profile_path: Path | None
+    word_budget_path: Path | None
+    review_notes_path: Path | None
     style_generation_standard: str
+    word_budget_generation_standard: str
+    review_notes_standard: str
+    generation_constraint_brief: str
     system_prompt: str
     user_prompt: str
     sources: list[dict[str, Any]]
@@ -103,6 +110,8 @@ def build_scene_prompt_pack(
         allow_unselected_composition=allow_unselected_composition,
     )
     style_profile_path = _find_style_asset(root)
+    word_budget_path = _find_word_budget(root)
+    review_notes_path = _find_scene_review_notes(root, scene_id)
 
     values = {
         "scene_id": scene_id,
@@ -111,6 +120,9 @@ def build_scene_prompt_pack(
         "composition_text": _limit(_read(composition_path), DEFAULT_COMPOSITION_LIMIT) if composition_path else "未找到场景创作编排包。若需要更稳的正文候选，请先运行 compose-scene。",
         "style_profile": _render_style_constraint(root, style_profile_path),
         "style_generation_standard": _render_style_generation_standard(root, style_profile_path),
+        "word_budget_generation_standard": render_word_budget_generation_standard(root),
+        "review_notes_standard": _render_review_notes_standard(root, scene_id, review_notes_path),
+        "generation_constraint_brief": _render_generation_constraint_brief(root, style_profile_path, word_budget_path, review_notes_path),
         "punctuation_standard": render_punctuation_standard_for_prompt(),
         "anti_ai_style": ANTI_AI_STYLE_PROMPT,
         "output_contract": OUTPUT_CONTRACT.strip(),
@@ -120,14 +132,22 @@ def build_scene_prompt_pack(
     user_template = _load_template(root, "scene_generation_user.md")
     system_prompt = _render_template(system_template, values)
     user_prompt = _ensure_style_generation_standard(_render_template(user_template, values), values["style_generation_standard"])
-    sources = _sources(root, scene_path, context_path, composition_path, style_profile_path)
+    user_prompt = _ensure_word_budget_generation_standard(user_prompt, values["word_budget_generation_standard"])
+    user_prompt = _ensure_review_notes_standard(user_prompt, values["review_notes_standard"])
+    user_prompt = _ensure_generation_constraint_brief(user_prompt, values["generation_constraint_brief"])
+    sources = _sources(root, scene_path, context_path, composition_path, style_profile_path, word_budget_path, review_notes_path)
     return PromptPack(
         project_root=root,
         scene_path=scene_path,
         context_path=context_path,
         composition_path=composition_path,
         style_profile_path=style_profile_path,
+        word_budget_path=word_budget_path,
+        review_notes_path=review_notes_path,
         style_generation_standard=values["style_generation_standard"],
+        word_budget_generation_standard=values["word_budget_generation_standard"],
+        review_notes_standard=values["review_notes_standard"],
+        generation_constraint_brief=values["generation_constraint_brief"],
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         sources=sources,
@@ -151,6 +171,13 @@ def write_prompt_manifest(pack: PromptPack, output: Path, provider: str, model: 
             "style": pack.style_generation_standard,
             "style_profile_loaded": pack.style_profile_path is not None,
             "style_profile": _rel(pack.style_profile_path, pack.project_root) if pack.style_profile_path else "",
+            "word_budget": pack.word_budget_generation_standard,
+            "word_budget_loaded": pack.word_budget_path is not None,
+            "word_budget_path": _rel(pack.word_budget_path, pack.project_root) if pack.word_budget_path else "",
+            "review_notes": pack.review_notes_standard,
+            "review_notes_loaded": pack.review_notes_path is not None,
+            "review_notes_path": _rel(pack.review_notes_path, pack.project_root) if pack.review_notes_path else "",
+            "hard_constraints": pack.generation_constraint_brief,
         },
         "sources": pack.sources,
         "messages": [
@@ -186,18 +213,42 @@ def _ensure_style_generation_standard(user_prompt: str, standard: str) -> str:
     return user_prompt.rstrip() + "\n\n## 文风生成标准\n\n" + standard.strip() + "\n"
 
 
+def _ensure_word_budget_generation_standard(user_prompt: str, standard: str) -> str:
+    if "## 长篇字数预算标准" in user_prompt or "# 长篇字数预算标准" in user_prompt:
+        return user_prompt
+    return user_prompt.rstrip() + "\n\n## 长篇字数预算标准\n\n" + standard.strip() + "\n"
+
+
+def _ensure_review_notes_standard(user_prompt: str, standard: str) -> str:
+    if "## AgentReview 小修约束" in user_prompt or "# AgentReview 小修约束" in user_prompt:
+        return user_prompt
+    return user_prompt.rstrip() + "\n\n## AgentReview 小修约束\n\n" + standard.strip() + "\n"
+
+
+def _ensure_generation_constraint_brief(user_prompt: str, brief: str) -> str:
+    if "## 生成前最终硬约束摘要" in user_prompt or "# 生成前最终硬约束摘要" in user_prompt:
+        return user_prompt
+    return user_prompt.rstrip() + "\n\n## 生成前最终硬约束摘要\n\n" + brief.strip() + "\n"
+
+
 def _sources(
     root: Path,
     scene_path: Path,
     context_path: Path,
     composition_path: Path | None,
     style_profile_path: Path | None,
+    word_budget_path: Path | None,
+    review_notes_path: Path | None,
 ) -> list[dict[str, Any]]:
     paths = [scene_path, context_path]
     if composition_path:
         paths.append(composition_path)
     if style_profile_path:
         paths.append(style_profile_path)
+    if word_budget_path:
+        paths.append(word_budget_path)
+    if review_notes_path:
+        paths.append(review_notes_path)
     punctuation_ref = _bundle_root() / "references" / "punctuation-standard.md"
     if punctuation_ref.exists():
         paths.append(punctuation_ref)
@@ -221,6 +272,22 @@ def _find_style_asset(root: Path) -> Path | None:
     candidates.append(style_root / "style-profile.md")
     if style_root.exists():
         candidates.extend(sorted(style_root.glob("*/style-profile.md"), key=lambda path: path.stat().st_mtime, reverse=True))
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
+
+
+def _find_word_budget(root: Path) -> Path | None:
+    path = root / "plot" / "word_budget" / "word_budget.json"
+    return path if path.exists() else None
+
+
+def _find_scene_review_notes(root: Path, scene_id: str) -> Path | None:
+    candidates = [
+        root / "reviews" / "agent" / f"{scene_id}_scene_review.json",
+        root / "reviews" / f"{scene_id}-review.md",
+    ]
     for path in candidates:
         if path.exists():
             return path
@@ -280,6 +347,142 @@ def _render_style_generation_standard(root: Path, style_path: Path | None) -> st
         + _rel(style_path, root)
         + "`。生成前必须先把该文风来源转译为本场景的叙述距离、句法节奏、意象系统、心理呈现、对白策略和标点节奏。"
     )
+
+
+def _render_review_notes_standard(root: Path, scene_id: str, review_path: Path | None) -> str:
+    if review_path is None:
+        return """# AgentReview 小修约束
+
+当前未发现上一轮平台 Agent 场景审查。若这是初稿生成，按 canon、人物、文风、预算和输出契约创作；若这是修订稿，应先补齐或读取上一轮 review。"""
+    if review_path.suffix.lower() == ".json":
+        payload = _read_json(review_path)
+        conclusion = str(payload.get("conclusion") or "").strip()
+        warnings = _json_list(payload.get("warnings"))
+        revision_actions = _json_list(payload.get("revision_actions"))
+        style_notes = _json_list(payload.get("style_notes"))
+        if conclusion == "pass_with_notes":
+            return _review_notes_block(
+                root,
+                review_path,
+                "上一轮平台 Agent 场景审查结论为 `pass_with_notes`。写作 agent 不得把它当成完全通过；本轮必须执行轻微修订，或在“需要人工确认”中逐条说明无法执行的理由。",
+                revision_actions,
+                warnings,
+                style_notes,
+            )
+        if conclusion in {"revise_required", "reject"}:
+            return _review_notes_block(
+                root,
+                review_path,
+                f"上一轮平台 Agent 场景审查结论为 `{conclusion}`。这不是小修；不得直接润色通过，必须围绕 blocking issues / revision_actions 重写或退回审查。",
+                revision_actions,
+                warnings,
+                style_notes,
+            )
+        if conclusion == "pass":
+            return f"""# AgentReview 小修约束
+
+已加载 `{_rel(review_path, root)}`。上一轮平台 Agent 审查结论为 `pass`，当前没有强制小修项；仍须遵守 canon、人物、文风、预算、标点和输出契约。"""
+        return f"""# AgentReview 小修约束
+
+已加载 `{_rel(review_path, root)}`，但未识别到有效 conclusion。写作前先检查该 review 是否完整；不要把缺失结论当成通过。"""
+    text = _read(review_path)
+    conclusion_match = re.search(r"(?m)^-\s*结论：\s*`?([^`\s]+)`?\s*$", text)
+    conclusion = conclusion_match.group(1).strip() if conclusion_match else ""
+    if conclusion == "pass_with_notes":
+        return f"""# AgentReview 小修约束
+
+已加载 `{_rel(review_path, root)}`。静态审查结论为 `pass_with_notes`：写作 agent 必须处理报告中的 low 级问题或在“需要人工确认”中说明豁免，不得直接视为完全通过。"""
+    return f"""# AgentReview 小修约束
+
+已加载 `{_rel(review_path, root)}`。当前静态审查结论为 `{conclusion or "unknown"}`；如果不是 `pass`，写作前先读取问题摘要并处理。"""
+
+
+def _review_notes_block(
+    root: Path,
+    review_path: Path,
+    leading: str,
+    revision_actions: list[str],
+    warnings: list[str],
+    style_notes: list[str],
+) -> str:
+    return "\n".join(
+        [
+            "# AgentReview 小修约束",
+            "",
+            f"已加载 `{_rel(review_path, root)}`。",
+            "",
+            leading,
+            "",
+            "执行规则：",
+            "",
+            "- 优先处理 revision_actions，其次处理 warnings，再处理 style_notes。",
+            "- 小修应尽量局部：改动作、信息呈现、标点节奏、人物语气或段落收束，不随意新增 canon。",
+            "- 候选正文的 manifest 应记录 `pass_with_notes_actions_applied=true`；若没有可执行项，记录 `pass_with_notes_noop_reason`。",
+            "- 若任何修订会改变 canon、人物重大转折或分支选择，把它列入“需要人工确认”，不要偷偷写实。",
+            "",
+            "revision_actions:",
+            _bullet_list(revision_actions),
+            "",
+            "warnings:",
+            _bullet_list(warnings),
+            "",
+            "style_notes:",
+            _bullet_list(style_notes),
+        ]
+    )
+
+
+def _render_generation_constraint_brief(
+    root: Path,
+    style_path: Path | None,
+    word_budget_path: Path | None,
+    review_notes_path: Path | None,
+) -> str:
+    return f"""# 生成前最终硬约束摘要
+
+写作 agent 必须按以下顺序执行，不能只把它们当成审查清单：
+
+1. Canon / 用户明确约束优先：不得改动已确认事实、适用范围、时间线、角色身份、规则边界和用户给定方向。
+2. 场景目标与编排包优先：若存在 composition，先执行 selected branch、beats、subtext、dialogue intents 和 prose seed；偏离必须写入“需要人工确认”。
+3. 人物逻辑优先：行动来自 BDI、当前信息差、关系压力、道德边界和 hidden background_story 的隐性影响，不为方便剧情强行转向。
+4. 文风优先级：{_loaded_label(style_path, root, "已加载", "未加载")}。文风改变表达机制，不覆盖事实。
+5. 长篇预算：{_loaded_label(word_budget_path, root, "已加载", "未加载")}。场景必须承担明确叙事功能，不用空泛描写灌字数，也不把剧情量压缩成摘要。
+6. AgentReview 小修：{_loaded_label(review_notes_path, root, "已加载", "未加载")}。若上一轮为 pass_with_notes，必须执行小修或逐条说明豁免。
+7. 标点与 AI 腔：遵守标准中文标点，减少机械“不是……而是……”、抽象总结、解释性心理标签、模板转折、对称排比和金句化收束。
+8. 输出边界：只输出候选正文和状态变化候选；不输出工作流、分析、自检表、AGENT_TASK、prompt manifest、canon 解释或审查过程。
+"""
+
+
+def _loaded_label(path: Path | None, root: Path, loaded: str, missing: str) -> str:
+    return f"{loaded} `{_rel(path, root)}`" if path else missing
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _json_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items = []
+    for item in value:
+        if isinstance(item, str):
+            text = item.strip()
+        elif isinstance(item, dict):
+            text = "; ".join(f"{key}: {val}" for key, val in item.items() if val not in ("", None))
+        else:
+            text = str(item).strip()
+        if text:
+            items.append(text)
+    return items
+
+
+def _bullet_list(items: list[str]) -> str:
+    return "\n".join(f"- {item}" for item in items) if items else "- 无。"
 
 
 def _bundle_root() -> Path:

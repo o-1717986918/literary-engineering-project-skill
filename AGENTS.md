@@ -22,11 +22,12 @@ Every task must run through the protocol loop before it is considered complete:
 1. Classify the workspace as skill root, work project, or style library.
 2. Select the primary `agentread.yaml` route.
 3. Read `references/agent-run-protocol.md`; if any CLI command will be used, also read `references/cli-run-protocol.md` or run `python -m literary_engineering_workbench protocol <route>`.
-4. Inspect current project state before generating, reviewing, promoting, or exporting.
-5. Treat CLI output as preparation or evidence. The supervising platform agent handles creative judgment, JSON drafting/repair, review findings, branch decisions, and promotion recommendations.
-6. Process any `.agent_tasks.md` sidecar by reading it and writing the expected artifact paths.
-7. Apply route completion gates before final response.
-8. Report changed files, candidate-only outputs, promoted outputs, checks run, and approvals still needed.
+4. Record a reading receipt: selected route, references read, project files inspected, missing context, and pending sidecars.
+5. Inspect current project state before generating, reviewing, promoting, or exporting.
+6. Treat CLI output as preparation or evidence. The supervising platform agent handles creative judgment, JSON drafting/repair, review findings, branch decisions, and promotion recommendations.
+7. Process any `.agent_tasks.md` sidecar by reading it and writing the expected artifact paths.
+8. Apply route completion gates before final response.
+9. Report changed files, candidate-only outputs, promoted outputs, checks run, reading receipt, and approvals still needed.
 
 ## Operating Model
 
@@ -37,7 +38,9 @@ Every task must run through the protocol loop before it is considered complete:
 - Prefer platform-native reasoning, file editing, review, and subagents for creative work.
 - Every creative generation, LLM-authored JSON/schema draft, simulation, review, branch choice, style prompt, candidate promotion recommendation, and free-form project decision must stay under the supervision of the tool-layer agent that loaded this skill.
 - Existing-work reverse extraction is also platform-agent work: the CLI may import and chunk source text, but the platform agent extracts characters, background stories, world rules, outlines, timelines, foreshadowing, and style notes into candidate files.
+- Longform word-budget planning is also platform-agent work: the CLI may calculate target distribution and inventory gaps, but the platform agent expands the outline, judges pacing/load, and decides readiness.
 - Formal non-deterministic commands write platform-agent task sidecars plus expected output paths. The platform agent reads those tasks, performs the creative/review judgment, writes the expected artifacts, applies schema/canon/style checks, and decides the next step.
+- `simulate-scene --agent` is not complete until the platform agent has filled the execution gate reading receipt and used scene/context/character/canon evidence for roleplay, world consequences, branch scoring, canon audit, and writeback candidates.
 - Local model-backed commands, HTTP providers, and the local `director-chat` implementation are legacy/debug tools. Use them only when the user explicitly asks for that path.
 
 ## Hard Rules
@@ -48,12 +51,16 @@ Every task must run through the protocol loop before it is considered complete:
 - LLM-authored JSON is not accepted merely because it parsed. Treat it as a draft until schema validation and tool-layer review accept it as candidate material.
 - New characters, background stories, world rules, locations, organizations, relationships, outlines, major plot turns, and state changes start as candidates.
 - Source-derived facts from existing works start as candidates with evidence references, confidence, contradictions, and unknowns. They must not directly overwrite formal `canon/`, `characters/`, `plot/`, `style/`, drafts, exports, or releases.
+- For 100000+ word or multi-volume targets, create or inspect `plot/word_budget/word_budget.json` before bulk generation. If budget status is `needs_expansion`, process `word_budget.agent_tasks.md` and review the budgeted outline candidate first.
+- Count only cleaned deliverable prose as draft/chapter/longform/export length. Exclude workflow notes, review text, canon explanations, prompt manifests, `[AGENT_TASK: ...]`, status/writeback candidates, scene IDs, and internal paths.
 - Promote candidates only after review and explicit user approval unless the user clearly asks for an internal experiment.
 - Character `background_story` is hidden behavioral causality. It should affect action, omission, speech, hesitation, misreading, and pressure, not appear as direct exposition unless the scene is designed to reveal it.
 - Mounted Style Skills have highest priority for expression-level writing choices, but never override canon, character facts, plot causality, safety/legal constraints, or explicit user instructions.
 - Mountable Style Skills require a reliable LLM-facing `prompt.md` with 500-1500 non-whitespace content characters and complete high-quality prompt blocks: identity/boundary, priority, core mechanism, narrative distance, syntax/rhythm, punctuation, imagery/sensory, psychology/behavior, dialogue/tone, forbidden tendencies, and output self-check.
 - Standard Chinese punctuation is a baseline expression constraint beneath every Style Skill. Do not let generated prose or reviews mix English punctuation into Chinese sentences unless the project explicitly records a format reason.
 - Reduce AI-like prose habits during drafting and review: dense “不是……而是……” frames, abstract summary language, explanatory psychology labels, template transitions, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings.
+- `pass_with_notes` requires a notes-resolution step. The writing agent must apply local revision_actions / warnings / style_notes or record a specific acceptance reason before promotion, chapter readiness, export, or writeback.
+- Final delivery exports must not expose engineering identifiers or process traces such as `scene_0001`, `chapter_0001`, scene/context paths, canon notes, review states, or writeback candidates. Keep those in manifests, reviews, and workbench files.
 - Keep each character in a separate file. Mark `importance: major` for major characters; context packets load major characters plus secondary/cameo characters named by the current scene, instead of loading every biography into every scene.
 - Do not store API keys or provider secrets inside work projects.
 - Keep outputs auditable: say what changed, where candidates were written, what remains unapproved, and what validation ran.
@@ -62,6 +69,7 @@ Every task must run through the protocol loop before it is considered complete:
 
 - Broad project idea: create or update project brief, identify first candidate pass, then proceed without asking operational questions.
 - Existing text or complete work: run source ingest when useful, then reverse-extract project brief, characters, world, outline, timeline, foreshadowing, and style notes as candidates for continuation or rewrite.
+- Longform scope problem: run or emulate `word-budget`, then expand/review narrative inventory before writing chapters in bulk.
 - Character work: create candidate profile/background/relationship changes, then review for motive and OOC risk.
 - World work: create candidate rules/locations/organizations, then review for constraints and loopholes.
 - Plot work: create outline/branch candidates, then review scene function and setup/payoff.

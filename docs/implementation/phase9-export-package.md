@@ -4,6 +4,13 @@
 
 输出小说章节、剧本工作稿、长视频提示词包和 `export_manifest.json`。默认只导出 `ready` 场景。
 
+`v0.67.0` 起，最终交付文件使用统一的“清洗后正文”口径：
+
+- 小说、剧本、长视频提示词包不再把 `scene_0001`、`chapter_0001` 这类工程编号暴露为正文标题。
+- 正文清洗会移除误混入正文区的 scene 编号、场景文件路径、上下文包、canon 说明、prompt manifest、`[AGENT_TASK: ...]`、状态变化候选和写回候选。
+- `export_manifest.json` 仍保留 `scene_id`、草稿路径和审查路径，用于工程追溯；manifest 不是最终正稿。
+- `draft_chars` 统计为清洗后可交付正文的去空白字符数，不把工作流程、审查说明或写回候选算作正文字数。
+
 新增 DOCX 交付能力：
 
 ```powershell

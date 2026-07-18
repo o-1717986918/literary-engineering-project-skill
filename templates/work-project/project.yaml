@@ -13,6 +13,12 @@ creative_brief:
   themes: []
   forbidden_elements: []
 
+longform_budget:
+  target_words: 30000
+  volumes: 0
+  status: pending_word_budget
+  note: "正式长篇生成前运行 word-budget / longform-budget，并由平台 Agent 处理预算化大纲任务。"
+
 style:
   mode: public_domain_or_authorized
   target_profiles: []

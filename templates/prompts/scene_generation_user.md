@@ -32,6 +32,14 @@
 
 {anti_ai_style}
 
+## AgentReview 小修约束
+
+{review_notes_standard}
+
+## 生成前最终硬约束摘要
+
+{generation_constraint_brief}
+
 ## 输出契约
 
 {output_contract}

@@ -35,6 +35,9 @@ class RoleplayLabTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("World Agent", text)
         self.assertIn("Director Agent", text)
         self.assertIn("不是外部 LLM prompt", text)
+        self.assertIn("平台 Agent 执行门禁", text)
+        self.assertIn("读取回执", text)
+        self.assertIn("写回边界", text)
 
 
 if __name__ == "__main__":

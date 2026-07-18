@@ -31,18 +31,19 @@ The `protocol` command prints the required references, suggested CLI chain, plat
 1. Choose the route first. Do not start with a command just because it exists.
 2. Run `protocol <route>` and read the printed preflight and completion gates.
 3. Confirm whether the target is a skill root, work project, or style library.
-4. Set `PYTHONPATH` for the current repository layout.
-5. Run `--help` for unfamiliar commands before use.
-6. Run the smallest deterministic command that prepares the next artifact.
-7. Capture and inspect output paths printed by the command.
-8. If the command writes `.agent_tasks.md`, read the task file and have the platform agent fill the expected artifact paths. The CLI has not completed the creative step by writing a task file.
-9. Validate artifacts:
+4. Record or prepare a reading receipt: route, references read, project files inspected, command runbook printed, and missing context.
+5. Set `PYTHONPATH` for the current repository layout.
+6. Run `--help` for unfamiliar commands before use.
+7. Run the smallest deterministic command that prepares the next artifact.
+8. Capture and inspect output paths printed by the command.
+9. If the command writes `.agent_tasks.md`, read the task file and have the platform agent fill the expected artifact paths. The CLI has not completed the creative step by writing a task file.
+10. Validate artifacts:
    - `agent-validate` for agent run outputs.
    - schema-specific review for JSON candidates.
    - `canon-lint` for canon and character consistency.
    - `review-scene`, `agent-review-scene`, or platform review for prose.
-   - `longform-audit`, `chapter-workspace`, and approval summaries for release.
-10. Record whether each output remains a candidate, was revised, was promoted, or needs user approval.
+   - `word-budget`, `longform-audit`, `chapter-workspace`, and approval summaries for longform/release.
+11. Record whether each output remains a candidate, was revised, was promoted, or needs user approval.
 
 ## Common CLI Chains
 
@@ -63,6 +64,17 @@ python -m literary_engineering_workbench source-ingest <project> --source <sourc
 ```
 
 The CLI writes raw text, chunks, `source_manifest.json`, `source_ingest.md`, and `extract_project_files.agent_tasks.md`. The platform agent must read the sidecar and write extracted project brief, characters, world, outline, timeline, foreshadowing, style notes, and source-ingest review files as candidates. Do not promote source-derived material without evidence, review, and approval.
+
+### Longform Planning
+
+```powershell
+python -m literary_engineering_workbench protocol longform-planning
+python -m literary_engineering_workbench word-budget <project> --target-words 500000 --volumes 5 --genre mystery
+```
+
+The CLI writes `plot/word_budget/word_budget.md`, `plot/word_budget/word_budget.json`, and `plot/word_budget/word_budget.agent_tasks.md`. The platform agent must read the sidecar, create `plot/candidates/outlines/word_budget_expansion.md`, write `reviews/word_budget/word_budget_review.md`, and decide whether the project has enough narrative inventory before bulk generation.
+
+Use `longform-budget` as an alias. Do not treat `word_budget.json` as final plot; it is a numerical scaffold and readiness signal.
 
 ### Style Engineering
 
@@ -135,6 +147,7 @@ Before delivery, confirm readiness, approvals, canon audit, punctuation, target 
 Do not finish a CLI-backed task until:
 
 - The route protocol was read or printed.
+- Reading receipt was recorded or summarized.
 - Command output paths were inspected.
 - `.agent_tasks.md` files were handled by the platform agent or listed as pending.
 - Generated artifacts have explicit status.

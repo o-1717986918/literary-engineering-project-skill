@@ -262,11 +262,23 @@ def _write_generation_agent_tasks(
         tasks=[
             (
                 "审查 prompt manifest",
-                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、generation_standards.style、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill、文风生成标准或用户约束。""",
+                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、generation_standards.style、generation_standards.word_budget、generation_standards.review_notes、generation_standards.hard_constraints、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill、文风生成标准、长篇字数预算标准、AgentReview 小修约束、生成前最终硬约束摘要或用户约束。""",
+            ),
+            (
+                "审查生成前硬约束摘要",
+                """检查候选是否像是在生成前执行过 generation_standards.hard_constraints：canon/用户约束、场景编排、人物逻辑、文风、字数预算、AgentReview 小修、标点和输出边界是否形成明确优先级。若正文暴露工作流痕迹、跳过上位约束或把候选写成 canon，标为阻塞。""",
             ),
             (
                 "审查生成前文风标准",
                 """检查候选是否像是在生成前执行过 generation_standards.style：叙述距离、句法/段落节奏、意象/感官系统、心理呈现、对白密度与语气、标点停顿节奏是否已经进入正文机制，而不是只在审查阶段被口头声明。""",
+            ),
+            (
+                "审查 AgentReview 小修执行",
+                """若 prompt manifest 中 generation_standards.review_notes_loaded=true，尤其上一轮为 pass_with_notes，检查候选是否执行了 revision_actions、warnings 和 style_notes。允许局部微调，但不允许静默忽略；无法执行的项必须进入“需要人工确认”。""",
+            ),
+            (
+                "审查生成前字数预算标准",
+                """若 prompt manifest 中 generation_standards.word_budget_loaded=true，检查候选是否服从长篇预算：本场景承担的剧情功能、信息变化、关系压力、后果链和章节节奏是否支撑预算，而不是把有限事件拉长或压缩为摘要。若预算缺失或 needs_expansion，说明是否应暂停批量生成。""",
             ),
             (
                 "审查候选正文",

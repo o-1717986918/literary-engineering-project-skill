@@ -40,6 +40,7 @@ governance:
     - LLM-authored JSON and schema repair
     - style-prompt creation and evaluation
     - existing-work reverse extraction into project candidates
+    - longform word-budget and narrative-inventory planning
     - character, world, outline, and relationship candidate assets
     - roleplay, branch, scene, consequence, and state simulations
     - review findings, committee reports, and patch plans
@@ -66,6 +67,7 @@ route_execution_contract:
     - work_project_initialization
     - style_engineering
     - source_ingest
+    - longform_planning
     - character_and_world_assets
     - scene_development
     - review_and_audit
@@ -76,6 +78,7 @@ route_execution_contract:
     - select one primary route from task_routes
     - read references/agent-run-protocol.md
     - read route-specific references before changing artifacts
+    - record reading receipt with route, references read, inspected project files, missing context, and pending sidecars
     - inspect current project state and latest review/workflow/approval records
     - state intended artifacts, review gates, and approval boundary
   cli_preflight:
@@ -85,6 +88,7 @@ route_execution_contract:
     - read and execute .agent_tasks.md sidecars when generated
   completion_gates:
     - route selected and route references accounted for
+    - reading receipt recorded or summarized
     - project state inspected
     - platform agent handled every creative, review, JSON, simulation, and second-level decision
     - schema/canon/character/style/punctuation/release checks applied when relevant
@@ -204,6 +208,41 @@ task_routes:
       - platform agent handled extraction sidecar or listed it as pending
       - every extracted claim carries evidence references, confidence, unknowns, and contradiction notes when relevant
       - no extracted item is promoted without review and explicit approval
+
+  longform_planning:
+    protocol: longform-planning
+    when:
+      - 用户要求几十万字、百万字、多卷、多季、多篇章长篇规划
+      - 生成正文、大纲或章节时发现目标字数、剧情量、场景库存明显不足
+      - 需要把目标字数映射为卷、章、场景、叙事负载和扩纲计划
+    read:
+      - references/agent-run-protocol.md
+      - references/cli-run-protocol.md
+      - references/project-director-playbook.md
+      - references/artifact-contracts.md
+      - references/workflows.md
+      - docs/modules/longform-word-budget.md
+      - docs/implementation/phase65-longform-word-budget.md
+    inspect_if_present:
+      - project.yaml
+      - plot/outline.md
+      - plot/word_budget/
+      - plot/candidates/outlines/
+      - scenes/
+      - reviews/word_budget/
+      - reviews/longform/
+    output:
+      - word budget markdown/json
+      - platform-agent budget expansion task sidecar
+      - budgeted outline candidate
+      - word-budget review report
+      - updated generation readiness decision
+    completion_gates:
+      - target words, volume count, genre, and time-span assumptions are explicit
+      - CLI budget is treated as deterministic constraint evidence, not creative authority
+      - platform agent handled the budget expansion sidecar or listed it as pending
+      - budgeted outline remains candidate until review and user approval
+      - scene/chapter inventory can support the target length before bulk generation
 
   character_and_world_assets:
     protocol: character-and-world-assets

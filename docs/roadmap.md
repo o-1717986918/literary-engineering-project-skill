@@ -174,6 +174,16 @@
 
 已在 `v0.64.0` 实现 `source-ingest` / `extract-existing-work`：把用户提供的已有文本、完整作品、旧稿、剧本或伪记录材料导入 `sources/imports/{work_id}/`，生成 raw、chunks、`source_manifest.json`、`source_ingest.md` 和 `extract_project_files.agent_tasks.md`。平台 Agent 读取任务侧车后，反推项目简报、人物/背景故事、世界观、剧情大纲、时间线、伏笔和文风说明候选，分别写入 `sources/imports/{work_id}/extracted/`、`characters/candidates/extracted/`、`canon/candidates/extracted/`、`plot/candidates/extracted/`、`style/candidates/` 和 `reviews/source_ingest/`。源作品提取结果带证据引用和置信度，未经审查与用户批准不得晋升为正式项目资产。
 
+## Phase 65：长篇字数预算与剧情库存门禁
+
+已在 `v0.65.0` 实现 `word-budget` / `longform-budget` 和 `longform-planning` route：把目标字数、卷数、类型和时间跨度拆成卷、章、场景、平均字数与叙事负载预算，输出 `plot/word_budget/word_budget.md`、`word_budget.json` 和 `word_budget.agent_tasks.md`。平台 Agent 根据任务侧车写出 `plot/candidates/outlines/word_budget_expansion.md` 和 `reviews/word_budget/word_budget_review.md`，在正式生成前检查剧情库存是否足以支撑目标规模。`prompt_pack.py` 会把预算标准注入场景生成 prompt manifest；`longform-audit` 会报告预算缺失、needs_expansion 和场景库存不足。
+
+## Phase 66：流程阅读回执、Review Notes 小修闭环与生成硬约束摘要
+
+已在 `v0.66.0` 强化标准链路：`.agent_tasks.md`、agent-run protocol 和 CLI protocol 要求平台 agent 记录 reading receipt；`pass_with_notes` 不再是静默通过，下一轮生成会读取 `reviews/agent/{scene_id}_scene_review.json` 并注入 `generation_standards.review_notes`；prompt manifest 新增 `generation_standards.hard_constraints`，把 canon、场景编排、人物逻辑、文风、字数预算、AgentReview notes、标点和输出边界整理成生成前硬约束摘要，提高草稿/候选正文质量。
+
+已在 `v0.67.0` 统一最终正文口径：新增共享草稿正文清洗模块，导出、章节统计、长篇审计和 export manifest 均只统计清洗后可交付正文；最终小说、剧本和视频提示词包不再暴露 `scene_0001` / `chapter_0001` 等工程编号；`simulate-scene --agent` 增加平台 Agent 执行门禁和读取回执，防止 RP 推演跳过 scene/context/角色/canon 资料。
+
 ## Phase 47：前端显式 API Key 配置
 
 已实现前端 API Key 密码输入框、`/config` 明文保存与脱敏响应、空 key 保存保留既有密钥、`model_config.py` 从环境变量或保存的 profile key 读取密钥。
@@ -182,4 +192,4 @@
 
 已实现统一 `provider=auto`，Agent 任务、设定创作、候选审查、创作总监、文风提示词和场景候选生成默认连接真实 `http-chat` 模型；未配置 API Key 时明确报错，只有显式 `dry-run` 才进入离线调试。
 
-下一步：LangGraph 持久化 checkpointer、真实 Dify 导入验证、更细粒度前端审稿台、多候选比较器、源作品提取候选晋升向导和更多模型 profile 模板。
+下一步：LangGraph 持久化 checkpointer、真实 Dify 导入验证、更细粒度前端审稿台、多候选比较器、源作品提取候选晋升向导、预算化大纲晋升向导和更多模型 profile 模板。

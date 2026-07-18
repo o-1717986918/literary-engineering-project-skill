@@ -193,5 +193,5 @@ def _review_report(draft_path: Path, conclusion: str, issues: list[ReviewIssue],
 - 新 canon 候选：参考草稿中的“新增事实候选”。
 - 人物状态变化：参考草稿中的“人物状态变化”。
 - 伏笔变化：参考草稿中的“伏笔变化”。
-- 需要人工确认：审查结论为 `pass` 或人工接受 `pass_with_notes` 后再写回。
+- 需要人工确认：审查结论为 `pass` 后可进入下一门禁；若为 `pass_with_notes`，必须先处理 low 级 notes，或由平台 agent/用户逐条记录接受理由后再写回。
 """
