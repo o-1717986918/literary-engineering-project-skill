@@ -38,13 +38,7 @@ def review_scene_with_agent(
     scene_id = scene_path.stem
     draft_path = _resolve_draft(root, scene_id, draft)
     context_path = root / "memory" / "context_packets" / f"{scene_id}.md"
-    style_prompt_path = _first_existing(
-        [
-            root / "style" / "style_prompt.md",
-            root / "style" / "demo-author" / "style_prompt.md",
-            root / "style" / "style-profile.md",
-        ]
-    )
+    style_prompt_path = _first_existing(_style_source_candidates(root))
     source_paths = [_rel_str(scene_path, root)]
     if draft_path.exists():
         source_paths.append(_rel_str(draft_path, root))
@@ -93,7 +87,7 @@ def review_scene_with_agent(
 def _system_prompt() -> str:
     return """You are a literary engineering scene review agent.
 
-Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, style prompt compliance, and revision actions. Output JSON only using schema scene_review.v1."""
+Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, mounted style adherence, punctuation rhythm, and revision actions. Output JSON only using schema scene_review.v1, including a structured style_adherence object."""
 
 
 def _user_prompt(scene_text: str, draft_text: str, context_text: str, style_text: str, source_paths: list[str]) -> str:
@@ -129,6 +123,11 @@ def _dry_scene_review(scene_id: str, draft_text: str, source_paths: list[str]) -
     has_body = bool(draft_text.strip()) and "<!-- 在这里写入场景正文。 -->" not in draft_text
     conclusion = "pass_with_notes" if has_body else "revise_required"
     warnings = [] if has_body else ["场景草稿缺少可审查正文，需先补正文或提升生成候选。"]
+    style_source = _style_source_label(source_paths)
+    style_status = "pass_with_notes" if style_source and has_body else ("revise_required" if style_source else "not_applicable")
+    style_revision_actions = (
+        ["真实平台审查需确认挂载文风已经影响叙述距离、句法节奏、意象系统、对白语气和标点停顿。"] if style_source else []
+    )
     return {
         "schema": "literary-engineering-workbench/scene-review-agent/v1",
         "scene_id": scene_id,
@@ -145,6 +144,13 @@ def _dry_scene_review(scene_id: str, draft_text: str, source_paths: list[str]) -
         ],
         "canon_risks": [],
         "style_notes": ["后续真实模型审查应核对 style_prompt.md 是否影响句法、叙述距离和意象调度。"],
+        "style_adherence": {
+            "status": style_status,
+            "style_profile": style_source or "n/a",
+            "evidence": ["dry-run 仅保持审查契约；真实平台 agent 需要引用正文证据。"] if style_source else [],
+            "deviations": [],
+            "revision_actions": style_revision_actions,
+        },
         "source_paths": source_paths,
         "agent_confidence": "dry-run",
         "next_gate": "schema_validation_then_human_review",
@@ -200,6 +206,44 @@ def _first_existing(paths: list[Path]) -> Path | None:
         if path.exists():
             return path
     return None
+
+
+def _style_source_candidates(root: Path) -> list[Path]:
+    candidates = [
+        root / "style" / "active_style_skill.json",
+        root / "style" / "style_prompt.md",
+        root / "style" / "demo-author" / "style_prompt.md",
+        root / "style" / "style-profile.md",
+    ]
+    active = root / "style" / "active_style_skill.json"
+    if active.exists():
+        try:
+            payload = json.loads(active.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            payload = {}
+        for key in ("prompt", "style_skill", "mount_path"):
+            value = str(payload.get(key) or "").strip()
+            if not value:
+                continue
+            path = root / value
+            if path.is_dir():
+                candidates.extend([path / "prompt.md", path / "style_skill.json", path / "style-profile.md"])
+            else:
+                candidates.append(path)
+    return candidates
+
+
+def _style_source_label(source_paths: list[str]) -> str:
+    for value in source_paths:
+        normalized = value.replace("\\", "/")
+        if normalized.startswith("style/") and (
+            "active_style_skill.json" in normalized
+            or "style_prompt.md" in normalized
+            or "prompt.md" in normalized
+            or "style-profile.md" in normalized
+        ):
+            return normalized
+    return ""
 
 
 def _read(path: Path) -> str:

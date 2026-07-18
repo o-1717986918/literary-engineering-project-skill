@@ -362,23 +362,26 @@ def _render_review_notes_standard(root: Path, scene_id: str, review_path: Path |
         warnings = _json_list(payload.get("warnings"))
         revision_actions = _json_list(payload.get("revision_actions"))
         style_notes = _json_list(payload.get("style_notes"))
-        if conclusion == "pass_with_notes":
+        style_adherence_status, style_adherence_notes = _style_adherence_notes(payload)
+        if conclusion in {"revise_required", "reject"} or style_adherence_status in {"revise_required", "reject"}:
             return _review_notes_block(
                 root,
                 review_path,
-                "上一轮平台 Agent 场景审查结论为 `pass_with_notes`。写作 agent 不得把它当成完全通过；本轮必须执行轻微修订，或在“需要人工确认”中逐条说明无法执行的理由。",
+                f"上一轮平台 Agent 场景审查结论为 `{conclusion or 'unknown'}`，文风执行门禁为 `{style_adherence_status or 'unknown'}`。这不是小修；不得直接润色通过，必须围绕 blocking issues / revision_actions / style_adherence 重写或退回审查。",
                 revision_actions,
                 warnings,
                 style_notes,
+                style_adherence_notes,
             )
-        if conclusion in {"revise_required", "reject"}:
+        if conclusion == "pass_with_notes" or style_adherence_status == "pass_with_notes":
             return _review_notes_block(
                 root,
                 review_path,
-                f"上一轮平台 Agent 场景审查结论为 `{conclusion}`。这不是小修；不得直接润色通过，必须围绕 blocking issues / revision_actions 重写或退回审查。",
+                f"上一轮平台 Agent 场景审查结论为 `{conclusion or 'unknown'}`，文风执行门禁为 `{style_adherence_status or 'unknown'}`。写作 agent 不得把它当成完全通过；本轮必须执行轻微修订，或在“需要人工确认”中逐条说明无法执行的理由。",
                 revision_actions,
                 warnings,
                 style_notes,
+                style_adherence_notes,
             )
         if conclusion == "pass":
             return f"""# AgentReview 小修约束
@@ -406,6 +409,7 @@ def _review_notes_block(
     revision_actions: list[str],
     warnings: list[str],
     style_notes: list[str],
+    style_adherence_notes: list[str],
 ) -> str:
     return "\n".join(
         [
@@ -417,7 +421,7 @@ def _review_notes_block(
             "",
             "执行规则：",
             "",
-            "- 优先处理 revision_actions，其次处理 warnings，再处理 style_notes。",
+            "- 优先处理 revision_actions，其次处理 style_adherence 偏差，再处理 warnings 和 style_notes。",
             "- 小修应尽量局部：改动作、信息呈现、标点节奏、人物语气或段落收束，不随意新增 canon。",
             "- 候选正文的 manifest 应记录 `pass_with_notes_actions_applied=true`；若没有可执行项，记录 `pass_with_notes_noop_reason`。",
             "- 若任何修订会改变 canon、人物重大转折或分支选择，把它列入“需要人工确认”，不要偷偷写实。",
@@ -430,6 +434,9 @@ def _review_notes_block(
             "",
             "style_notes:",
             _bullet_list(style_notes),
+            "",
+            "style_adherence:",
+            _bullet_list(style_adherence_notes),
         ]
     )
 
@@ -481,6 +488,20 @@ def _json_list(value: Any) -> list[str]:
         if text:
             items.append(text)
     return items
+
+
+def _style_adherence_notes(payload: dict[str, Any]) -> tuple[str, list[str]]:
+    adherence = payload.get("style_adherence")
+    if not isinstance(adherence, dict):
+        return "", []
+    status = str(adherence.get("status") or "").strip().lower()
+    notes: list[str] = []
+    for key in ("revision_actions", "deviations", "evidence"):
+        for item in _json_list(adherence.get(key)):
+            notes.append(f"{key}: {item}")
+    if status and not notes:
+        notes.append(f"status: {status}")
+    return status, notes
 
 
 def _bullet_list(items: list[str]) -> str:

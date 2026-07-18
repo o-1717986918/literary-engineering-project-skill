@@ -119,6 +119,40 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(blocking_failures, [])
 
+    def test_route_audit_blocks_mounted_style_without_style_adherence(self):
+        project = self.make_project()
+        add_character(project)
+        make_reviewed_passing_scene(project)
+        _mount_style(project)
+        _write_roleplay_receipt(project)
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        _select_branch(branch.selection_path, branch.recommended_branch)
+        build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+
+        result = build_route_audit(project, route="scene-development")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:style-adherence-review" and gate["status"] == "fail" for gate in payload["gates"])
+        )
+
+    def test_route_audit_accepts_mounted_style_adherence_pass(self):
+        project = self.make_project()
+        add_character(project)
+        _mount_style(project)
+        make_reviewed_passing_scene(project)
+        _write_roleplay_receipt(project)
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        _select_branch(branch.selection_path, branch.recommended_branch)
+        build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+
+        result = build_route_audit(project, route="scene-development")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:style-adherence-review" and gate["status"] == "pass" for gate in payload["gates"])
+        )
+
     def test_cli_exposes_task_status_commands(self):
         help_text = build_parser().format_help()
         self.assertIn("agent-task-status", help_text)
@@ -136,6 +170,39 @@ def _select_branch(path: Path, branch_id: str):
 - reviewer: platform-agent-test
 - selected_at: 2026-01-01T00:00:00Z
 """,
+        encoding="utf-8",
+    )
+
+
+def _write_roleplay_receipt(project: Path):
+    roleplay = project / "branches" / "scene_0001" / "roleplay_simulation.md"
+    roleplay.parent.mkdir(parents=True, exist_ok=True)
+    roleplay.write_text(
+        "# 角色推演实验室：scene_0001\n\n### 读取回执\n\n- 已读取：scenes/scene_0001.yaml\n- 写回边界：候选。\n",
+        encoding="utf-8",
+    )
+
+
+def _mount_style(project: Path):
+    mounted = project / "style" / "mounted" / "test-style"
+    mounted.mkdir(parents=True, exist_ok=True)
+    (mounted / "prompt.md").write_text(
+        "保持低位叙述距离、动作先于解释、标点停顿克制，避免模板化转折和空泛主题总结。",
+        encoding="utf-8",
+    )
+    active = project / "style" / "active_style_skill.json"
+    active.write_text(
+        json.dumps(
+            {
+                "schema": "literary-engineering-workbench/active-style-skill/v0.1",
+                "style_id": "test-style",
+                "prompt": "style/mounted/test-style/prompt.md",
+                "mount_path": "style/mounted/test-style",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
 

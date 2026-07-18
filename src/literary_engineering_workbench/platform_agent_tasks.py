@@ -64,6 +64,10 @@ def write_platform_scene_review_task(
                 f"""以平台 agent 的文学判断审查人物行为逻辑、背景故事隐性因果、canon 风险、剧情推进、文风执行、套路化/同质化风险、标点规范和需要修订的动作。标点审查规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
             ),
             (
+                "执行挂载文风门禁",
+                """若项目存在 `style/active_style_skill.json` 或已挂载 style prompt/profile，必须正式判断文风是否已经塑造正文表达，而不是只作为参考材料出现。对照挂载文风审查叙述距离、视角稳定性、句法和段落节奏、意象/感官路由、心理呈现、对白语气、标点停顿节奏、AI 腔规避和禁止倾向。`style_adherence.status` 只能取 `pass`、`pass_with_notes`、`revise_required` 或 `not_applicable`；有挂载文风时不得使用 `not_applicable`。若正文基本忽略挂载文风，必须用 `revise_required` 并给出可执行重写动作。""",
+            ),
+            (
                 "写入正式 JSON",
                 f"""创建或覆盖 `{_rel(json_output, root)}`，JSON 必须符合 `scene_review.v1`：
 {{
@@ -77,6 +81,13 @@ def write_platform_scene_review_task(
   "character_logic": [],
   "canon_risks": [],
   "style_notes": [],
+  "style_adherence": {{
+    "status": "pass | pass_with_notes | revise_required | not_applicable",
+    "style_profile": "style/active_style_skill.json 或 n/a",
+    "evidence": [],
+    "deviations": [],
+    "revision_actions": []
+  }},
   "source_paths": []
 }}
 `conclusion` 只有 `pass` 或 `pass_with_notes` 才能进入 ready；新增事实仍保持候选。""",
@@ -87,7 +98,7 @@ def write_platform_scene_review_task(
             ),
             (
                 "写入正式 Markdown 报告",
-                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
+                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
             ),
         ],
     )

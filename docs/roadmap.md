@@ -194,6 +194,14 @@
 
 已在 `v0.69.0` 明确横排文学正文引号标准：直接引语统一“”，内层引语统一‘’，`review-scene` 会报告「」『』等角引号混用，最终导出会对角引号做安全归一化。DOCX 能力吸收 `office-academic-skill` 的可编辑文档、样式、字体、真实列表、表格和质量检查思想：`export-docx` / `export-package --formats md,docx` 会生成 `.layout.json` 与 `.inspection.json`，并把简单 Markdown 表格转换为原生 Word 表格。未迁移学术证据链、PPT、tracked changes、comments 和完整 XSD 校验，避免把学术 Office 工作流污染文学交付主线。
 
+## Phase 70：正式场景推演与分支门禁
+
+已在 `v0.70.0` 强化场景开发标准链路：`route-audit --route scene-development` 会阻塞缺失 context、`simulate-scene --agent` 读取回执、未处理 `[AGENT_TASK: ...]`、缺失 branch manifest、缺失正式 `branch_selection.md` 和未 ready 的 `selection_source=selection` composition。`generate-scene` 和 prompt pack 默认要求 ready composition；fallback、recommended-only 或未正式选择的 composition 只能作为内部实验，不能直接晋升、写回或导出。
+
+## Phase 71：挂载文风正式验收门禁
+
+已在 `v0.71.0` 把文风挂载从“生成前最高优先级约束”扩展为“生成后正式审查门禁”。`scene_review.v1` 新增必填 `style_adherence`，平台 Agent 必须审查挂载 Style Skill 是否真正影响叙述距离、句法节奏、意象/感官路由、心理呈现、对白语气、标点停顿和 AI 腔规避。`route-audit --route scene-development` 在存在 `style/active_style_skill.json` 时会阻塞缺失、`not_applicable` 或 `revise_required` 的文风执行审查，使文风学习、挂载、生成、审查和修订形成闭环。
+
 ## Phase 47：前端显式 API Key 配置
 
 已实现前端 API Key 密码输入框、`/config` 明文保存与脱敏响应、空 key 保存保留既有密钥、`model_config.py` 从环境变量或保存的 profile key 读取密钥。

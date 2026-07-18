@@ -96,6 +96,7 @@ def _prompt_manifest(
     draft_text = draft_path.read_text(encoding="utf-8", errors="ignore")
     body = final_body_from_draft_text(draft_text)
     review_payload = _read_json(review_path) if review_path and review_path.suffix.lower() == ".json" else {}
+    style_adherence = review_payload.get("style_adherence") if isinstance(review_payload.get("style_adherence"), dict) else {}
     return {
         "schema": "literary-engineering-workbench/scene-revision-prompt/v0.1",
         "generated_at": _now(),
@@ -115,13 +116,14 @@ def _prompt_manifest(
             "revision_actions": _json_list(review_payload.get("revision_actions")),
             "warnings": _json_list(review_payload.get("warnings")),
             "style_notes": _json_list(review_payload.get("style_notes")),
+            "style_adherence": style_adherence,
             "blocking_issues": _json_list(review_payload.get("blocking_issues")),
         },
         "generation_standards": {
             "word_budget": render_word_budget_generation_standard(root),
             "punctuation": render_punctuation_standard_for_prompt(),
             "output_boundary": "修订候选不得写入 AGENT_TASK、prompt manifest、canon 解释、审查过程或内部 scene 编号。",
-            "notes_resolution": "逐条处理 revision_actions / warnings / style_notes；无法处理时写入 waiver reason。",
+            "notes_resolution": "逐条处理 revision_actions / warnings / style_notes / style_adherence；无法处理时写入 waiver reason。",
         },
         "sources": [{"path": _rel(path, root), "chars": len(_read(path))} for path in sources],
     }
@@ -158,7 +160,7 @@ def _write_revision_task(
             ),
             (
                 "诊断草稿与 review notes",
-                """对照 prompt manifest 的 revision_inputs，逐条判断 revision_actions、warnings、style_notes、blocking_issues。区分小修、局部重写、需要用户确认、不可执行项。若 review 结论是 pass_with_notes，不得静默通过；若是 revise_required/reject，不得只润色。""",
+                """对照 prompt manifest 的 revision_inputs，逐条判断 revision_actions、warnings、style_notes、style_adherence、blocking_issues。若 style_adherence.status=revise_required 或挂载文风下为 not_applicable/missing，必须优先修正文风执行偏差：叙述距离、句法节奏、意象/感官、心理呈现、对白语气、标点停顿和 AI 腔规避。区分小修、局部重写、需要用户确认、不可执行项。若 review 结论是 pass_with_notes，不得静默通过；若是 revise_required/reject，不得只润色。""",
             ),
             (
                 "生成修订候选",
@@ -166,11 +168,11 @@ def _write_revision_task(
             ),
             (
                 "写入修订报告",
-                f"""创建或覆盖 `{_rel(report, root)}`。报告必须列出：reading receipt、修订目标、已执行 notes、未执行 notes 及 waiver reason、canon/人物/文风/字数/标点检查、是否建议进入 promote-candidate 或重新 review-scene。不要写入 `[AGENT_TASK: ...]`。""",
+                f"""创建或覆盖 `{_rel(report, root)}`。报告必须列出：reading receipt、修订目标、已执行 notes、style_adherence 偏差处理、未执行 notes 及 waiver reason、canon/人物/文风/字数/标点检查、是否建议进入 promote-candidate 或重新 review-scene。不要写入 `[AGENT_TASK: ...]`。""",
             ),
             (
                 "写入修订 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema=`literary-engineering-workbench/scene-revision/v0.1`、scene_id、candidate、report、source_paths、revision_actions_applied、warnings_addressed、style_notes_addressed、waivers、ready_for_review=false、generated_by=`platform-agent`。""",
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema=`literary-engineering-workbench/scene-revision/v0.1`、scene_id、candidate、report、source_paths、revision_actions_applied、warnings_addressed、style_notes_addressed、style_adherence_addressed、waivers、ready_for_review=false、generated_by=`platform-agent`。""",
             ),
         ],
     )

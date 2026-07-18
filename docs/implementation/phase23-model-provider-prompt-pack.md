@@ -47,6 +47,8 @@ drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json
 
 `v0.70.0` 起，正式 `generate-scene` / prompt pack 默认要求已经存在 ready composition：场景必须先完成 context、`simulate-scene --agent`、`branch-simulate --agent`、正式 `branch_selection.md` 和 `compose-scene`。缺失 composition、fallback composition、recommended-only composition 或未正式选择的 composition 都会阻塞正式生成；`--allow-missing-composition` 与 `--allow-unselected-composition` 只用于内部实验，产物不得直接晋升或发布。
 
+`v0.71.0` 起，挂载 Style Skill 的项目还需要在生成后的正式平台场景审查中写入 `style_adherence`。这让文风从“生成前硬约束”延伸到“生成后验收门禁”：prompt pack 负责把文风压进写作任务，`scene_review.v1` 与 `route-audit` 负责检查它是否真的改变了正文表达。
+
 ### Provider
 
 当前 provider：

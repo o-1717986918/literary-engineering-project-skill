@@ -100,6 +100,7 @@ def write_platform_scene_review(project_root: Path, scene_id: str = "scene_0001"
     review_dir.mkdir(parents=True, exist_ok=True)
     json_path = review_dir / f"{scene_id}_scene_review.json"
     report_path = review_dir / f"{scene_id}_scene_review.md"
+    active_style = (project_root / "style" / "active_style_skill.json").exists()
     payload = {
         "schema": "literary-engineering-workbench/scene-review-agent/v1",
         "scene_id": scene_id,
@@ -111,6 +112,13 @@ def write_platform_scene_review(project_root: Path, scene_id: str = "scene_0001"
         "character_logic": [{"character": "linzhou", "assessment": "行动符合 BDI 与背景故事隐性影响。"}],
         "canon_risks": [],
         "style_notes": ["风格约束可继续细化。"],
+        "style_adherence": {
+            "status": "pass" if active_style else "not_applicable",
+            "style_profile": "style/active_style_skill.json" if active_style else "n/a",
+            "evidence": ["测试场景已按挂载文风门禁通过。"] if active_style else [],
+            "deviations": [],
+            "revision_actions": [],
+        },
         "source_paths": [
             f"scenes/{scene_id}.yaml",
             f"drafts/scenes/{scene_id}.md",

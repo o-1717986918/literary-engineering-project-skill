@@ -1,7 +1,7 @@
 {
   "schema_id": "scene_review.v1",
   "schema_value": "literary-engineering-workbench/scene-review-agent/v1",
-  "required": ["schema", "scene_id", "conclusion", "summary", "blocking_issues", "warnings", "revision_actions", "character_logic", "canon_risks", "style_notes", "source_paths"],
+  "required": ["schema", "scene_id", "conclusion", "summary", "blocking_issues", "warnings", "revision_actions", "character_logic", "canon_risks", "style_notes", "style_adherence", "source_paths"],
   "recommended": ["agent_confidence", "next_gate"],
   "types": {
     "schema": "str",
@@ -14,6 +14,7 @@
     "character_logic": "list",
     "canon_risks": "list",
     "style_notes": "list",
+    "style_adherence": "dict",
     "source_paths": "list",
     "agent_confidence": "str",
     "next_gate": "str"

@@ -7,6 +7,7 @@
 - 新增 `agent-task-status`：扫描工作项目中的 `.agent_tasks.md`，统计 pending / complete / unknown，检查预期产物是否存在。
 - 新增 `route-audit`：在任务看板基础上按 route 检查完成门禁，输出 blocking / warnings。
 - `route-audit --route scene-development` 会检查 `pass_with_notes` / warnings / revise_required 是否已有修订报告和修订 manifest。
+- `v0.71.0` 起，`route-audit --route scene-development` 会在挂载 Style Skill 时检查 `style_adherence.status`，防止文风只进入 prompt、没有进入正式审查门禁。
 - 新增 `revise-scene`：读取场景、草稿、AgentReview notes、上下文包、文风、canon、标点规范和字数预算，生成平台 Agent 可执行的修订任务。
 - 增强 `word-budget`：生成分章预算、扫描场景库存、读取清洗后正文长度、列出缺失场景和扩场景任务。
 
@@ -55,7 +56,7 @@ Route 审计：
 ## 完成标准
 
 - `agent-task-status` 可扫描 sidecar 并报告缺失预期产物。
-- `route-audit` 可检查 route gate，并输出 Markdown / JSON 面板。
+- `route-audit` 可检查 route gate，并输出 Markdown / JSON 面板；挂载文风时可阻塞缺失或未通过的 `style_adherence`。
 - `revise-scene` 可生成修订任务、prompt manifest 和预期输出路径。
 - `word-budget` 可输出 `chapter_budgets` 与 `scene_inventory_binding`，并生成扩场景任务侧车。
 - `SKILL.md`、`AGENTS.md`、`agentread.yaml`、`references/cli-run-protocol.md`、`references/workflows.md` 和 `references/artifact-contracts.md` 均纳入新链路。

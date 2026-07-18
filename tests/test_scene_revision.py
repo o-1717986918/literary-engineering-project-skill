@@ -28,6 +28,7 @@ class SceneRevisionTests(TempProjectMixin, unittest.TestCase):
         manifest = json.loads(result.prompt_manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(manifest["scene_id"], "scene_0001")
         self.assertEqual(manifest["revision_inputs"]["agent_review_conclusion"], "pass_with_notes")
+        self.assertEqual(manifest["revision_inputs"]["style_adherence"]["status"], "not_applicable")
         self.assertIn("word_budget", manifest["generation_standards"])
 
     def test_cli_exposes_revise_scene(self):

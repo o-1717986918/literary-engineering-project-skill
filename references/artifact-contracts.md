@@ -88,6 +88,8 @@ style/active_style_skill.json
 
 Mounted `prompt.md` has highest priority for expression-level writing choices, but it cannot override canon, character facts, plot causality, legal/safety boundaries, or explicit user constraints.
 
+When a style is mounted, every formal platform scene review must include `style_adherence` in `reviews/agent/{scene_id}_scene_review.json`. The field records whether the mounted style materially shaped narrative distance, syntax rhythm, imagery/sensory route, psychology, dialogue, punctuation rhythm, and AI-trace reduction. `pass` and `pass_with_notes` satisfy the style gate; `not_applicable`, missing fields, and `revise_required` block promotion, chapter readiness, export, and writeback until revised or explicitly waived.
+
 ## Scene Files
 
 Scene files live in `scenes/{scene_id}.yaml`.
@@ -314,6 +316,8 @@ workflow/route_audit.json
 
 These files are diagnostic dashboards. They summarize `.agent_tasks.md` sidecars, expected artifact paths, missing outputs, inferred routes, route-specific gates, and unresolved scene review notes when auditing `scene-development`. They do not create prose, canon, characters, final plot, or approval. A pending sidecar remains pending until the platform agent reads it, writes the expected artifacts, and records the outcome.
 
+When auditing `scene-development`, `route-audit` also checks mounted Style Skills. If `style/active_style_skill.json` exists, each scene requires a formal scene review JSON with `style_adherence.status` equal to `pass` or `pass_with_notes`; a missing review, `not_applicable`, or `revise_required` is a blocking gate.
+
 ## Local Creative Director Runs
 
 These artifacts are produced only when using the legacy/local `director-chat` command or `/director/chat` API. In the project-type skill architecture, Codex/Claude should normally act as the Creative Director directly and may use these files only as historical project memory or local regression artifacts.
@@ -394,6 +398,20 @@ reviews/agent/committee_{subject}.json
 reviews/agent/committee_{subject}.agent_tasks.md
 reviews/agent/demo_walkthrough.md
 ```
+
+`scene_review.v1` requires a structured `style_adherence` object:
+
+```json
+{
+  "status": "pass | pass_with_notes | revise_required | not_applicable",
+  "style_profile": "style/active_style_skill.json or n/a",
+  "evidence": [],
+  "deviations": [],
+  "revision_actions": []
+}
+```
+
+Use `not_applicable` only when no Style Skill is mounted. When mounted style exists, `style_adherence` must cite expression-level evidence and deviations, not merely say that a style file was read.
 
 Patch plans are candidates only. They must not be applied without a separate approval/writeback command.
 
@@ -668,7 +686,7 @@ Scene readiness values:
 - `needs_agent_review`
 - `blocked`
 
-`ready` requires a draft body, passing static review, passing formal platform Agent scene review JSON, and `scene_review.v1` schema validation.
+`ready` requires a draft body, passing static review, passing formal platform Agent scene review JSON, `scene_review.v1` schema validation, and, when a Style Skill is mounted, `style_adherence.status=pass|pass_with_notes`.
 
 ## Longform Audit
 

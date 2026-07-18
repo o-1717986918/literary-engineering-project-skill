@@ -97,6 +97,34 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("revision_actions", user_prompt)
         self.assertIn("必须执行轻微修订", user_prompt)
 
+    def test_prompt_pack_injects_style_adherence_notes(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+        review = write_platform_scene_review(project, conclusion="pass")
+        payload = json.loads(review.read_text(encoding="utf-8"))
+        payload["style_adherence"] = {
+            "status": "pass_with_notes",
+            "style_profile": "style/active_style_skill.json",
+            "evidence": ["正文局部使用了短句，但对白语气仍偏模板。"],
+            "deviations": ["叙述距离偶尔上浮为总结性说明。"],
+            "revision_actions": ["压低叙述距离，用动作和感官替代解释性心理标签。"],
+        }
+        review.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        _prepare_generation_ready(project)
+
+        result = generate_scene_candidate(
+            project,
+            scene=Path("scenes/scene_0001.yaml"),
+            rebuild_context=True,
+            provider="dry-run",
+        )
+        prompt_manifest = json.loads(result.prompt_manifest_path.read_text(encoding="utf-8"))
+        user_prompt = prompt_manifest["messages"][1]["content"]
+
+        self.assertIn("style_adherence", user_prompt)
+        self.assertIn("文风执行门禁", user_prompt)
+        self.assertIn("压低叙述距离", user_prompt)
+
     def test_prompt_pack_uses_scene_composition_when_available(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)

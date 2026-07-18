@@ -377,6 +377,18 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         f"{scene_id} composition is ready for generation",
         f"{scene_id} 的 composition 未达到 selection_source=selection 且 ready_for_generation=true；重建 compose-scene。",
     )
+    if _mounted_style_exists(root):
+        review_json = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
+        review_payload = _read_json(review_json)
+        style_status = _style_adherence_status(review_payload)
+        _add_gate(
+            gates,
+            f"{scene_id}:style-adherence-review",
+            style_status in {"pass", "pass_with_notes"},
+            "blocking",
+            f"{scene_id} mounted style adherence reviewed",
+            f"{scene_id} 已挂载文风，但 scene_review.v1 缺少通过的 style_adherence；当前状态：{style_status or 'missing'}。",
+        )
 
 
 def _scene_id(scene_path: Path) -> str:
@@ -422,6 +434,20 @@ def _review_needs_revision(payload: dict) -> bool:
         if isinstance(value, list) and value:
             return True
     return False
+
+
+def _mounted_style_exists(root: Path) -> bool:
+    active = root / "style" / "active_style_skill.json"
+    if active.exists():
+        return True
+    return bool(list((root / "style" / "mounted").glob("*"))) if (root / "style" / "mounted").exists() else False
+
+
+def _style_adherence_status(payload: dict) -> str:
+    adherence = payload.get("style_adherence")
+    if not isinstance(adherence, dict):
+        return ""
+    return str(adherence.get("status") or "").strip().lower()
 
 
 def _read_text(path: Path) -> str:
