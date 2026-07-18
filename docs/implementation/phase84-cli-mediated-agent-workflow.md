@@ -1,6 +1,6 @@
 # Phase 84：CLI 中介 Agent 工作流内核
 
-版本：`v0.84.5`
+版本：`v0.84.6`
 
 ## 目标
 
@@ -137,6 +137,8 @@ CLI 只负责：
 3. `source-ingest`
 4. `style-engineering`
 5. `character-and-world-assets`
+6. `review-and-audit`
+7. `export-and-release`
 
 `workflow-state --route longform-planning` 现在会输出 Longform State，包含：
 
@@ -224,6 +226,47 @@ CLI 只负责：
 
 这一步修复“角色/世界资产虽然是候选机制，但仍可被平台 Agent 手写候选、跳过审查或用 approval bypass 晋升”的漏洞。角色背景故事、世界规则和大纲等上游资产现在也进入 CLI 中介状态机。
 
+## v0.84.6 Review / Export 接入
+
+`review-and-audit` 与 `export-and-release` 已成为第六、七条 registered route。两者把项目后段最容易被跳过的“总审查”和“最终交付”纳入统一 `task-next -> task-open -> task-submit -> task-complete` 控制面。
+
+`workflow-state --route review-and-audit` 会生成项目级状态：
+
+1. `canon-lint-file`
+2. `canon-review-task-file`
+3. `canon-review-agent-task`
+4. `canon-review-pass`
+5. `longform-audit-file`
+6. `committee-task-file`
+7. `committee-agent-task`
+8. `committee-pass`
+
+关键门禁：
+
+1. `canon-lint` 必须写出 Markdown/JSON，schema valid，blocking_count 为 0。
+2. `agent-canon-review` 只生成平台 Agent sidecar；平台 Agent 必须写 canon review JSON/Markdown 和 completion marker。
+3. canon review 必须 clean `conclusion=pass`，不能带 blocking issues、warnings、unresolved facts 或 timeline risks。
+4. `longform-audit` 必须写出 Markdown/JSON 与 `plot/longform_graph.json`。
+5. `agent-committee` 只生成 sidecar；平台 Agent 必须写 committee JSON/Markdown 和 completion marker。
+6. committee review 必须 `final_recommendation=approve`，且没有 action_items 或 disagreements。
+
+`workflow-state --route export-and-release` 会按 chapter 生成状态：
+
+1. `chapter-workspace`
+2. `export-package`
+3. `release-approval`
+4. `publish-release`
+
+关键门禁：
+
+1. `chapter-workspace` 必须写出 Markdown/JSON，ready_count > 0 且 blocked_count = 0。
+2. `export-package` 必须 schema valid，`include_blocked=false`，`skipped_scenes=[]`，请求输出真实存在。
+3. 读者交付文件不得泄漏 scene ID、canon/review/workflow/state/writeback 标记、内部路径或 `[AGENT_TASK: ...]`。
+4. 发布前必须有 `release-{chapter_id}` 的人类 approve 记录。
+5. `publish-chapter` 必须写 formal-release manifest、release notes、rollback、latest 指针和请求输出；manifest approval 必须为 approve，latest 必须指向 formal-release manifest。
+
+这一步修复“最终审查靠自觉、longform/canon/committee 审查旁路、导出用自写脚本、发布缺审批、最终正文夹带工程痕迹”的漏洞。
+
 ## 测试
 
 新增：
@@ -260,6 +303,10 @@ CLI 只负责：
 - 未写资产 review、缺用户 approval 或缺 promotion manifest 时，`task-complete` 阻塞。
 - 候选资产完成 creation、clean review、approval 和 promotion 后，`task-next --route character-and-world-assets` 返回 ready。
 - `route-audit --route character-and-world-assets` 能阻塞未 review/未 approval/未 promotion 的候选，并放行完整晋升链路。
+- `task-next --route review-and-audit` 能派发 canon-lint、canon review、longform audit、committee review，并在 clean approve 后返回 ready。
+- `task-complete` 与 `route-audit` 能拒绝带 warnings/unresolved/action_items/disagreements 的 review/audit 链路。
+- `task-next --route export-and-release` 能派发 chapter-workspace、export-package、release approval、publish-release，并在正式发布后返回 ready。
+- `task-complete` 与 `route-audit` 能拒绝 `include_blocked` 导出、缺 approval 发布、latest 指针不一致和最终正文工程痕迹泄漏。
 - `task-complete` 拒绝非 clean pass 的静态 review。
 - `task-complete` 拒绝损坏的 state patch JSON。
 - context 完成后 `task-next` 推进到 roleplay-simulation。

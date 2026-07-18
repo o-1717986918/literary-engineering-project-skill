@@ -46,6 +46,8 @@ def build_workflow_state(
     source_ingests = _source_ingest_states(root) if normalized_route in {"source-ingest", "overall"} else []
     styles = _style_engineering_states(root) if normalized_route in {"style-engineering", "overall"} else []
     assets = _asset_states(root, include_intake=normalized_route == "character-and-world-assets") if normalized_route in {"character-and-world-assets", "overall"} else []
+    audits = [_review_audit_state(root)] if normalized_route in {"review-and-audit", "overall"} else []
+    exports = _export_release_states(root) if normalized_route in {"export-and-release", "overall"} else []
     longform_blocked = 1 if longform and longform.get("status") != "ready" else 0
     longform_ready = 1 if longform and longform.get("status") == "ready" else 0
     summary = {
@@ -54,12 +56,16 @@ def build_workflow_state(
         "source_ingest_count": len(source_ingests),
         "style_profile_count": len(styles),
         "asset_count": len(assets),
+        "audit_count": len(audits),
+        "export_count": len(exports),
         "ready_count": (
             sum(1 for scene in scenes if scene["status"] == "ready")
             + longform_ready
             + sum(1 for item in source_ingests if item["status"] == "ready")
             + sum(1 for item in styles if item["status"] == "ready")
             + sum(1 for item in assets if item["status"] == "ready")
+            + sum(1 for item in audits if item["status"] == "ready")
+            + sum(1 for item in exports if item["status"] == "ready")
         ),
         "blocked_count": (
             sum(1 for scene in scenes if scene["status"] != "ready")
@@ -67,6 +73,8 @@ def build_workflow_state(
             + sum(1 for item in source_ingests if item["status"] != "ready")
             + sum(1 for item in styles if item["status"] != "ready")
             + sum(1 for item in assets if item["status"] != "ready")
+            + sum(1 for item in audits if item["status"] != "ready")
+            + sum(1 for item in exports if item["status"] != "ready")
         ),
         "next_action_count": (
             sum(1 for scene in scenes if scene.get("next_action"))
@@ -74,6 +82,8 @@ def build_workflow_state(
             + sum(1 for item in source_ingests if item.get("next_action"))
             + sum(1 for item in styles if item.get("next_action"))
             + sum(1 for item in assets if item.get("next_action"))
+            + sum(1 for item in audits if item.get("next_action"))
+            + sum(1 for item in exports if item.get("next_action"))
         ),
         "longform_status": longform.get("status", "") if isinstance(longform, dict) else "",
     }
@@ -88,6 +98,8 @@ def build_workflow_state(
         "source_ingests": source_ingests,
         "styles": styles,
         "assets": assets,
+        "audits": audits,
+        "exports": exports,
         "rules": [
             "This state ledger is advisory plus auditable; command-level gates remain authoritative.",
             "A step is pass only when the formal CLI artifact and its platform-agent completion marker both exist where required.",
@@ -476,6 +488,249 @@ def _asset_promotion_step(root: Path, manifest_path: Path) -> dict[str, object]:
     }
 
 
+def _review_audit_state(root: Path) -> dict[str, object]:
+    canon_lint_json = root / "reviews" / "canon_lint.json"
+    canon_review_json = root / "reviews" / "agent" / "canon_review.json"
+    canon_review_md = canon_review_json.with_suffix(".md")
+    canon_review_task = canon_review_json.with_suffix(".agent_tasks.md")
+    committee_json = root / "reviews" / "agent" / "committee_project-final-audit.json"
+    committee_md = committee_json.with_suffix(".md")
+    committee_task = committee_json.with_suffix(".agent_tasks.md")
+    longform_json = root / "reviews" / "longform" / "longform_audit.json"
+    steps = [
+        _canon_lint_step(root, canon_lint_json),
+        _file_step("canon-review-task-file", canon_review_task, "run agent-canon-review to create the platform-agent canon review sidecar"),
+        _review_agent_step(root, "canon-review-agent-task", canon_review_task, canon_review_json, canon_review_md, "complete canon review sidecar, JSON, Markdown, and completion marker"),
+        _canon_review_pass_step(root, canon_review_json),
+        _file_step("longform-audit-file", longform_json, "run longform-audit to create structural longform audit JSON/Markdown"),
+        _file_step("committee-task-file", committee_task, "run agent-committee --subject project-final-audit --source reviews/agent/canon_review.md"),
+        _review_agent_step(root, "committee-agent-task", committee_task, committee_json, committee_md, "complete committee sidecar, JSON, Markdown, and completion marker"),
+        _committee_pass_step(root, committee_json),
+    ]
+    first_open = next((step for step in steps if step["status"] != "pass"), None)
+    return {
+        "target_id": "project-review",
+        "scene_id": "project-review",
+        "status": "ready" if first_open is None else "blocked",
+        "current_step": first_open["key"] if first_open else "ready",
+        "next_action": first_open["next_action"] if first_open else "",
+        "steps": steps,
+    }
+
+
+def _canon_lint_step(root: Path, json_path: Path) -> dict[str, object]:
+    report = json_path.with_suffix(".md")
+    if not json_path.exists() or not report.exists():
+        return {
+            "key": "canon-lint-file",
+            "status": "missing",
+            "path": _rel(json_path, root),
+            "message": "missing canon lint report or JSON",
+            "next_action": "run canon-lint before platform-agent canon review",
+        }
+    payload = _read_json(json_path)
+    status = str(payload.get("status") or "").strip().lower()
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    blocking = int(summary.get("blocking_count", 0) or 0)
+    return {
+        "key": "canon-lint-file",
+        "status": "pass" if status in {"pass", "pass_with_warnings"} and blocking == 0 else status or "blocked",
+        "path": _rel(json_path, root),
+        "message": f"status={status or 'missing'}; blocking={blocking}; warning={summary.get('warning_count', 0)}",
+        "next_action": "" if status in {"pass", "pass_with_warnings"} and blocking == 0 else "fix canon-lint blocking issues before Agent canon review",
+    }
+
+
+def _review_agent_step(root: Path, key: str, task_path: Path, json_path: Path, report_path: Path, next_action: str) -> dict[str, object]:
+    state = agent_task_completion_status(task_path, root=root)
+    missing = [_rel(path, root) for path in (json_path, report_path) if not path.exists()]
+    complete = state.get("complete") is True and not missing
+    message = str(state.get("message") or "")
+    if missing:
+        message = (message + "; " if message else "") + "missing " + ", ".join(missing)
+    return {
+        "key": key,
+        "status": "pass" if complete else str(state.get("status") or "pending"),
+        "path": _rel(task_path, root),
+        "completion": state.get("completion", ""),
+        "message": message,
+        "next_action": "" if complete else next_action,
+    }
+
+
+def _canon_review_pass_step(root: Path, json_path: Path) -> dict[str, object]:
+    payload = _read_json(json_path)
+    conclusion = str(payload.get("conclusion") or "").strip().lower()
+    blocking = payload.get("blocking_issues") if isinstance(payload.get("blocking_issues"), list) else []
+    warnings = payload.get("warnings") if isinstance(payload.get("warnings"), list) else []
+    unresolved = payload.get("unresolved_facts") if isinstance(payload.get("unresolved_facts"), list) else []
+    timeline = payload.get("timeline_risks") if isinstance(payload.get("timeline_risks"), list) else []
+    passed = conclusion == "pass" and not blocking and not warnings and not unresolved and not timeline
+    message = f"conclusion={conclusion or 'missing'}; blocking={len(blocking)}; warnings={len(warnings)}; unresolved={len(unresolved)}; timeline={len(timeline)}"
+    return {
+        "key": "canon-review-pass",
+        "status": "pass" if passed else conclusion or "missing",
+        "path": _rel(json_path, root),
+        "message": message,
+        "next_action": "" if passed else "resolve canon review findings or write a clean platform-agent canon_review.v1 pass",
+    }
+
+
+def _committee_pass_step(root: Path, json_path: Path) -> dict[str, object]:
+    payload = _read_json(json_path)
+    recommendation = str(payload.get("final_recommendation") or "").strip().lower()
+    action_items = payload.get("action_items") if isinstance(payload.get("action_items"), list) else []
+    disagreements = payload.get("disagreements") if isinstance(payload.get("disagreements"), list) else []
+    passed = recommendation == "approve" and not action_items and not disagreements
+    return {
+        "key": "committee-pass",
+        "status": "pass" if passed else recommendation or "missing",
+        "path": _rel(json_path, root),
+        "message": f"final_recommendation={recommendation or 'missing'}; action_items={len(action_items)}; disagreements={len(disagreements)}",
+        "next_action": "" if passed else "resolve committee action items/disagreements and write final_recommendation=approve",
+    }
+
+
+def _export_release_states(root: Path) -> list[dict[str, object]]:
+    chapter_ids = _chapter_ids(root)
+    return [_export_release_state(root, chapter_id) for chapter_id in chapter_ids]
+
+
+def _chapter_ids(root: Path) -> list[str]:
+    ids: set[str] = set()
+    chapters = root / "plot" / "chapters"
+    if chapters.exists():
+        ids.update(path.stem for path in chapters.glob("*.json"))
+    scenes = root / "scenes"
+    if scenes.exists():
+        for path in scenes.glob("*.yaml"):
+            if path.name.startswith("_"):
+                continue
+            chapter_id = _scene_chapter_id(_read(path))
+            if chapter_id:
+                ids.add(chapter_id)
+    releases = root / "releases"
+    if releases.exists():
+        ids.update(path.name for path in releases.iterdir() if path.is_dir())
+    return sorted(ids) or ["chapter_0001"]
+
+
+def _export_release_state(root: Path, chapter_id: str) -> dict[str, object]:
+    chapter_json = root / "plot" / "chapters" / f"{chapter_id}.json"
+    chapter_md = root / "drafts" / "chapters" / f"{chapter_id}.md"
+    export_manifest = root / "exports" / chapter_id / "export_manifest.json"
+    approval_run_id = f"release-{chapter_id}"
+    latest = root / "releases" / chapter_id / "latest.json"
+    release_dir = root / "releases" / chapter_id / "formal-release"
+    steps = [
+        _chapter_workspace_step(root, chapter_id, chapter_json, chapter_md),
+        _export_package_step(root, chapter_id, export_manifest),
+        _release_approval_step(root, approval_run_id),
+        _publish_release_step(root, latest, release_dir),
+    ]
+    first_open = next((step for step in steps if step["status"] != "pass"), None)
+    return {
+        "target_id": chapter_id,
+        "chapter_id": chapter_id,
+        "scene_id": chapter_id,
+        "status": "ready" if first_open is None else "blocked",
+        "current_step": first_open["key"] if first_open else "ready",
+        "next_action": first_open["next_action"] if first_open else "",
+        "steps": steps,
+    }
+
+
+def _chapter_workspace_step(root: Path, chapter_id: str, json_path: Path, markdown_path: Path) -> dict[str, object]:
+    if not json_path.exists() or not markdown_path.exists():
+        return {
+            "key": "chapter-workspace",
+            "status": "missing",
+            "path": _rel(json_path, root),
+            "message": "missing chapter workspace JSON or Markdown",
+            "next_action": f"run chapter-workspace for {chapter_id}",
+        }
+    payload = _read_json(json_path)
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    blocked = int(summary.get("blocked_count", 0) or 0)
+    ready = int(summary.get("ready_count", 0) or 0)
+    passed = blocked == 0 and ready > 0
+    return {
+        "key": "chapter-workspace",
+        "status": "pass" if passed else "blocked",
+        "path": _rel(json_path, root),
+        "message": f"ready={ready}; blocked={blocked}",
+        "next_action": "" if passed else "repair scene-development gates, rerun chapter-workspace, and ensure every scene is ready",
+    }
+
+
+def _export_route_audit_step(root: Path, json_path: Path) -> dict[str, object]:
+    payload = _read_json(json_path)
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    route = str(summary.get("route") or "").strip().lower()
+    blocking = int(summary.get("blocking_count", 0) or 0)
+    passed = json_path.exists() and route == "export-and-release" and blocking == 0
+    return {
+        "key": "export-route-audit",
+        "status": "pass" if passed else "missing" if not json_path.exists() else "blocked",
+        "path": _rel(json_path, root),
+        "message": f"route={route or 'missing'}; blocking={blocking}",
+        "next_action": "" if passed else "run route-audit --route export-and-release with dedicated output and resolve blocking gates",
+    }
+
+
+def _export_package_step(root: Path, chapter_id: str, manifest_path: Path) -> dict[str, object]:
+    payload = _read_json(manifest_path)
+    skipped = payload.get("skipped_scenes") if isinstance(payload.get("skipped_scenes"), list) else []
+    outputs = payload.get("outputs") if isinstance(payload.get("outputs"), dict) else {}
+    required = [outputs.get("novel"), outputs.get("screenplay"), outputs.get("video_prompt_pack")]
+    missing = [str(item) for item in required if not item or not (root / str(item)).exists()]
+    include_blocked = bool(payload.get("include_blocked"))
+    passed = manifest_path.exists() and not skipped and not include_blocked and not missing
+    message = f"skipped={len(skipped)}; include_blocked={include_blocked}; missing_outputs={len(missing)}"
+    return {
+        "key": "export-package",
+        "status": "pass" if passed else "missing" if not manifest_path.exists() else "blocked",
+        "path": _rel(manifest_path, root),
+        "message": message,
+        "next_action": "" if passed else f"run export-package for {chapter_id}; do not use --include-blocked",
+    }
+
+
+def _release_approval_step(root: Path, run_id: str) -> dict[str, object]:
+    approval = _approval_record(root, run_id)
+    passed = str(approval.get("decision") or "") == "approve"
+    return {
+        "key": "release-approval",
+        "status": "pass" if passed else str(approval.get("decision") or "missing"),
+        "path": "workflow/approvals/index.jsonl",
+        "message": "approve record exists" if passed else f"missing human approve record for {run_id}",
+        "next_action": "" if passed else f"ask user to approve release candidate and record approval run_id `{run_id}`",
+    }
+
+
+def _publish_release_step(root: Path, latest_path: Path, release_dir: Path) -> dict[str, object]:
+    latest = _read_json(latest_path)
+    manifest = release_dir / "publish_manifest.json"
+    payload = _read_json(manifest)
+    status = str(payload.get("status") or "").strip().lower()
+    approval = payload.get("approval") if isinstance(payload.get("approval"), dict) else {}
+    passed = (
+        latest_path.exists()
+        and manifest.exists()
+        and status == "published"
+        and not payload.get("allow_unapproved")
+        and approval.get("decision") == "approve"
+        and latest.get("manifest") == _rel(manifest, root)
+    )
+    return {
+        "key": "publish-release",
+        "status": "pass" if passed else "missing" if not manifest.exists() else "blocked",
+        "path": _rel(manifest, root),
+        "message": f"latest={bool(latest)}; status={status or 'missing'}; approval={approval.get('decision') or 'missing'}",
+        "next_action": "" if passed else "run publish-chapter with approval run id; do not use --allow-unapproved",
+    }
+
+
 def _style_engineering_state(root: Path, profile_dir: Path) -> dict[str, object]:
     profile_id = _rel(profile_dir, root)
     task_path = profile_dir / "style_prompt.agent_tasks.md"
@@ -821,6 +1076,11 @@ def _scene_id(path: Path) -> str:
     return path.stem
 
 
+def _scene_chapter_id(text: str) -> str:
+    match = re.search(r"(?m)^\s*chapter_id:\s*['\"]?([^'\"\n#]+)", text)
+    return match.group(1).strip().strip("\"'") if match else ""
+
+
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore") if path.exists() else ""
 
@@ -894,6 +1154,24 @@ def _render_markdown(payload: dict[str, object]) -> str:
                 continue
             lines.append(
                 f"| {item.get('candidate_id', '')} | {item.get('asset_type', '')} | {item.get('status', '')} | {item.get('current_step', '')} | {item.get('next_action', '')} |"
+            )
+    audits = payload.get("audits") if isinstance(payload.get("audits"), list) else []
+    if audits:
+        lines.extend(["", "## Review And Audit State", "", "| target | 状态 | 当前步骤 | 下一步 |", "| --- | --- | --- | --- |"])
+        for item in audits:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"| {item.get('target_id', '')} | {item.get('status', '')} | {item.get('current_step', '')} | {item.get('next_action', '')} |"
+            )
+    exports = payload.get("exports") if isinstance(payload.get("exports"), list) else []
+    if exports:
+        lines.extend(["", "## Export And Release State", "", "| chapter | 状态 | 当前步骤 | 下一步 |", "| --- | --- | --- | --- |"])
+        for item in exports:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"| {item.get('chapter_id', '')} | {item.get('status', '')} | {item.get('current_step', '')} | {item.get('next_action', '')} |"
             )
     lines.extend(["", "## Details", ""])
     for scene in payload.get("scenes", []):

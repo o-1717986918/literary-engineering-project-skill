@@ -24,7 +24,15 @@ from .workflow_state import build_workflow_state
 TASK_SCHEMA = "literary-engineering-workbench/agent-task/v1"
 SUBMISSION_SCHEMA = "literary-engineering-workbench/agent-submission/v1"
 EVENT_SCHEMA = "literary-engineering-workbench/workflow-event/v1"
-SUPPORTED_ROUTES = {"scene-development", "longform-planning", "source-ingest", "style-engineering", "character-and-world-assets"}
+SUPPORTED_ROUTES = {
+    "scene-development",
+    "longform-planning",
+    "source-ingest",
+    "style-engineering",
+    "character-and-world-assets",
+    "review-and-audit",
+    "export-and-release",
+}
 
 
 @dataclass(frozen=True)
@@ -368,6 +376,20 @@ def _route_definition(route: str) -> RouteDefinition:
             build_task=_build_asset_task_payload,
             validate_task=_asset_state_gate_validation,
         ),
+        "review-and-audit": RouteDefinition(
+            route="review-and-audit",
+            ready_message="review-and-audit route is ready",
+            select_work_item=_select_review_audit_state,
+            build_task=_build_review_audit_task_payload,
+            validate_task=_review_audit_state_gate_validation,
+        ),
+        "export-and-release": RouteDefinition(
+            route="export-and-release",
+            ready_message="export-and-release route has no pending chapter",
+            select_work_item=_select_export_release_state,
+            build_task=_build_export_release_task_payload,
+            validate_task=_export_release_state_gate_validation,
+        ),
     }
     try:
         return definitions[normalized]
@@ -654,6 +676,123 @@ def _build_asset_task_payload(root: Path, route: str, state: dict[str, object]) 
             "Do not promote any candidate asset without a clean platform-agent asset review and an approve record.",
             "Do not use --allow-unapproved or any debug approval bypass in formal Skill-host work.",
             "Do not let extracted/source-derived claims become canon without evidence_refs, confidence, review, and approval.",
+            "Do not treat this task as complete until task-submit and task-complete have succeeded.",
+        ],
+        "next_allowed_states": blueprint["next_allowed_states"],
+    }
+
+
+def _build_review_audit_task_payload(root: Path, route: str, state: dict[str, object]) -> dict[str, object]:
+    current_state = str(state.get("current_step") or "")
+    next_action = str(state.get("next_action") or "")
+    blueprint = _review_audit_blueprint_for_state(root, current_state, next_action)
+    task_id = _task_id(route, "project-review", current_state)
+    expected_outputs = _unique([_normalize_rel(item) for item in blueprint["expected_outputs"]])
+    source_paths = _unique([_normalize_rel(item) for item in blueprint["source_paths"]])
+    now = _now()
+    return {
+        "schema": TASK_SCHEMA,
+        "task_id": task_id,
+        "status": "issued",
+        "created_at": now,
+        "route": route,
+        "scene_id": "project-review",
+        "target_id": "project-review",
+        "current_state": current_state,
+        "task_type": blueprint["task_type"],
+        "prompt_asset_id": blueprint["prompt_asset_id"],
+        "command": blueprint["command"],
+        "required_reading": blueprint.get(
+            "required_reading",
+            [
+                "SKILL.md",
+                "AGENTS.md",
+                "agentread.yaml",
+                "references/agent-run-protocol.md",
+                "references/cli-run-protocol.md",
+                "references/artifact-contracts.md",
+                "references/workflows.md",
+                "docs/implementation/phase30-agent-canon-review.md",
+                "docs/implementation/phase33-agent-review-committee.md",
+                "docs/implementation/phase8-longform-audit.md",
+            ],
+        ),
+        "source_paths": source_paths,
+        "context_trace": blueprint.get("context_trace", ""),
+        "hard_constraints": blueprint["hard_constraints"],
+        "style_constraints": blueprint["style_constraints"],
+        "word_count_target": 0,
+        "word_count_min": 0,
+        "word_count_max": 0,
+        "expected_outputs": expected_outputs,
+        "submission_command": f"python -m literary_engineering_workbench task-submit <project> --task-id {task_id} --from <artifact>",
+        "completion_command": f"python -m literary_engineering_workbench task-complete <project> --task-id {task_id}",
+        "validation_gates": blueprint["validation_gates"],
+        "forbidden_shortcuts": [
+            "Do not treat canon-lint or longform-audit as a semantic review by themselves.",
+            "Do not use local dry-run/http-chat provider output as the formal review judgment.",
+            "Do not let review pass_with_notes, unresolved facts, timeline risks, committee action_items, or disagreements move into export/release.",
+            "Do not write canon, character, plot, draft, export, or release changes directly from a review task; create candidate fixes and ask for approval.",
+            "Do not treat this task as complete until task-submit and task-complete have succeeded.",
+        ],
+        "next_allowed_states": blueprint["next_allowed_states"],
+    }
+
+
+def _build_export_release_task_payload(root: Path, route: str, state: dict[str, object]) -> dict[str, object]:
+    chapter_id = str(state.get("chapter_id") or state.get("target_id") or "chapter_0001")
+    current_state = str(state.get("current_step") or "")
+    next_action = str(state.get("next_action") or "")
+    blueprint = _export_release_blueprint_for_state(root, chapter_id, current_state, next_action)
+    task_id = _task_id(route, chapter_id, current_state)
+    expected_outputs = _unique([_normalize_rel(item) for item in blueprint["expected_outputs"]])
+    source_paths = _unique([_normalize_rel(item) for item in blueprint["source_paths"]])
+    now = _now()
+    return {
+        "schema": TASK_SCHEMA,
+        "task_id": task_id,
+        "status": "issued",
+        "created_at": now,
+        "route": route,
+        "scene_id": chapter_id,
+        "target_id": chapter_id,
+        "chapter_id": chapter_id,
+        "current_state": current_state,
+        "task_type": blueprint["task_type"],
+        "prompt_asset_id": blueprint["prompt_asset_id"],
+        "command": blueprint["command"],
+        "required_reading": blueprint.get(
+            "required_reading",
+            [
+                "SKILL.md",
+                "AGENTS.md",
+                "agentread.yaml",
+                "references/agent-run-protocol.md",
+                "references/cli-run-protocol.md",
+                "references/artifact-contracts.md",
+                "references/workflows.md",
+                "references/file-format-export.md",
+                "docs/implementation/phase7-chapter-pipeline.md",
+                "docs/implementation/phase9-export-package.md",
+                "docs/implementation/phase21-publish-chain.md",
+            ],
+        ),
+        "source_paths": source_paths,
+        "context_trace": blueprint.get("context_trace", ""),
+        "hard_constraints": blueprint["hard_constraints"],
+        "style_constraints": blueprint["style_constraints"],
+        "word_count_target": blueprint.get("word_count_target", 0),
+        "word_count_min": 0,
+        "word_count_max": 0,
+        "expected_outputs": expected_outputs,
+        "submission_command": f"python -m literary_engineering_workbench task-submit <project> --task-id {task_id} --from <artifact>",
+        "completion_command": f"python -m literary_engineering_workbench task-complete <project> --task-id {task_id}",
+        "validation_gates": blueprint["validation_gates"],
+        "forbidden_shortcuts": [
+            "Do not use --include-blocked, --allow-unapproved, or custom export scripts for formal delivery.",
+            "Do not export chapters with non-ready scenes, unresolved review notes, pending sidecars, skipped scenes, or workflow traces.",
+            "Do not include scene ids, canon notes, review text, state patches, AGENT_TASK markers, or writeback candidates in final delivery files.",
+            "Do not publish without a human approve record matching the release run id.",
             "Do not treat this task as complete until task-submit and task-complete have succeeded.",
         ],
         "next_allowed_states": blueprint["next_allowed_states"],
@@ -1323,6 +1462,229 @@ def _asset_blueprint_for_state(root: Path, candidate_id: str, asset_type: str, c
     return table.get(current_state, default)
 
 
+def _review_audit_blueprint_for_state(root: Path, current_state: str, next_action: str) -> dict[str, object]:
+    _ = root
+    canon_review = "reviews/agent/canon_review"
+    committee = "reviews/agent/committee_project-final-audit"
+    table: dict[str, dict[str, object]] = {
+        "canon-lint-file": {
+            "task_type": "deterministic-cli",
+            "prompt_asset_id": "route.review-audit.canon-lint.v1",
+            "command": "python -m literary_engineering_workbench canon-lint <project>",
+            "source_paths": ["project.yaml", "canon", "characters", "plot", "scenes", "drafts/scenes"],
+            "expected_outputs": ["reviews/canon_lint.md", "reviews/canon_lint.json"],
+            "hard_constraints": [
+                "Run canon-lint before any platform-agent project-level semantic review.",
+                "Blocking canon-lint issues must be fixed or explicitly captured as candidate repair tasks before export.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["canon-lint report exists", "canon-lint JSON schema/status is usable", "blocking_count is 0"],
+            "next_allowed_states": ["canon-review-task-file"],
+        },
+        "canon-review-task-file": {
+            "task_type": "deterministic-cli",
+            "prompt_asset_id": "route.review-audit.canon-review.prepare.v1",
+            "command": "python -m literary_engineering_workbench agent-canon-review <project>",
+            "source_paths": ["reviews/canon_lint.md", "reviews/canon_lint.json", "canon", "characters", "plot", "scenes"],
+            "expected_outputs": [f"{canon_review}.agent_tasks.md"],
+            "hard_constraints": [
+                "Run agent-canon-review only to create a platform-agent sidecar.",
+                "The command prepares the task; the platform agent writes canon_review.v1 JSON/Markdown.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["canon review sidecar exists"],
+            "next_allowed_states": ["canon-review-agent-task"],
+        },
+        "canon-review-agent-task": {
+            "task_type": "platform-agent-review",
+            "prompt_asset_id": "route.review-audit.canon-review.execute.v1",
+            "command": "",
+            "source_paths": ["reviews/canon_lint.md", "reviews/canon_lint.json", f"{canon_review}.agent_tasks.md", "canon", "characters", "plot", "scenes"],
+            "expected_outputs": [f"{canon_review}.json", f"{canon_review}.md", f"{canon_review}.agent_completion.json"],
+            "hard_constraints": [
+                "Read canon lint, canon files, characters, scenes, plot, and write canon_review.v1.",
+                "pass_with_notes is not a clean release gate; unresolved facts and timeline risks must become repair tasks or be resolved.",
+                "Do not call local providers. The host platform agent is the reviewer.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["canon review sidecar completed", "canon_review.v1 validates", "canon review conclusion is pass"],
+            "next_allowed_states": ["canon-review-pass", "longform-audit-file"],
+        },
+        "canon-review-pass": {
+            "task_type": "platform-agent-revision",
+            "prompt_asset_id": "route.review-audit.canon-review.fix.v1",
+            "command": "",
+            "source_paths": [f"{canon_review}.json", f"{canon_review}.md", "reviews/canon_lint.json"],
+            "expected_outputs": [f"{canon_review}.json", f"{canon_review}.md"],
+            "hard_constraints": [
+                "Resolve canon review blocking issues, unresolved facts, and timeline risks before committee review.",
+                "Do not relabel unresolved findings as warnings to pass the gate.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["canon_review conclusion pass", "no blocking_issues", "no unresolved_facts", "no timeline_risks"],
+            "next_allowed_states": ["longform-audit-file"],
+        },
+        "longform-audit-file": {
+            "task_type": "deterministic-cli",
+            "prompt_asset_id": "route.review-audit.longform-audit.v1",
+            "command": "python -m literary_engineering_workbench longform-audit <project>",
+            "source_paths": ["project.yaml", "plot/chapters", "scenes", "drafts/scenes", "reviews/agent", "plot/word_budget"],
+            "expected_outputs": ["reviews/longform/longform_audit.md", "reviews/longform/longform_audit.json", "plot/longform_graph.json"],
+            "hard_constraints": [
+                "Run longform-audit after canon review so the committee sees structural risks, word-budget gaps, and chapter readiness.",
+                "Longform audit facts are evidence; the committee must still make semantic judgment.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["longform audit JSON exists", "longform audit schema is valid", "longform graph exists"],
+            "next_allowed_states": ["committee-task-file"],
+        },
+        "committee-task-file": {
+            "task_type": "deterministic-cli",
+            "prompt_asset_id": "route.review-audit.committee.prepare.v1",
+            "command": "python -m literary_engineering_workbench agent-committee <project> --subject project-final-audit --source reviews/agent/canon_review.md",
+            "source_paths": [f"{canon_review}.md", f"{canon_review}.json", "reviews/longform/longform_audit.md", "reviews/longform/longform_audit.json"],
+            "expected_outputs": [f"{committee}.agent_tasks.md"],
+            "hard_constraints": [
+                "Run agent-committee only to create a platform-agent sidecar.",
+                "Committee review must inspect canon review and longform audit; it cannot approve by vibe.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["committee sidecar exists"],
+            "next_allowed_states": ["committee-agent-task"],
+        },
+        "committee-agent-task": {
+            "task_type": "platform-agent-review",
+            "prompt_asset_id": "route.review-audit.committee.execute.v1",
+            "command": "",
+            "source_paths": [f"{committee}.agent_tasks.md", f"{canon_review}.json", f"{canon_review}.md", "reviews/longform/longform_audit.json", "reviews/longform/longform_audit.md"],
+            "expected_outputs": [f"{committee}.json", f"{committee}.md", f"{committee}.agent_completion.json"],
+            "hard_constraints": [
+                "Act as a multi-perspective review committee: chief editor, character psychology, canon auditor, style auditor, readability, and anti-homogeneity.",
+                "final_recommendation=approve is allowed only when no action_items or disagreements remain.",
+                "approve_with_notes, revise, reject, action_items, or disagreements block export readiness.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["committee sidecar completed", "committee_review.v1 validates", "final_recommendation is approve"],
+            "next_allowed_states": ["committee-pass"],
+        },
+        "committee-pass": {
+            "task_type": "platform-agent-revision",
+            "prompt_asset_id": "route.review-audit.committee.fix.v1",
+            "command": "",
+            "source_paths": [f"{committee}.json", f"{committee}.md"],
+            "expected_outputs": [f"{committee}.json", f"{committee}.md"],
+            "hard_constraints": [
+                "Resolve every committee action item and disagreement before treating project-level review as ready.",
+                "Do not move to export-and-release on approve_with_notes.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["final_recommendation approve", "no action_items", "no disagreements"],
+            "next_allowed_states": ["ready"],
+        },
+    }
+    default = {
+        "task_type": "manual-route-repair",
+        "prompt_asset_id": "route.review-audit.repair.v1",
+        "command": next_action,
+        "source_paths": ["reviews", "canon", "characters", "plot", "scenes"],
+        "expected_outputs": [],
+        "hard_constraints": [next_action or "Inspect workflow-state and route-audit, then repair the missing review-and-audit gate."],
+        "style_constraints": [],
+        "validation_gates": ["review-and-audit gate resolved"],
+        "next_allowed_states": [],
+    }
+    return table.get(current_state, default)
+
+
+def _export_release_blueprint_for_state(root: Path, chapter_id: str, current_state: str, next_action: str) -> dict[str, object]:
+    _ = root
+    approval_run_id = f"release-{chapter_id}"
+    release_dir = f"releases/{chapter_id}/formal-release"
+    table: dict[str, dict[str, object]] = {
+        "chapter-workspace": {
+            "task_type": "deterministic-cli",
+            "prompt_asset_id": "route.export-release.chapter-workspace.v1",
+            "command": f"python -m literary_engineering_workbench chapter-workspace <project> --chapter-id {chapter_id}",
+            "source_paths": ["scenes", "drafts/scenes", "reviews", "reviews/agent", "branches", "drafts/compositions", "characters/state_patches"],
+            "expected_outputs": [f"drafts/chapters/{chapter_id}.md", f"plot/chapters/{chapter_id}.json"],
+            "hard_constraints": [
+                "Rebuild or verify chapter workspace immediately before export.",
+                "Every scene must be ready with formal flow gates, static review pass, exact-candidate AgentReview pass, and no unresolved notes.",
+            ],
+            "style_constraints": ["Final body extraction must exclude workflow traces, canon notes, state patches, review notes, and scene ids."],
+            "validation_gates": ["chapter workspace exists", "blocked_count is 0", "ready_count > 0"],
+            "next_allowed_states": ["export-package"],
+        },
+        "export-package": {
+            "task_type": "deterministic-cli",
+            "prompt_asset_id": "route.export-release.package.v1",
+            "command": f"python -m literary_engineering_workbench export-package <project> --chapter-id {chapter_id} --formats md,docx",
+            "source_paths": [f"plot/chapters/{chapter_id}.json", f"drafts/chapters/{chapter_id}.md", "drafts/scenes", "reviews/agent"],
+            "expected_outputs": [
+                f"exports/{chapter_id}/export_manifest.json",
+                f"exports/{chapter_id}/{chapter_id}_novel.md",
+                f"exports/{chapter_id}/{chapter_id}_screenplay.md",
+                f"exports/{chapter_id}/{chapter_id}_video_prompt_pack.md",
+            ],
+            "hard_constraints": [
+                "Do not use --include-blocked in formal Skill-host work.",
+                "Export manifest must have zero skipped scenes and include_blocked=false.",
+                "Final outputs must filter scene ids, canon notes, review notes, state patches, AGENT_TASK markers, and writeback candidates.",
+            ],
+            "style_constraints": ["Normalize punctuation for delivery; maintain Chinese quote standard and no raw workbench traces."],
+            "validation_gates": ["export manifest exists", "skipped_scenes is empty", "include_blocked is false", "delivery outputs exist"],
+            "next_allowed_states": ["release-approval"],
+        },
+        "release-approval": {
+            "task_type": "human-approval-boundary",
+            "prompt_asset_id": "route.export-release.approval.v1",
+            "command": f"Ask the user whether to approve chapter `{chapter_id}` for release; record approve decision with run_id `{approval_run_id}`.",
+            "source_paths": [f"exports/{chapter_id}/export_manifest.json", f"exports/{chapter_id}/{chapter_id}_novel.md", "workflow/approvals/index.jsonl"],
+            "expected_outputs": ["workflow/approvals/index.jsonl"],
+            "hard_constraints": [
+                "The platform agent must not self-approve release publication.",
+                "If the user requests revision or rejection, record that decision and return to the relevant review/export task.",
+                f"Approval run_id must be `{approval_run_id}` so publish-chapter can verify it.",
+            ],
+            "style_constraints": [],
+            "validation_gates": [f"approve record exists for {approval_run_id}"],
+            "next_allowed_states": ["publish-release"],
+        },
+        "publish-release": {
+            "task_type": "deterministic-cli",
+            "prompt_asset_id": "route.export-release.publish.v1",
+            "command": f"python -m literary_engineering_workbench publish-chapter <project> --chapter-id {chapter_id} --release-id formal-release --approval-run-id {approval_run_id} --export-formats md,docx",
+            "source_paths": [f"exports/{chapter_id}/export_manifest.json", "workflow/approvals/index.jsonl", "reviews/canon_lint.json", f"plot/chapters/{chapter_id}.json"],
+            "expected_outputs": [
+                f"{release_dir}/publish_manifest.json",
+                f"{release_dir}/release_notes.md",
+                f"{release_dir}/rollback.md",
+                f"releases/{chapter_id}/latest.json",
+            ],
+            "hard_constraints": [
+                "Do not use --allow-unapproved in formal Skill-host work.",
+                "Published manifest must have status=published and copied delivery outputs.",
+                "If the release directory already exists, do not overwrite casually; inspect latest and ask the user before replacing.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["publish manifest exists", "status is published", "latest.json points to release", "no approval bypass"],
+            "next_allowed_states": ["ready"],
+        },
+    }
+    default = {
+        "task_type": "manual-route-repair",
+        "prompt_asset_id": "route.export-release.repair.v1",
+        "command": next_action,
+        "source_paths": [f"plot/chapters/{chapter_id}.json", f"exports/{chapter_id}", f"releases/{chapter_id}"],
+        "expected_outputs": [],
+        "hard_constraints": [next_action or "Inspect workflow-state and route-audit, then repair the missing export-and-release gate."],
+        "style_constraints": [],
+        "validation_gates": ["export-and-release gate resolved"],
+        "next_allowed_states": [],
+    }
+    return table.get(current_state, default)
+
+
 def _render_task_markdown(task: dict[str, object], root: Path) -> str:
     task_id = str(task.get("task_id") or "")
     completion = default_agent_completion_path(_task_markdown_path(root, task_id))
@@ -1478,6 +1840,31 @@ def _select_asset_state(root: Path, payload: dict[str, object], scene: Path | st
                 if str(item.get("candidate_id") or "") == target
                 or str(item.get("target_id") or "") == target
                 or str(item.get("candidate") or "").rstrip("/").endswith(target)
+            ),
+            None,
+        )
+    return next((item for item in items if item.get("status") != "ready"), None)
+
+
+def _select_review_audit_state(root: Path, payload: dict[str, object], scene: Path | str | None) -> dict[str, object] | None:
+    _ = root
+    _ = scene
+    items = [item for item in payload.get("audits", []) if isinstance(item, dict)]
+    return next((item for item in items if item.get("status") != "ready"), None)
+
+
+def _select_export_release_state(root: Path, payload: dict[str, object], scene: Path | str | None) -> dict[str, object] | None:
+    _ = root
+    items = [item for item in payload.get("exports", []) if isinstance(item, dict)]
+    if scene:
+        target = str(scene).replace("\\", "/").strip("/")
+        return next(
+            (
+                item
+                for item in items
+                if str(item.get("chapter_id") or "") == target
+                or str(item.get("target_id") or "") == target
+                or str(item.get("scene_id") or "") == target
             ),
             None,
         )
@@ -1655,6 +2042,301 @@ def _asset_state_gate_validation(root: Path, task: dict[str, object]) -> tuple[l
     if current_state == "asset-promotion" and not errors:
         notes.append("asset promotion gate passed")
     return errors, notes
+
+
+def _review_audit_state_gate_validation(root: Path, task: dict[str, object]) -> tuple[list[str], list[str]]:
+    current_state = str(task.get("current_state") or "")
+    errors: list[str] = []
+    notes: list[str] = []
+    if current_state == "canon-lint-file":
+        errors.extend(_canon_lint_gate_errors(root))
+    if current_state == "canon-review-task-file":
+        errors.extend(_canon_lint_gate_errors(root))
+        canon_task = root / "reviews" / "agent" / "canon_review.agent_tasks.md"
+        if not canon_task.exists():
+            errors.append(f"canon review sidecar missing: {_rel(canon_task, root)}")
+    if current_state in {"canon-review-agent-task", "canon-review-pass"}:
+        errors.extend(_canon_lint_gate_errors(root))
+        errors.extend(_canon_review_gate_errors(root, require_pass=True))
+    if current_state == "longform-audit-file":
+        errors.extend(_canon_review_gate_errors(root, require_pass=True))
+        errors.extend(_longform_audit_file_gate_errors(root))
+    if current_state == "committee-task-file":
+        errors.extend(_canon_review_gate_errors(root, require_pass=True))
+        errors.extend(_longform_audit_file_gate_errors(root))
+        committee_task = root / "reviews" / "agent" / "committee_project-final-audit.agent_tasks.md"
+        if not committee_task.exists():
+            errors.append(f"committee sidecar missing: {_rel(committee_task, root)}")
+    if current_state in {"committee-agent-task", "committee-pass"}:
+        errors.extend(_canon_review_gate_errors(root, require_pass=True))
+        errors.extend(_longform_audit_file_gate_errors(root))
+        errors.extend(_committee_review_gate_errors(root, require_approve=True))
+    if current_state in {"canon-review-agent-task", "canon-review-pass"} and not errors:
+        notes.append("canon review clean pass")
+    if current_state in {"committee-agent-task", "committee-pass"} and not errors:
+        notes.append("committee review approved without open action items")
+    return errors, notes
+
+
+def _export_release_state_gate_validation(root: Path, task: dict[str, object]) -> tuple[list[str], list[str]]:
+    current_state = str(task.get("current_state") or "")
+    chapter_id = str(task.get("chapter_id") or task.get("target_id") or task.get("scene_id") or "chapter_0001")
+    errors: list[str] = []
+    notes: list[str] = []
+    if current_state == "chapter-workspace":
+        errors.extend(_chapter_workspace_gate_errors(root, chapter_id))
+    if current_state == "export-package":
+        errors.extend(_chapter_workspace_gate_errors(root, chapter_id))
+        errors.extend(_export_package_gate_errors(root, chapter_id))
+    if current_state == "release-approval":
+        errors.extend(_chapter_workspace_gate_errors(root, chapter_id))
+        errors.extend(_export_package_gate_errors(root, chapter_id))
+        errors.extend(_release_approval_gate_errors(root, chapter_id))
+    if current_state == "publish-release":
+        errors.extend(_chapter_workspace_gate_errors(root, chapter_id))
+        errors.extend(_export_package_gate_errors(root, chapter_id))
+        errors.extend(_release_approval_gate_errors(root, chapter_id))
+        errors.extend(_publish_release_gate_errors(root, chapter_id))
+    if current_state == "export-package" and not errors:
+        notes.append("export package ready with no skipped scenes")
+    if current_state == "publish-release" and not errors:
+        notes.append("chapter published through approved release gate")
+    return errors, notes
+
+
+def _canon_lint_gate_errors(root: Path) -> list[str]:
+    json_path = root / "reviews" / "canon_lint.json"
+    report_path = root / "reviews" / "canon_lint.md"
+    errors: list[str] = []
+    for path in (report_path, json_path):
+        if not path.exists():
+            errors.append(f"canon-lint artifact missing: {_rel(path, root)}")
+    payload, error = _read_optional_json(json_path)
+    if error:
+        errors.append(error)
+        return errors
+    if payload.get("schema") != "literary-engineering-workbench/canon-lint/v0.1":
+        errors.append("canon_lint.json has wrong or missing schema")
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    blocking = _to_int(summary.get("blocking_count"))
+    status = str(payload.get("status") or "").strip().lower()
+    if blocking:
+        errors.append(f"canon-lint blocking_count must be 0; got {blocking}")
+    if status not in {"pass", "pass_with_warnings"}:
+        errors.append(f"canon-lint status must be pass/pass_with_warnings; got {status or 'missing'}")
+    return errors
+
+
+def _canon_review_gate_errors(root: Path, *, require_pass: bool) -> list[str]:
+    json_path = root / "reviews" / "agent" / "canon_review.json"
+    report_path = json_path.with_suffix(".md")
+    task_path = json_path.with_suffix(".agent_tasks.md")
+    errors: list[str] = []
+    state = agent_task_completion_status(task_path, root=root)
+    if state.get("complete") is not True:
+        errors.append(f"canon review sidecar is incomplete: {state.get('message')}")
+    for path in (json_path, report_path):
+        if not path.exists():
+            errors.append(f"canon review artifact missing: {_rel(path, root)}")
+    payload, error = _read_optional_json(json_path)
+    if error:
+        errors.append(error)
+        return errors
+    schema_errors, _warnings = validate_payload(payload, "canon_review.v1")
+    errors.extend(f"canon_review.v1 schema error at {item.get('path')}: {item.get('message')}" for item in schema_errors)
+    if require_pass:
+        conclusion = str(payload.get("conclusion") or "").strip().lower()
+        blocking = payload.get("blocking_issues") if isinstance(payload.get("blocking_issues"), list) else []
+        warnings = payload.get("warnings") if isinstance(payload.get("warnings"), list) else []
+        unresolved = payload.get("unresolved_facts") if isinstance(payload.get("unresolved_facts"), list) else []
+        timeline = payload.get("timeline_risks") if isinstance(payload.get("timeline_risks"), list) else []
+        if conclusion != "pass":
+            errors.append(f"canon review conclusion must be pass; got {conclusion or 'missing'}")
+        if blocking:
+            errors.append(f"canon review blocking_issues must be empty; got {len(blocking)}")
+        if warnings:
+            errors.append(f"canon review warnings must be resolved before export/release; got {len(warnings)}")
+        if unresolved:
+            errors.append(f"canon review unresolved_facts must be empty; got {len(unresolved)}")
+        if timeline:
+            errors.append(f"canon review timeline_risks must be empty; got {len(timeline)}")
+    return errors
+
+
+def _longform_audit_file_gate_errors(root: Path) -> list[str]:
+    json_path = root / "reviews" / "longform" / "longform_audit.json"
+    report_path = json_path.with_suffix(".md")
+    graph_path = root / "plot" / "longform_graph.json"
+    errors: list[str] = []
+    for path in (json_path, report_path, graph_path):
+        if not path.exists():
+            errors.append(f"longform audit artifact missing: {_rel(path, root)}")
+    payload, error = _read_optional_json(json_path)
+    if error:
+        errors.append(error)
+        return errors
+    if payload.get("schema") != "literary-engineering-workbench/longform-audit/v0.1":
+        errors.append("longform_audit.json has wrong or missing schema")
+    if not isinstance(payload.get("summary"), dict):
+        errors.append("longform_audit.json must contain summary")
+    return errors
+
+
+def _committee_review_gate_errors(root: Path, *, require_approve: bool) -> list[str]:
+    json_path = root / "reviews" / "agent" / "committee_project-final-audit.json"
+    report_path = json_path.with_suffix(".md")
+    task_path = json_path.with_suffix(".agent_tasks.md")
+    errors: list[str] = []
+    state = agent_task_completion_status(task_path, root=root)
+    if state.get("complete") is not True:
+        errors.append(f"committee review sidecar is incomplete: {state.get('message')}")
+    for path in (json_path, report_path):
+        if not path.exists():
+            errors.append(f"committee review artifact missing: {_rel(path, root)}")
+    payload, error = _read_optional_json(json_path)
+    if error:
+        errors.append(error)
+        return errors
+    schema_errors, _warnings = validate_payload(payload, "committee_review.v1")
+    errors.extend(f"committee_review.v1 schema error at {item.get('path')}: {item.get('message')}" for item in schema_errors)
+    if require_approve:
+        recommendation = str(payload.get("final_recommendation") or "").strip().lower()
+        action_items = payload.get("action_items") if isinstance(payload.get("action_items"), list) else []
+        disagreements = payload.get("disagreements") if isinstance(payload.get("disagreements"), list) else []
+        if recommendation != "approve":
+            errors.append(f"committee final_recommendation must be approve; got {recommendation or 'missing'}")
+        if action_items:
+            errors.append(f"committee action_items must be empty before export/release; got {len(action_items)}")
+        if disagreements:
+            errors.append(f"committee disagreements must be empty before export/release; got {len(disagreements)}")
+    return errors
+
+
+def _chapter_workspace_gate_errors(root: Path, chapter_id: str) -> list[str]:
+    json_path = root / "plot" / "chapters" / f"{chapter_id}.json"
+    report_path = root / "drafts" / "chapters" / f"{chapter_id}.md"
+    errors: list[str] = []
+    for path in (json_path, report_path):
+        if not path.exists():
+            errors.append(f"chapter workspace artifact missing: {_rel(path, root)}")
+    payload, error = _read_optional_json(json_path)
+    if error:
+        errors.append(error)
+        return errors
+    if payload.get("schema") != "literary-engineering-workbench/chapter-workspace/v0.1":
+        errors.append("chapter workspace JSON has wrong or missing schema")
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    if _to_int(summary.get("ready_count")) <= 0:
+        errors.append("chapter workspace ready_count must be positive")
+    if _to_int(summary.get("blocked_count")) != 0:
+        errors.append(f"chapter workspace blocked_count must be 0; got {summary.get('blocked_count')}")
+    for scene in payload.get("scenes", []) if isinstance(payload.get("scenes"), list) else []:
+        if not isinstance(scene, dict):
+            continue
+        scene_id = str(scene.get("scene_id") or "")
+        if scene.get("status") != "ready":
+            errors.append(f"chapter scene must be ready: {scene_id or 'unknown'}")
+        if scene.get("agent_review_conclusion") != "pass" or scene.get("agent_review_schema_status") != "pass":
+            errors.append(f"chapter scene lacks clean platform AgentReview: {scene_id or 'unknown'}")
+        if scene.get("agent_review_source_match") is not True:
+            errors.append(f"chapter scene AgentReview does not cite exact draft/candidate: {scene_id or 'unknown'}")
+        if scene.get("agent_review_unresolved_notes"):
+            errors.append(f"chapter scene has unresolved AgentReview notes: {scene_id or 'unknown'}")
+        if scene.get("flow_gate_issues") or scene.get("readiness_issues"):
+            errors.append(f"chapter scene has unresolved flow/readiness gate issues: {scene_id or 'unknown'}")
+    return errors
+
+
+def _export_package_gate_errors(root: Path, chapter_id: str) -> list[str]:
+    manifest_path = root / "exports" / chapter_id / "export_manifest.json"
+    errors: list[str] = []
+    payload, error = _read_optional_json(manifest_path)
+    if error:
+        errors.append(error)
+        return errors
+    if payload.get("schema") != "literary-engineering-workbench/export-package/v0.1":
+        errors.append("export_manifest.json has wrong or missing schema")
+    if payload.get("include_blocked") is True:
+        errors.append("export package must not use include_blocked for formal delivery")
+    skipped = payload.get("skipped_scenes") if isinstance(payload.get("skipped_scenes"), list) else []
+    if skipped:
+        errors.append(f"export package skipped_scenes must be empty; got {len(skipped)}")
+    outputs = payload.get("outputs") if isinstance(payload.get("outputs"), dict) else {}
+    for key in ("novel", "screenplay", "video_prompt_pack"):
+        rel = str(outputs.get(key) or "")
+        if not rel:
+            errors.append(f"export output missing from manifest: {key}")
+            continue
+        path = root / rel
+        if not path.exists():
+            errors.append(f"export output file missing: {rel}")
+            continue
+        hits = _delivery_trace_hits(path)
+        if hits:
+            errors.append(f"export output contains workbench traces in {rel}: {', '.join(hits[:5])}")
+    docx_outputs = outputs.get("docx") if isinstance(outputs.get("docx"), dict) else {}
+    inspections = outputs.get("docx_inspections") if isinstance(outputs.get("docx_inspections"), dict) else {}
+    for key, rel in docx_outputs.items():
+        if not (root / str(rel)).exists():
+            errors.append(f"DOCX export output missing: {key} -> {rel}")
+    for key, rel in inspections.items():
+        if not (root / str(rel)).exists():
+            errors.append(f"DOCX inspection output missing: {key} -> {rel}")
+    return errors
+
+
+def _release_approval_gate_errors(root: Path, chapter_id: str) -> list[str]:
+    run_id = f"release-{chapter_id}"
+    approval = _approval_record_for_run(root, run_id)
+    if str(approval.get("decision") or "") == "approve":
+        return []
+    return [f"release approval missing or not approve for run_id {run_id}"]
+
+
+def _publish_release_gate_errors(root: Path, chapter_id: str) -> list[str]:
+    release_dir = root / "releases" / chapter_id / "formal-release"
+    manifest = release_dir / "publish_manifest.json"
+    latest = root / "releases" / chapter_id / "latest.json"
+    errors: list[str] = []
+    payload, error = _read_optional_json(manifest)
+    if error:
+        errors.append(error)
+        return errors
+    if payload.get("schema") != "literary-engineering-workbench/publish-chapter/v0.1":
+        errors.append("publish_manifest.json has wrong or missing schema")
+    if payload.get("status") != "published":
+        errors.append(f"publish status must be published; got {payload.get('status') or 'missing'}")
+    approval = payload.get("approval") if isinstance(payload.get("approval"), dict) else {}
+    if approval.get("decision") != "approve":
+        errors.append("publish manifest approval must be an approve record")
+    outputs = payload.get("published_outputs") if isinstance(payload.get("published_outputs"), dict) else {}
+    if not outputs:
+        errors.append("publish manifest must contain published_outputs")
+    for key, rel in outputs.items():
+        if not (root / str(rel)).exists():
+            errors.append(f"published output missing: {key} -> {rel}")
+    latest_payload, latest_error = _read_optional_json(latest)
+    if latest_error:
+        errors.append(latest_error)
+    elif latest_payload.get("manifest") != _rel(manifest, root):
+        errors.append("latest.json does not point to formal-release publish_manifest.json")
+    return errors
+
+
+def _delivery_trace_hits(path: Path) -> list[str]:
+    text = _read_text(path)
+    patterns = {
+        "scene-id": r"\bscene_\d{4}\b",
+        "agent-task": r"\[AGENT_TASK:",
+        "canon-note-heading": r"(?m)^#{1,4}\s*(新增事实候选|人物状态变化|关系变化|伏笔变化|需要人工确认|世界状态变化|状态变化候选)\s*$",
+        "review-heading": r"(?m)^#{1,4}\s*(审查|AgentReview|Route Audit|平台 Agent 任务|门禁问题汇总)\b",
+        "workflow-path": r"\b(workflow/tasks|reviews/agent|characters/state_patches|drafts/promotions|branch_manifest|roleplay_simulation)\b",
+    }
+    hits = []
+    for label, pattern in patterns.items():
+        if re.search(pattern, text):
+            hits.append(label)
+    return hits
 
 
 def _word_budget_file_gate_errors(root: Path) -> list[str]:

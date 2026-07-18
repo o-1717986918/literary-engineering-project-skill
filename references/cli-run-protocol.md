@@ -211,15 +211,19 @@ Formal scene generation is CLI-provenance-gated: context must come from `context
 
 ```powershell
 python -m literary_engineering_workbench protocol review-and-audit
+python -m literary_engineering_workbench task-next <project> --route review-and-audit
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
 python -m literary_engineering_workbench canon-lint <project>
 python -m literary_engineering_workbench agent-canon-review <project>
 python -m literary_engineering_workbench agent-committee <project>
 python -m literary_engineering_workbench longform-audit <project>
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
 python -m literary_engineering_workbench agent-task-status <project>
 python -m literary_engineering_workbench route-audit <project> --route review-and-audit
 ```
 
-The platform agent turns findings into a ranked revision plan and never treats a clean deterministic report as a substitute for creative review.
+Use `task-next --route review-and-audit` as the formal controller when available. The route starts with deterministic `canon-lint`, then requires the platform agent to complete `agent-canon-review`, write clean canon review JSON/Markdown, run `longform-audit`, and complete final committee review. A deterministic report is evidence, not creative review; `pass_with_notes`, warnings, unresolved facts, timeline risks, committee action items, or disagreements all remain blocking until resolved.
 
 ### Task And Route Dashboard
 
@@ -230,7 +234,7 @@ python -m literary_engineering_workbench route-audit <project> --route scene-dev
 
 `agent-task-status` scans project `.agent_tasks.md` files, checks whether their expected artifact paths exist, and writes `workflow/agent_task_status.md` / `.json`. `route-audit` writes `workflow/route_audit.md` / `.json` and adds route-specific gates such as word-budget expansion, scene sidecar completion, promotion candidate review, mounted-style adherence review, chapter readiness, and export readiness. These commands are diagnostic; the platform agent must still complete creative tasks or record why they remain pending.
 
-`workflow-state` writes `workflow/route_state.md` / `.json` as a persistent scene-development ledger. It records the current step per scene and the next action, including missing sidecar completion markers, missing word-budget contracts, missing review outputs, and missing state patches.
+`workflow-state` writes `workflow/route_state.md` / `.json` as a persistent route ledger. It records the current step per scene, planning item, source import, style profile, asset candidate, review route, or chapter release target and the next action, including missing sidecar completion markers, missing budget contracts, missing review outputs, missing approvals, missing export artifacts, and missing state patches.
 
 `task-next` reads that state ledger and writes a CLI-mediated task package under `workflow/tasks/`. `task-open` marks the package as opened. `task-submit` records the artifacts produced by the platform Agent. `task-complete` checks expected outputs and writes the task completion marker. `workflow-events` renders `workflow/events/task_events.jsonl` as a readable event report.
 
@@ -238,14 +242,18 @@ python -m literary_engineering_workbench route-audit <project> --route scene-dev
 
 ```powershell
 python -m literary_engineering_workbench protocol export-and-release
+python -m literary_engineering_workbench task-next <project> --route export-and-release
+python -m literary_engineering_workbench task-open <project> --task-id <task-id>
 python -m literary_engineering_workbench chapter-workspace <project> --chapter-id chapter_0001 --agent-review
 python -m literary_engineering_workbench export-package <project> --chapter-id chapter_0001 --docx
 python -m literary_engineering_workbench publish-chapter <project> --chapter-id chapter_0001 --approval-run-id <id>
+python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
+python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
 ```
 
-Before delivery, confirm readiness, approvals, canon audit, punctuation, target format, and rollback notes. `export-package` rebuilds or verifies the chapter workspace before packaging and blocks non-ready scenes by default; formal Skill hosts must not use `--include-blocked`.
+Use `task-next --route export-and-release` as the formal controller when available. Before delivery, confirm readiness, approvals, canon audit, punctuation, target format, and rollback notes. `export-package` rebuilds or verifies the chapter workspace before packaging and blocks non-ready scenes by default; formal Skill hosts must not use `--include-blocked`.
 
-If `export-package` blocks, do not write a custom export script, use debug flags, or call the output final. Run `chapter-workspace` / `route-audit`, resolve missing scene reviews or sidecars, then export through the formal path.
+If `export-package` blocks, do not write a custom export script, use debug flags, or call the output final. Run `chapter-workspace` / `route-audit`, resolve missing scene reviews or sidecars, then export through the formal path. Final reader-facing files must not contain scene IDs, canon/workflow notes, review state, writeback candidates, internal paths, or `[AGENT_TASK: ...]`; provenance belongs in manifests and workbench files.
 
 ## Completion Gate
 

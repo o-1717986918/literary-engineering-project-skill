@@ -13,6 +13,7 @@ from .asset_workshop import ASSET_CANDIDATE_DIRS
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .flow_gates import branch_selection_status
 from .anti_ai_style import style_lint_gate_message
+from .agent_schema import validate_payload
 from .word_budget import scene_word_budget_contract
 
 
@@ -291,6 +292,8 @@ def _route_gates(root: Path, route: str, records: list[AgentTaskRecord]) -> list
         _add_longform_budget_gates(gates, root, force=True)
     if route == "character-and-world-assets":
         _add_asset_route_gates(gates, root)
+    if route == "review-and-audit":
+        _add_review_audit_route_gates(gates, root)
     if route == "scene-development":
         _add_longform_budget_gates(gates, root, force=False)
         scene_files = _scene_files(root)
@@ -325,6 +328,7 @@ def _route_gates(root: Path, route: str, records: list[AgentTaskRecord]) -> list
             "character state patches have apply reports or no pending patches",
             f"仍有 {unapplied} 个人物状态 patch 未生成 state-apply 报告；最终发布前需审批写回或记录内部预览 waiver。",
         )
+        _add_export_release_route_gates(gates, root, chapter_jsons)
     return gates
 
 
@@ -384,6 +388,89 @@ def _add_longform_budget_gates(gates: list[dict[str, str]], root: Path, *, force
             "scene inventory platform-agent task completed",
             f"scene_inventory_expansion.agent_tasks.md 未完成：{scene_completion.get('message')}",
         )
+
+
+def _add_review_audit_route_gates(gates: list[dict[str, str]], root: Path) -> None:
+    canon_lint = root / "reviews" / "canon_lint.json"
+    canon_lint_payload = _read_json(canon_lint)
+    canon_summary = canon_lint_payload.get("summary") if isinstance(canon_lint_payload.get("summary"), dict) else {}
+    canon_lint_blocking = int(canon_summary.get("blocking_count", 0) or 0)
+    _add_gate(
+        gates,
+        "review:canon-lint",
+        canon_lint.exists() and canon_lint_payload.get("schema") == "literary-engineering-workbench/canon-lint/v0.1" and canon_lint_blocking == 0,
+        "blocking",
+        "canon-lint exists with no blocking issues",
+        f"canon-lint 缺失、schema 无效或仍有 blocking={canon_lint_blocking}；先运行 canon-lint 并修复阻塞。",
+    )
+
+    canon_task = root / "reviews" / "agent" / "canon_review.agent_tasks.md"
+    canon_completion = agent_task_completion_status(canon_task, root=root)
+    canon_review = root / "reviews" / "agent" / "canon_review.json"
+    canon_payload = _read_json(canon_review)
+    canon_schema_errors, _canon_warnings = validate_payload(canon_payload, "canon_review.v1") if canon_payload else ([{"path": "$", "message": "missing"}], [])
+    canon_blocking = canon_payload.get("blocking_issues") if isinstance(canon_payload.get("blocking_issues"), list) else []
+    canon_warnings = canon_payload.get("warnings") if isinstance(canon_payload.get("warnings"), list) else []
+    unresolved = canon_payload.get("unresolved_facts") if isinstance(canon_payload.get("unresolved_facts"), list) else []
+    timeline = canon_payload.get("timeline_risks") if isinstance(canon_payload.get("timeline_risks"), list) else []
+    canon_clean = (
+        canon_review.exists()
+        and (root / "reviews" / "agent" / "canon_review.md").exists()
+        and canon_completion.get("complete") is True
+        and not canon_schema_errors
+        and canon_payload.get("conclusion") == "pass"
+        and not canon_blocking
+        and not canon_warnings
+        and not unresolved
+        and not timeline
+    )
+    _add_gate(
+        gates,
+        "review:canon-review-clean-pass",
+        canon_clean,
+        "blocking",
+        "platform-agent canon review clean pass",
+        "canon_review.v1 未 clean pass：需要 sidecar completion、schema pass、conclusion=pass，且 blocking/warnings/unresolved_facts/timeline_risks 全空。",
+    )
+
+    longform = root / "reviews" / "longform" / "longform_audit.json"
+    longform_payload = _read_json(longform)
+    _add_gate(
+        gates,
+        "review:longform-audit",
+        longform.exists()
+        and (root / "reviews" / "longform" / "longform_audit.md").exists()
+        and (root / "plot" / "longform_graph.json").exists()
+        and longform_payload.get("schema") == "literary-engineering-workbench/longform-audit/v0.1",
+        "blocking",
+        "longform audit and graph exist",
+        "缺少 reviews/longform/longform_audit.* 或 plot/longform_graph.json，或 longform audit schema 无效。",
+    )
+
+    committee_task = root / "reviews" / "agent" / "committee_project-final-audit.agent_tasks.md"
+    committee_completion = agent_task_completion_status(committee_task, root=root)
+    committee = root / "reviews" / "agent" / "committee_project-final-audit.json"
+    committee_payload = _read_json(committee)
+    committee_schema_errors, _committee_warnings = validate_payload(committee_payload, "committee_review.v1") if committee_payload else ([{"path": "$", "message": "missing"}], [])
+    action_items = committee_payload.get("action_items") if isinstance(committee_payload.get("action_items"), list) else []
+    disagreements = committee_payload.get("disagreements") if isinstance(committee_payload.get("disagreements"), list) else []
+    committee_clean = (
+        committee.exists()
+        and committee.with_suffix(".md").exists()
+        and committee_completion.get("complete") is True
+        and not committee_schema_errors
+        and committee_payload.get("final_recommendation") == "approve"
+        and not action_items
+        and not disagreements
+    )
+    _add_gate(
+        gates,
+        "review:committee-approve",
+        committee_clean,
+        "blocking",
+        "committee approved with no open action items",
+        "committee_project-final-audit 未通过：需要 sidecar completion、schema pass、final_recommendation=approve，且 action_items/disagreements 全空。",
+    )
 
 
 def _add_asset_route_gates(gates: list[dict[str, str]], root: Path) -> None:
@@ -1088,6 +1175,104 @@ def _unapplied_state_patch_count(root: Path) -> int:
         if not (apply_json.exists() and apply_report.exists()):
             count += 1
     return count
+
+
+def _add_export_release_route_gates(gates: list[dict[str, str]], root: Path, chapter_jsons: list[Path]) -> None:
+    chapter_ids = [path.stem for path in chapter_jsons] or ["chapter_0001"]
+    for chapter_id in chapter_ids:
+        manifest = root / "exports" / chapter_id / "export_manifest.json"
+        payload = _read_json(manifest)
+        skipped = payload.get("skipped_scenes") if isinstance(payload.get("skipped_scenes"), list) else []
+        outputs = payload.get("outputs") if isinstance(payload.get("outputs"), dict) else {}
+        output_missing: list[str] = []
+        trace_hits: list[str] = []
+        for key in ("novel", "screenplay", "video_prompt_pack"):
+            rel = str(outputs.get(key) or "")
+            if not rel:
+                output_missing.append(key)
+                continue
+            path = root / rel
+            if not path.exists():
+                output_missing.append(rel)
+                continue
+            hits = _delivery_trace_hits(path)
+            if hits:
+                trace_hits.append(f"{rel}:{','.join(hits[:3])}")
+        _add_gate(
+            gates,
+            f"{chapter_id}:export-package-clean",
+            manifest.exists()
+            and payload.get("schema") == "literary-engineering-workbench/export-package/v0.1"
+            and payload.get("include_blocked") is not True
+            and not skipped
+            and not output_missing
+            and not trace_hits,
+            "blocking",
+            f"{chapter_id} export package is clean",
+            f"{chapter_id} 导出包未通过：manifest/schema/include_blocked/skipped/output/trace 有问题；skipped={len(skipped)}，missing={', '.join(output_missing) or 'none'}，trace={'; '.join(trace_hits[:4]) or 'none'}。",
+        )
+
+        docx = outputs.get("docx") if isinstance(outputs.get("docx"), dict) else {}
+        inspections = outputs.get("docx_inspections") if isinstance(outputs.get("docx_inspections"), dict) else {}
+        missing_docx = [str(rel) for rel in docx.values() if not (root / str(rel)).exists()]
+        missing_inspections = [str(rel) for rel in inspections.values() if not (root / str(rel)).exists()]
+        _add_gate(
+            gates,
+            f"{chapter_id}:docx-inspection",
+            not docx or (not missing_docx and not missing_inspections and set(docx) <= set(inspections)),
+            "blocking",
+            f"{chapter_id} DOCX outputs have inspection reports or DOCX was not requested",
+            f"{chapter_id} DOCX 导出缺少文件或 inspection：docx_missing={', '.join(missing_docx) or 'none'}，inspection_missing={', '.join(missing_inspections) or 'none'}。",
+        )
+
+        run_id = f"release-{chapter_id}"
+        approval = _approval_record(root, run_id)
+        _add_gate(
+            gates,
+            f"{chapter_id}:release-approval",
+            str(approval.get("decision") or "") == "approve",
+            "blocking",
+            f"{chapter_id} release approve record exists",
+            f"{chapter_id} 缺少 run_id={run_id} 的用户 approve 记录；平台 Agent 不能自批发布。",
+        )
+
+        publish_manifest = root / "releases" / chapter_id / "formal-release" / "publish_manifest.json"
+        latest = root / "releases" / chapter_id / "latest.json"
+        publish_payload = _read_json(publish_manifest)
+        latest_payload = _read_json(latest)
+        published_outputs = publish_payload.get("published_outputs") if isinstance(publish_payload.get("published_outputs"), dict) else {}
+        missing_published = [str(rel) for rel in published_outputs.values() if not (root / str(rel)).exists()]
+        _add_gate(
+            gates,
+            f"{chapter_id}:publish-release",
+            publish_manifest.exists()
+            and latest.exists()
+            and publish_payload.get("schema") == "literary-engineering-workbench/publish-chapter/v0.1"
+            and publish_payload.get("status") == "published"
+            and (publish_payload.get("approval") if isinstance(publish_payload.get("approval"), dict) else {}).get("decision") == "approve"
+            and latest_payload.get("manifest") == _rel(publish_manifest, root)
+            and published_outputs
+            and not missing_published,
+            "blocking",
+            f"{chapter_id} published release exists and latest points to it",
+            f"{chapter_id} 发布未闭合：formal-release/latest/approval/status/outputs 有问题；missing_published={', '.join(missing_published) or 'none'}。",
+        )
+
+
+def _delivery_trace_hits(path: Path) -> list[str]:
+    text = _read_text(path)
+    patterns = {
+        "scene-id": r"\bscene_\d{4}\b",
+        "agent-task": r"\[AGENT_TASK:",
+        "canon-note-heading": r"(?m)^#{1,4}\s*(新增事实候选|人物状态变化|关系变化|伏笔变化|需要人工确认|世界状态变化|状态变化候选)\s*$",
+        "review-heading": r"(?m)^#{1,4}\s*(审查|AgentReview|Route Audit|平台 Agent 任务|门禁问题汇总)\b",
+        "workflow-path": r"\b(workflow/tasks|reviews/agent|characters/state_patches|drafts/promotions|branch_manifest|roleplay_simulation)\b",
+    }
+    hits = []
+    for label, pattern in patterns.items():
+        if re.search(pattern, text):
+            hits.append(label)
+    return hits
 
 
 def _review_needs_revision(payload: dict) -> bool:

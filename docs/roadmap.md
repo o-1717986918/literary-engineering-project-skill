@@ -266,4 +266,6 @@
 
 `v0.84.5` 已接入 `character-and-world-assets`。角色、隐藏背景故事、关系、世界规则、地点、组织、大纲、章节计划和场景列表等候选资产会进入状态机：创建 sidecar、候选 JSON/报告、资产 review sidecar、clean `pass` 审查、用户 approval、promotion manifest 和晋升输出缺一项都不能 ready。这样“上游设定资产跳过审查或 approval 直接写回”的问题进入正式闭环。
 
-下一步规划：Phase 85-90 将继续推进 Prompt Registry、Context Broker、完整持续状态机、Reader Experience Contract、最小项目总控面板和失败模式回归测试，并继续横向接入 `review-and-audit`、`export-and-release`。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。
+`v0.84.6` 已接入 `review-and-audit` 与 `export-and-release`。项目级审查由状态机追踪 canon-lint、平台 Agent canon review、longform-audit、committee review 和 clean approve；章节交付由状态机追踪 chapter-workspace、export-package、人类 release approval 与 publish-chapter。这样“最后审查靠自觉、导出用脚本绕门禁、发布缺 approval 或泄漏工程痕迹”的问题进入正式闭环。
+
+下一步规划：Phase 85-90 将继续推进 Prompt Registry、Context Broker、Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。

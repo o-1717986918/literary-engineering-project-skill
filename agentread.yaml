@@ -360,6 +360,12 @@ task_routes:
       - route audit dashboard when gate state is unclear
       - approval gates
     completion_gates:
+      - for formal review-and-audit, task-next/task-open/task-submit/task-complete controls canon lint, canon review, longform audit, committee review, and final pass checks when available
+      - canon-lint Markdown/JSON exists, schema is valid, and blocking_count is 0
+      - agent-canon-review sidecar is completed by the platform Agent; canon_review.v1 JSON/Markdown exist and conclude clean pass
+      - canon review has no blocking issues, warnings, unresolved facts, or timeline risks before the route advances
+      - longform-audit Markdown/JSON and longform graph exist before committee review
+      - agent-committee sidecar is completed by the platform Agent; final recommendation is approve and action_items/disagreements are empty
       - blocking findings separated from warnings
       - revision plan maps findings to artifacts
       - pending sidecars, missing expected artifacts, and incomplete gates are resolved or listed as pending
@@ -385,6 +391,12 @@ task_routes:
       - release notes
       - rollback notes
     completion_gates:
+      - for formal export-and-release, task-next/task-open/task-submit/task-complete controls chapter workspace, export package, release approval, and publish steps when available
+      - chapter-workspace Markdown/JSON exists and every included scene is ready
+      - export-package manifest is schema-valid, include_blocked is false, skipped_scenes is empty, requested outputs exist, and final reader-facing files contain no engineering traces
+      - human approve record exists for the required release run_id before publish
+      - publish-chapter writes formal-release manifest, release notes, rollback notes, latest.json, and requested published outputs
+      - latest.json points to the formal-release publish manifest, and publish manifest approval is approve
       - chapter/work readiness checked
       - approval record verified or pending approval stated
       - requested file formats generated and inspected

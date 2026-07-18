@@ -1,12 +1,12 @@
 # Phase 84-90：CLI 中介 Agent 工作流内核与工程硬化计划
 
-状态：planned  
+状态：active / partially implemented
 下一阶段主目标：CLI-mediated Agent Workflow Kernel  
 适用仓库：`literary-engineering-project-skill` 开发版  
 目标读者：维护本 Skill 的平台 Agent、项目开发者、后续代码实现者  
 生成背景：基于当前 Skill 架构复盘，以及对 ProseForge、ai-novel-writer、AI-Novel-Writing-Assistant 三个外部项目的互补性分析。
 
-执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`。Phase 85-90 仍按本计划继续推进。
+执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`。Phase 85-90 仍按本计划继续推进。
 
 ## 1. 背景与判断
 
@@ -244,6 +244,8 @@ task-next
 14. `task-complete` 能拒绝 style prompt 过短/缺结构、缺 completion marker 或缺 accepted style eval。`v0.84.4` 已完成。
 15. `character-and-world-assets` 能通过 `task-next` 派发资产 intake、创建 sidecar、候选审查、clean pass、用户 approval 和 promotion 任务。`v0.84.5` 已完成。
 16. `task-complete` 与 `route-audit` 能拒绝缺候选 JSON/报告、缺 sidecar completion、缺 review、缺用户 approval、使用 `--allow-unapproved` 或 promotion 输出缺失的角色/世界资产。`v0.84.5` 已完成。
+17. `review-and-audit` 能通过 `task-next` 派发 canon-lint、canon review、longform audit、committee review，并拒绝 warnings、unresolved facts、timeline risks、action_items 或 disagreements 未清零的项目级审查。`v0.84.6` 已完成。
+18. `export-and-release` 能通过 `task-next` 派发 chapter-workspace、export-package、release approval、publish-release，并拒绝 `include_blocked`、缺 approval、latest 指针错误、发布输出缺失和读者正文工程痕迹泄漏。`v0.84.6` 已完成。
 
 ### 6.10 横向接入优先级
 
@@ -252,8 +254,8 @@ Phase 84 后续横向接入顺序：
 1. `source-ingest`：让已有作品导入、反推设定、证据 review 和候选项目文件生成进入 task loop。`v0.84.3` 已完成导入后的反推闭环。
 2. `style-engineering`：让作家项目、作品导入、文风 profile、LLM-facing prompt、style eval、Style Skill build/mount 进入 task loop。`v0.84.4` 已完成项目内 profile 到 prompt/eval readiness 的闭环；作家库跨项目任务可继续增强。
 3. `character-and-world-assets`：让角色/世界候选、asset review、approval、promotion 进入 task loop。`v0.84.5` 已完成。
-4. `review-and-audit`：让 canon/style/route/longform/chapter 审计作为正式修复任务输出。
-5. `export-and-release`：让 chapter workspace、export package、DOCX inspection、publish gate 和 release approval 进入 task loop。
+4. `review-and-audit`：让 canon/style/route/longform/chapter 审计作为正式修复任务输出。`v0.84.6` 已完成项目级 canon/longform/committee 闭环。
+5. `export-and-release`：让 chapter workspace、export package、publish gate 和 release approval 进入 task loop。`v0.84.6` 已完成章节导出/发布闭环；DOCX layout/inspection 继续由 export package 与 file-format-export 门禁覆盖。
 
 横向接入的共同验收口径：所有路线都必须由 route registry 选择当前步骤、输出统一 task package、要求平台 Agent 提交产物、由 `task-complete` 执行路线专属 gate，并在 `workflow-state` 中显示 ready/blocked。
 

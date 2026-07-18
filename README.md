@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.84.5`
+- 当前版本：`0.84.6`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -135,6 +135,8 @@ context packet
 `v0.84.4` 起，`style-engineering` 接入 CLI-mediated task loop。项目内 `style/*/style-profile.md` profile 会被状态机追踪：先由 `style-prompt` 生成平台 Agent 任务，再由平台 Agent 写出 500-2500 字、结构完整的 `style_prompt.md` 与 `style_prompt.agent.json`，最后必须有至少一个通过 copy-risk/相似度门禁的 `style_eval_*.json`。统计 profile、短 prompt、未完成 sidecar、未评测 style prompt 都不能进入正式挂载。
 
 `v0.84.5` 起，`character-and-world-assets` 接入 CLI-mediated task loop。角色、隐藏背景故事、关系、世界规则、地点、组织和大纲类候选资产现在会被状态机追踪：`asset-create` / `agent-create-*` 只生成平台 Agent 创建 sidecar，平台 Agent 必须写候选 JSON/报告，完成 review sidecar，得到 clean `pass` 审查，取得用户 approve 记录，再用 `promote-candidate-asset` 晋升。`route-audit --route character-and-world-assets` 会阻塞缺 review、缺 approval、使用 `allow_unapproved` 或晋升输出缺失的资产。
+
+`v0.84.6` 起，`review-and-audit` 与 `export-and-release` 也接入 CLI-mediated task loop。项目级审查现在必须经过 canon-lint、平台 Agent canon review、longform-audit 和 committee approve；章节交付必须经过 chapter-workspace、export-package、人类 release approval 和 publish-chapter。`task-complete` / `route-audit` 会阻塞带 warnings 的 canon review、committee action items、`include_blocked` 导出、缺 approval 发布，以及最终正文泄漏 scene ID、canon/workflow/review/writeback 痕迹。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 
@@ -467,7 +469,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.84.5`。
+- 当前版本：`0.84.6`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。

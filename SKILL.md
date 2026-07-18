@@ -14,7 +14,7 @@ Use this skill to let Codex, Claude, or another capable tool-layer agent manage 
 - Do not assume the local `director-chat` command is the main interface. It is an optional experimental/local helper.
 - Prefer direct tool-layer reasoning, file edits, review passes, and subagent delegation when the platform supports them.
 - Treat the local CLI as optional only for informal brainstorming or exploratory notes. Formal routes that generate, review, promote, or export project artifacts must use the route CLI sidecar/provenance chain where the skill provides one, or record an attempted-command failure and a clearly marked CLI-equivalent workaround.
-- For formal `scene-development`, prefer the CLI-mediated task loop: `task-next` issues the next formal task, `task-open` shows the platform-Agent prompt package, `task-submit` records the Agent's output artifact, and `task-complete` validates expected outputs before the workflow advances.
+- For registered formal routes, prefer the CLI-mediated task loop: `task-next` issues the next formal task, `task-open` shows the platform-Agent prompt package, `task-submit` records the Agent's output artifact, and `task-complete` validates expected outputs before the workflow advances.
 
 ## Formal Route CLI Clarification
 
@@ -50,6 +50,10 @@ For formal scene work, longform planning, source ingestion, style engineering, a
 `style-engineering` is now a registered task route for project-local style profiles. After `style-profile` or `style-lab-compile` creates a profile under `style/{profile}/`, use `task-next --route style-engineering` until it returns ready. The route must complete style prompt sidecar creation, platform-agent `style_prompt.md` and `style_prompt.agent.json`, prompt quality gates, completion marker, and at least one accepted `style_eval_*.json` before formal Style Skill build or mount.
 
 `character-and-world-assets` is now a registered task route for candidate characters, hidden background stories, relationships, world rules, locations, organizations, outlines, chapter plans, and scene lists. Use `task-next --route character-and-world-assets` around `asset-create` / `agent-create-*`; the route tracks asset creation sidecars, candidate JSON/report, platform-agent review, clean review pass, user approval, promotion manifest, and promoted outputs. Review is not approval, and `--allow-unapproved` is never valid for formal Skill-host work.
+
+`review-and-audit` is now a registered task route for project-level review closure. Use `task-next --route review-and-audit` until it returns ready. The route must complete `canon-lint`, platform-agent canon review sidecar handling, clean `canon_review.v1` pass with no warnings/unresolved risks, `longform-audit`, and a final platform-agent committee review with `final_recommendation=approve` and no action items.
+
+`export-and-release` is now a registered task route for chapter packaging and formal delivery. Use `task-next --route export-and-release` until the target chapter is ready. The route must complete `chapter-workspace`, clean `export-package`, human release approval, and `publish-chapter`; final delivery must not use `--include-blocked`, `--allow-unapproved`, custom export scripts, or expose scene IDs, canon/workflow notes, review traces, writeback candidates, or `[AGENT_TASK: ...]`.
 
 Use `agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, or `director-chat` only for explicit legacy regression, local demos, or debugging. Do not route formal creative generation, JSON creation, scene/canon review, style-prompt creation, or second-level project decisions through local dry-run, HTTP chat, or an external agent service.
 

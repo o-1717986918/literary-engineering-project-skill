@@ -44,7 +44,7 @@ CLI 不负责：
 
 ## 3. 最小命令闭环
 
-当前支持 `scene-development`、`longform-planning`、`source-ingest`、`style-engineering` 与 `character-and-world-assets` 五条正式路线。`scene-development` 是逐场景样板；`longform-planning` 用来确保长篇字数预算、预算化大纲和分场景库存不会被生成环节跳过；`source-ingest` 用来确保已有作品导入后的反推设定、候选资产和 review 不会被跳过；`style-engineering` 用来确保文风 profile 真正转化为可挂载、可评测的 LLM-facing prompt；`character-and-world-assets` 用来确保角色/世界/大纲等候选资产必须经过 sidecar、review、approval 和 promotion gate。
+当前支持 `scene-development`、`longform-planning`、`source-ingest`、`style-engineering`、`character-and-world-assets`、`review-and-audit` 与 `export-and-release` 七条正式路线。`scene-development` 是逐场景样板；`longform-planning` 用来确保长篇字数预算、预算化大纲和分场景库存不会被生成环节跳过；`source-ingest` 用来确保已有作品导入后的反推设定、候选资产和 review 不会被跳过；`style-engineering` 用来确保文风 profile 真正转化为可挂载、可评测的 LLM-facing prompt；`character-and-world-assets` 用来确保角色/世界/大纲等候选资产必须经过 sidecar、review、approval 和 promotion gate；`review-and-audit` 用来确保项目级审查不是旁路报告；`export-and-release` 用来确保最终交付不绕开 chapter/export/publish gate。
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -119,6 +119,10 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 从 `v0.84.4` 起，`style-engineering` 已接入同一生命周期：`style-profile`、`style-prompt-task-file`、`style-prompt-agent-task`、`style-prompt-quality`、`style-eval-readiness`。项目根 `style/style-profile.md` 占位文件不会被误当成 profile；真正的 profile 目录必须完成 sidecar、prompt、agent JSON、质量检查和 accepted style eval 后才 ready。
 
 从 `v0.84.5` 起，`character-and-world-assets` 已接入同一生命周期：`asset-intake`、`asset-creation-agent-task`、`asset-review-task-file`、`asset-review-agent-task`、`asset-review-pass`、`asset-approval`、`asset-promotion`。`asset-create` / `agent-create-*` 只准备平台 Agent 创建任务；review 只证明候选可请求审批，不等于用户 approval；`promote-candidate-asset` 必须使用 approve record，不能用 `--allow-unapproved`。
+
+从 `v0.84.6` 起，`review-and-audit` 已接入同一生命周期：`canon-lint-file`、`canon-review-task-file`、`canon-review-agent-task`、`canon-review-pass`、`longform-audit-file`、`committee-task-file`、`committee-agent-task`、`committee-pass`。确定性 canon lint 和 longform audit 只是证据；平台 Agent 必须写 canon review 与 committee review。带 warnings、unresolved facts、timeline risks、committee action items 或 disagreements 的项目不能 ready。
+
+从 `v0.84.6` 起，`export-and-release` 已接入同一生命周期：`chapter-workspace`、`export-package`、`release-approval`、`publish-release`。正式交付必须先得到 ready chapter workspace 和 clean export manifest，再取得人类 approve 记录，最后由 `publish-chapter` 写 release manifest、notes、rollback 和 latest 指针。`--include-blocked`、`--allow-unapproved`、自写导出脚本和读者正文泄漏工程痕迹都会阻塞路线。
 
 ## 4. Scene-development 样板状态
 
@@ -255,6 +259,74 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 4. Review 不是 approval。用户 approve 记录缺失时不能晋升。
 5. `allow_unapproved=true` 的 promotion manifest 在正式路线中 blocking。
 
+## 4.5 Review-and-audit 状态
+
+项目级审查路线顺序：
+
+1. `canon-lint-file`
+2. `canon-review-task-file`
+3. `canon-review-agent-task`
+4. `canon-review-pass`
+5. `longform-audit-file`
+6. `committee-task-file`
+7. `committee-agent-task`
+8. `committee-pass`
+
+对应硬产物：
+
+1. `reviews/canon_lint.md`
+2. `reviews/canon_lint.json`
+3. `reviews/agent/canon_review.agent_tasks.md`
+4. `reviews/agent/canon_review.agent_completion.json`
+5. `reviews/agent/canon_review.json`
+6. `reviews/agent/canon_review.md`
+7. `reviews/longform/longform_audit.md`
+8. `reviews/longform/longform_audit.json`
+9. `plot/longform_graph.json`
+10. `reviews/agent/committee_project-final-audit.agent_tasks.md`
+11. `reviews/agent/committee_project-final-audit.agent_completion.json`
+12. `reviews/agent/committee_project-final-audit.json`
+13. `reviews/agent/committee_project-final-audit.md`
+
+质量门禁：
+
+1. `canon_lint.json` 可以有 warning，但 blocking_count 必须为 0。
+2. 平台 Agent canon review 必须是 clean `conclusion=pass`，不能带 blocking issues、warnings、unresolved facts 或 timeline risks。
+3. `longform-audit` 必须存在并通过 schema。
+4. committee review 必须 `final_recommendation=approve`，且没有 action_items 或 disagreements。
+5. Review route 不能直接写 canon/character/plot/draft/export；只能输出修复任务、候选修改和审批边界。
+
+## 4.6 Export-and-release 状态
+
+章节导出路线顺序：
+
+1. `chapter-workspace`
+2. `export-package`
+3. `release-approval`
+4. `publish-release`
+
+对应硬产物：
+
+1. `drafts/chapters/{chapter_id}.md`
+2. `plot/chapters/{chapter_id}.json`
+3. `exports/{chapter_id}/export_manifest.json`
+4. `exports/{chapter_id}/{chapter_id}_novel.md`
+5. `exports/{chapter_id}/{chapter_id}_screenplay.md`
+6. `exports/{chapter_id}/{chapter_id}_video_prompt_pack.md`
+7. `workflow/approvals/index.jsonl` 中 `release-{chapter_id}` 的 approve 记录
+8. `releases/{chapter_id}/formal-release/publish_manifest.json`
+9. `releases/{chapter_id}/formal-release/release_notes.md`
+10. `releases/{chapter_id}/formal-release/rollback.md`
+11. `releases/{chapter_id}/latest.json`
+
+质量门禁：
+
+1. Chapter workspace 必须 ready_count > 0 且 blocked_count = 0。
+2. Export manifest 必须 schema-valid，`include_blocked=false`，`skipped_scenes=[]`，所有请求输出真实存在。
+3. 读者正文必须清除 `scene_0001`、`chapter_0001`、内部路径、canon/review/workflow/state/writeback 标记和 `[AGENT_TASK: ...]`。
+4. publish manifest 必须 `status=published`，approval decision 必须是 `approve`。
+5. `latest.json` 必须指向 formal-release 的 publish manifest。
+
 ## 5. Task 包必须包含什么
 
 每个 `agent-task.v1` 至少包含：
@@ -318,4 +390,4 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 2. Context Broker：让 `task-open` 输出稳定的 context trace。
 3. Reader Experience Contract：让字数和章节义务进入 `task-open` 与 `task-complete`。
 4. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
-5. 继续横向接入 `review-and-audit`、`export-and-release`。
+5. 扩展跨路线 dashboard：把七条正式路线的缺口压缩成用户可读的下一步队列。

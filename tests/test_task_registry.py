@@ -5,9 +5,19 @@ from pathlib import Path
 from literary_engineering_workbench.agent_tasks import default_agent_completion_path, write_agent_completion_marker
 from literary_engineering_workbench.approval import record_workflow_approval
 from literary_engineering_workbench.asset_workshop import create_asset_candidate, promote_candidate_asset
+from literary_engineering_workbench.canon_lint import build_canon_lint
+from literary_engineering_workbench.chapter_pipeline import build_chapter_workspace
 from literary_engineering_workbench.cli import build_parser, main
 from literary_engineering_workbench.context_packet import build_context_packet
-from literary_engineering_workbench.platform_agent_tasks import write_platform_asset_creation_task, write_platform_asset_review_task
+from literary_engineering_workbench.export_package import build_export_package
+from literary_engineering_workbench.longform_audit import build_longform_audit
+from literary_engineering_workbench.platform_agent_tasks import (
+    write_platform_asset_creation_task,
+    write_platform_asset_review_task,
+    write_platform_canon_review_task,
+    write_platform_committee_task,
+)
+from literary_engineering_workbench.publish import publish_chapter
 from literary_engineering_workbench.task_registry import (
     complete_task,
     issue_next_task,
@@ -19,7 +29,7 @@ from literary_engineering_workbench.style_compiler import StyleCompileOptions, c
 from literary_engineering_workbench.platform_agent_tasks import write_platform_style_prompt_task
 from literary_engineering_workbench.word_budget import build_word_budget
 
-from helpers import TempProjectMixin, write_formal_candidate_artifacts
+from helpers import TempProjectMixin, make_reviewed_passing_scene, write_formal_candidate_artifacts
 
 
 class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
@@ -621,6 +631,90 @@ class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
 
         self.assertEqual(ready.status, "ready")
 
+    def test_review_audit_route_starts_with_canon_lint_task(self):
+        project = self.make_project()
+
+        issued = issue_next_task(project, route="review-and-audit")
+
+        self.assertEqual(issued.status, "issued")
+        self.assertEqual(issued.current_state, "canon-lint-file")
+        payload = json.loads(issued.task_json_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["route"], "review-and-audit")
+        self.assertIn("canon-lint", payload["command"])
+        self.assertIn("reviews/canon_lint.json", payload["expected_outputs"])
+
+    def test_review_audit_blocks_pass_with_notes_canon_review(self):
+        project = self.make_project()
+        build_canon_lint(project)
+        task = write_platform_canon_review_task(project)
+        _write_canon_review(project, conclusion="pass_with_notes", warnings=["仍有待解释的角色状态风险。"])
+        write_agent_completion_marker(task.task_path, root=project, handled_by="platform-agent-test")
+
+        issued = issue_next_task(project, route="review-and-audit")
+
+        self.assertEqual(issued.current_state, "canon-review-pass")
+        with self.assertRaises(ValueError) as ctx:
+            complete_task(project, issued.task_id)
+        self.assertIn("canon review conclusion must be pass", str(ctx.exception))
+
+    def test_review_audit_route_ready_after_clean_committee(self):
+        project = self.make_project()
+        build_canon_lint(project)
+        canon_task = write_platform_canon_review_task(project)
+        _write_canon_review(project, conclusion="pass")
+        write_agent_completion_marker(canon_task.task_path, root=project, handled_by="platform-agent-test")
+        build_longform_audit(project)
+        committee_task = write_platform_committee_task(project, subject="project-final-audit", source=project / "reviews" / "agent" / "canon_review.md")
+        _write_committee_review(project, final_recommendation="approve")
+        write_agent_completion_marker(committee_task.task_path, root=project, handled_by="platform-agent-test")
+
+        ready = issue_next_task(project, route="review-and-audit")
+
+        self.assertEqual(ready.status, "ready")
+
+    def test_export_release_route_issues_chapter_workspace_task(self):
+        project = self.make_project()
+
+        issued = issue_next_task(project, route="export-and-release")
+
+        self.assertEqual(issued.status, "issued")
+        self.assertEqual(issued.scene_id, "chapter_0001")
+        self.assertEqual(issued.current_state, "chapter-workspace")
+        payload = json.loads(issued.task_json_path.read_text(encoding="utf-8"))
+        self.assertIn("chapter-workspace", payload["command"])
+        self.assertIn("plot/chapters/chapter_0001.json", payload["expected_outputs"])
+
+    def test_export_release_blocks_include_blocked_export_manifest(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+        build_chapter_workspace(project, chapter_id="chapter_0001")
+        build_export_package(project, chapter_id="chapter_0001", include_blocked=True)
+
+        issued = issue_next_task(project, route="export-and-release")
+
+        self.assertEqual(issued.current_state, "export-package")
+        with self.assertRaises(ValueError) as ctx:
+            complete_task(project, issued.task_id)
+        self.assertIn("include_blocked", str(ctx.exception))
+
+    def test_export_release_route_ready_after_approved_publish(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+        build_chapter_workspace(project, chapter_id="chapter_0001")
+        build_export_package(project, chapter_id="chapter_0001", formats="md,docx")
+        record_workflow_approval(project, "release-chapter_0001", "approve", actor="tester")
+        publish_chapter(
+            project,
+            chapter_id="chapter_0001",
+            release_id="formal-release",
+            approval_run_id="release-chapter_0001",
+            export_formats="md,docx",
+        )
+
+        ready = issue_next_task(project, route="export-and-release")
+
+        self.assertEqual(ready.status, "ready")
+
 
 def _write_registry_task(
     project: Path,
@@ -843,6 +937,48 @@ def _write_clean_asset_review(project: Path, candidate_id: str, candidate_path: 
         encoding="utf-8",
     )
     review_md.write_text("# Candidate Asset Review\n\n- Status：`pass`\n", encoding="utf-8")
+
+
+def _write_canon_review(project: Path, *, conclusion: str, warnings: list[str] | None = None) -> None:
+    review_dir = project / "reviews" / "agent"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "literary-engineering-workbench/canon-review-agent/v1",
+        "conclusion": conclusion,
+        "summary": "平台 Agent canon review fixture。",
+        "blocking_issues": [],
+        "warnings": warnings or [],
+        "unresolved_facts": [],
+        "timeline_risks": [],
+        "source_paths": ["reviews/canon_lint.md", "reviews/canon_lint.json", "canon/", "characters/", "scenes/", "plot/"],
+        "recommendations": [] if conclusion == "pass" and not warnings else ["先解决 notes 后再进入导出。"],
+        "next_gate": "committee_review",
+    }
+    (review_dir / "canon_review.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (review_dir / "canon_review.md").write_text(f"# Canon Review\n\n- 结论：`{conclusion}`\n", encoding="utf-8")
+
+
+def _write_committee_review(project: Path, *, final_recommendation: str, action_items: list[str] | None = None) -> None:
+    review_dir = project / "reviews" / "agent"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "literary-engineering-workbench/committee-review-agent/v1",
+        "subject": "project-final-audit",
+        "final_recommendation": final_recommendation,
+        "reviewers": [
+            {"reviewer_id": "chief-editor", "stance": "approve", "findings": [], "recommendations": [], "source_paths": []},
+            {"reviewer_id": "canon-auditor", "stance": "approve", "findings": [], "recommendations": [], "source_paths": []},
+        ],
+        "disagreements": [],
+        "action_items": action_items or [],
+        "source_paths": ["reviews/agent/canon_review.json", "reviews/longform/longform_audit.json"],
+        "minority_opinions": [],
+    }
+    (review_dir / "committee_project-final-audit.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (review_dir / "committee_project-final-audit.md").write_text(
+        f"# Committee Review\n\n- Final Recommendation：`{final_recommendation}`\n",
+        encoding="utf-8",
+    )
 
 
 def _rel(project: Path, value: Path | str) -> str:
