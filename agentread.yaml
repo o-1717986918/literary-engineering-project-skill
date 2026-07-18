@@ -21,6 +21,7 @@ core_references:
   workflows: references/workflows.md
   orchestration: references/orchestration.md
   punctuation_standard: references/punctuation-standard.md
+  prompt_registry: docs/modules/prompt-registry.md
   project_type_skill_architecture: docs/architecture/project-type-skill.md
 
 core_project_files:
@@ -30,6 +31,7 @@ core_project_files:
   project_router: agentread.yaml
   formal_route_toolkit_development: src/literary_engineering_workbench/
   formal_route_toolkit_installed: scripts/literary_engineering_workbench/
+  prompt_assets: templates/prompt_assets/
   templates: templates/
   schemas: schemas/
   docs: docs/
@@ -88,6 +90,7 @@ route_execution_contract:
     - inspect command output paths instead of trusting terminal success alone
     - read and execute required .agent_tasks.md sidecars and expected route artifacts
     - create adjacent .agent_completion.json markers after sidecar artifacts are checked
+    - run prompt-registry-validate after adding task prompt ids or changing prompt assets
   completion_gates:
     - route selected and route references accounted for
     - reading receipt recorded or summarized

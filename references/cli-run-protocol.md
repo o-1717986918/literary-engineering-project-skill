@@ -238,6 +238,14 @@ python -m literary_engineering_workbench route-audit <project> --route scene-dev
 
 `task-next` reads that state ledger and writes a CLI-mediated task package under `workflow/tasks/`. `task-open` marks the package as opened. `task-submit` records the artifacts produced by the platform Agent. `task-complete` checks expected outputs and writes the task completion marker. `workflow-events` renders `workflow/events/task_events.jsonl` as a readable event report.
 
+`task-open` also resolves the task `prompt_asset_id` through the file-backed Prompt Registry under `templates/prompt_assets/` and injects the matched Prompt Asset into the task Markdown. Use these registry commands when a task prompt looks incomplete or when adding new routes:
+
+```powershell
+python -m literary_engineering_workbench prompt-registry-list
+python -m literary_engineering_workbench prompt-registry-validate
+python -m literary_engineering_workbench prompt-preview route.scene-development.prose.generate.v1
+```
+
 ### Export And Release
 
 ```powershell

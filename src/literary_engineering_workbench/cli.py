@@ -59,6 +59,15 @@ from .roleplay_lab import build_roleplay_simulation
 from .scene_draft import build_scene_draft
 from .scene_revision import build_scene_revision_task
 from .protocol import protocol_to_json, render_protocol, render_protocol_list, resolve_protocol_route
+from .prompt_registry import (
+    list_prompt_assets,
+    render_prompt_preview,
+    render_prompt_registry_list,
+    render_prompt_registry_validation,
+    resolve_skill_root,
+    resolve_prompt_asset,
+    validate_prompt_registry,
+)
 from .source_ingest import INGEST_MODES, ingest_existing_work
 from .style_compiler import StyleCompileOptions, compile_style_profile
 from .style_evaluator import STYLE_EVAL_MODES, StyleEvalOptions, evaluate_style
@@ -344,6 +353,20 @@ def build_parser() -> argparse.ArgumentParser:
     workflow_events = sub.add_parser("workflow-events", help="Render CLI-mediated task event history.")
     workflow_events.add_argument("project", help="Work project directory.")
     workflow_events.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/events.md.")
+
+    prompt_list = sub.add_parser("prompt-registry-list", help="List registered file-backed prompt assets.")
+    prompt_list.add_argument("--skill-root", default="", help="Skill root containing templates/prompt_assets. Defaults to auto-detect.")
+    prompt_list.add_argument("--json", action="store_true", help="Print JSON instead of Markdown.")
+
+    prompt_validate = sub.add_parser("prompt-registry-validate", help="Validate prompt assets and task registry prompt ids.")
+    prompt_validate.add_argument("--skill-root", default="", help="Skill root containing templates/prompt_assets. Defaults to auto-detect.")
+    prompt_validate.add_argument("--no-task-registry", action="store_true", help="Do not verify task_registry prompt ids.")
+    prompt_validate.add_argument("--json", action="store_true", help="Print JSON instead of Markdown.")
+
+    prompt_preview = sub.add_parser("prompt-preview", help="Preview the prompt asset resolved for one prompt_asset_id.")
+    prompt_preview.add_argument("prompt_asset_id")
+    prompt_preview.add_argument("--skill-root", default="", help="Skill root containing templates/prompt_assets. Defaults to auto-detect.")
+    prompt_preview.add_argument("--json", action="store_true", help="Print JSON instead of Markdown.")
 
     director_chat = sub.add_parser("director-chat", help="Run the top-level creative director agent for one user direction.")
     director_chat.add_argument("project", help="Work project directory.")
@@ -1297,6 +1320,74 @@ def main(argv=None) -> int:
         print(f"events: {result.events_path}")
         print(f"report: {result.markdown_path}")
         print(f"count: {result.event_count}")
+        return 0
+
+    if args.command == "prompt-registry-list":
+        try:
+            skill_root = Path(args.skill_root) if args.skill_root else None
+            if args.json:
+                root = resolve_skill_root(skill_root)
+                assets = list_prompt_assets(root)
+                print(json.dumps([asset.to_dict(root) for asset in assets], ensure_ascii=False, indent=2))
+            else:
+                print(render_prompt_registry_list(skill_root), end="")
+        except FileNotFoundError as exc:
+            parser.error(str(exc))
+        return 0
+
+    if args.command == "prompt-registry-validate":
+        try:
+            skill_root = Path(args.skill_root) if args.skill_root else None
+            result = validate_prompt_registry(skill_root, include_task_registry=not args.no_task_registry)
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "schema": "literary-engineering-workbench/prompt-registry-validation/v0.1",
+                            "skill_root": str(result.skill_root),
+                            "status": "pass" if result.ok else "fail",
+                            "asset_count": len(result.assets),
+                            "task_prompt_id_count": len(result.task_prompt_ids),
+                            "errors": result.errors,
+                            "warnings": result.warnings,
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                )
+            else:
+                print(render_prompt_registry_validation(result), end="")
+            if not result.ok:
+                return 1
+        except FileNotFoundError as exc:
+            parser.error(str(exc))
+        return 0
+
+    if args.command == "prompt-preview":
+        try:
+            skill_root = Path(args.skill_root) if args.skill_root else None
+            result = resolve_prompt_asset(args.prompt_asset_id, skill_root)
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "schema": "literary-engineering-workbench/prompt-preview/v0.1",
+                            "requested_id": result.requested_id,
+                            "status": result.message,
+                            "exact": result.exact,
+                            "asset": result.asset.to_dict(result.skill_root) if result.asset else None,
+                            "body": result.asset.body if result.asset else "",
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                )
+            else:
+                print(render_prompt_preview(result), end="")
+            if result.asset is None:
+                return 1
+        except FileNotFoundError as exc:
+            parser.error(str(exc))
         return 0
 
     if args.command == "director-chat":

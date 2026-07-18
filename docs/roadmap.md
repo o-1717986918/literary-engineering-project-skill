@@ -268,4 +268,6 @@
 
 `v0.84.6` 已接入 `review-and-audit` 与 `export-and-release`。项目级审查由状态机追踪 canon-lint、平台 Agent canon review、longform-audit、committee review 和 clean approve；章节交付由状态机追踪 chapter-workspace、export-package、人类 release approval 与 publish-chapter。这样“最后审查靠自觉、导出用脚本绕门禁、发布缺 approval 或泄漏工程痕迹”的问题进入正式闭环。
 
-下一步规划：Phase 85-90 将继续推进 Prompt Registry、Context Broker、Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。
+`v0.85.0` 已实现文件型 Prompt Registry。`templates/prompt_assets/*.md` 提供路由级提示词资产，`schemas/prompt_asset.v1.json` 定义资产契约，`prompt-registry-list` / `prompt-registry-validate` / `prompt-preview` 提供 CLI 管理面，`task-open` 会把解析后的 Prompt Asset、输出契约和提示正文直接写进平台 Agent 任务包。这样“prompt_asset_id 只是装饰字符串、Agent 仍靠读散文档理解怎么做”的问题进入正式闭环。
+
+下一步规划：Phase 86-90 将继续推进 Context Broker、Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。

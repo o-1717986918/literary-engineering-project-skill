@@ -11,7 +11,8 @@ This repository is now a project-type skill for tool-layer agents such as Codex 
 5. `references/artifact-contracts.md` when writing or moving project artifacts
 6. `references/cli-run-protocol.md` and `references/workflows.md` when a formal route has CLI sidecars, manifests, or provenance gates
 7. `references/punctuation-standard.md` when generating, reviewing, revising, or exporting Chinese prose
-8. `references/orchestration.md` only for LangGraph, Dify, subagents, or external workflow design
+8. `docs/modules/prompt-registry.md` when adding, renaming, validating, or auditing prompt assets
+9. `references/orchestration.md` only for LangGraph, Dify, subagents, or external workflow design
 
 Do not read the entire repository by default. Follow the route map in `agentread.yaml`.
 
@@ -51,6 +52,7 @@ Every task must run through the protocol loop before it is considered complete:
 - Export and publication are also CLI-mediated work: `chapter-workspace`, `export-package`, approval recording, and `publish-chapter` must be issued through `task-next --route export-and-release` when available. The platform agent cannot replace this route with a custom export script or publish without a human approve record.
 - `agent-task-status` and `route-audit` are dashboard helpers. They do not complete creative work; they reveal unhandled sidecars, missing expected artifacts, and incomplete route gates for the platform agent to resolve or list as pending.
 - `task-next`, `task-open`, `task-submit`, and `task-complete` are the Phase 84 CLI-mediated task loop for registered formal routes. The loop does not write creative content; it tells the platform agent what to do next, records submitted artifacts, validates expected outputs, and refreshes derived workflow state.
+- Prompt Registry is the Phase 85 prompt layer. `task-open` resolves the task `prompt_asset_id` through `templates/prompt_assets/*.md` and writes the matched Prompt Asset into the task package. Run `prompt-registry-validate` after adding routes or prompt ids; missing prompt assets are formal route defects.
 - Style engineering is platform-agent work: metrics and profiles are evidence, but the platform agent must write the LLM-facing `style_prompt.md`, satisfy the 500-2500 character quality contract, complete the style prompt sidecar, and obtain at least one accepted style evaluation before formal build/mount.
 - Formal non-deterministic commands write platform-agent task sidecars plus expected output paths. The platform agent reads those tasks, performs the creative/review judgment, writes the expected artifacts, applies schema/canon/style checks, and decides the next step.
 - `agent-review-scene` is a sidecar generator, not proof that an external model is required. Run it, read the generated task and its deterministic `Style Lint (auto-detected)` evidence, review the exact candidate yourself as platform agent, and write the expected scene review JSON/Markdown before promotion.
@@ -132,6 +134,8 @@ python -m literary_engineering_workbench task-next <project> --route style-engin
 python -m literary_engineering_workbench task-next <project> --route character-and-world-assets
 python -m literary_engineering_workbench task-next <project> --route review-and-audit
 python -m literary_engineering_workbench task-next <project> --route export-and-release
+python -m literary_engineering_workbench prompt-registry-validate
+python -m literary_engineering_workbench prompt-preview route.scene-development.prose.generate.v1
 python -m literary_engineering_workbench task-open <project> --task-id <task-id>
 python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
 python -m literary_engineering_workbench task-complete <project> --task-id <task-id>

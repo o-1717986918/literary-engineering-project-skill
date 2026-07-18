@@ -29,9 +29,11 @@ Any command that writes creative material, drafts JSON, repairs schema output, s
 
 Before running such a command, the platform agent should choose the task, prompt/context packet, constraints, and approval boundary. After running it, the platform agent must read the task sidecar, write or inspect the expected artifacts, validate schema where relevant, check canon/character/style constraints, and decide whether to revise, keep as candidate, ask the user, or promote after approval.
 
-This rule covers `source-ingest`, `extract-existing-work`, `word-budget`, `longform-budget`, `agent-task-status`, `route-audit`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `revise-scene`, `state-evolve`, and `run-workflow`.
+This rule covers `source-ingest`, `extract-existing-work`, `word-budget`, `longform-budget`, `agent-task-status`, `route-audit`, `prompt-registry-list`, `prompt-registry-validate`, `prompt-preview`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `revise-scene`, `state-evolve`, and `run-workflow`.
 
 Use `agent-task-status` and `route-audit` as diagnostic gates when the workflow state is no longer obvious. They scan sidecars, missing expected outputs, and route gates; they do not replace platform-agent judgment or complete the pending creative work.
+
+Use `prompt-registry-validate` after adding or renaming formal task prompt ids. Use `prompt-preview <prompt_asset_id>` to inspect the route prompt that `task-open` will inject into a task package.
 
 `agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, and `director-chat` are legacy/debug paths. Use them only when the user explicitly asks to test local provider behavior.
 

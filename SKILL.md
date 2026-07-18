@@ -107,12 +107,15 @@ Never let generated JSON, simulation output, local-director output, model scores
    - `references/orchestration.md` for LangGraph, Dify, subagents, or external workflow design.
    - `references/punctuation-standard.md` before generating, reviewing, revising, or exporting Chinese prose.
    - `references/file-format-export.md` before exporting final work artifacts to DOCX or other concrete delivery formats.
+   - `docs/modules/prompt-registry.md` before adding, renaming, or auditing prompt assets.
 
 ## Mandatory Run Protocol
 
 Every task must follow the loop in `references/agent-run-protocol.md`: classify workspace, choose a route, read route references, record a reading receipt, inspect project state, plan, execute deterministic helpers only as helpers, let the platform agent handle creative judgment, process `.agent_tasks.md`, validate outputs, decide candidate/revision/promotion status, and finish with an audit summary.
 
 Every formal CLI-backed route must follow `references/cli-run-protocol.md`. The CLI is never the creative authority, but its sidecars and manifests are the formal provenance layer. A command that writes `.agent_tasks.md` has prepared work for the platform agent; it has not completed the creative or review step. Use `agent-task-status` and route-specific `route-audit` when you need a single dashboard of pending sidecars, missing expected artifacts, and incomplete route gates.
+
+`task-open` resolves `prompt_asset_id` through the file-backed Prompt Registry and injects the resolved Prompt Asset into the task package. If a prompt asset is missing, run `prompt-registry-validate` / `prompt-preview` and repair the registry before treating the task as formally complete.
 
 Before final response, explicitly account for the relevant completion gates: route selected, references read, reading receipt, project state inspected, task sidecars handled or listed as pending, schema/canon/character/style/punctuation/release checks applied when relevant, and approval boundaries recorded.
 

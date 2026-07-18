@@ -6,7 +6,7 @@
 目标读者：维护本 Skill 的平台 Agent、项目开发者、后续代码实现者  
 生成背景：基于当前 Skill 架构复盘，以及对 ProseForge、ai-novel-writer、AI-Novel-Writing-Assistant 三个外部项目的互补性分析。
 
-执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`。Phase 85-90 仍按本计划继续推进。
+执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`。Phase 86-90 仍按本计划继续推进。
 
 ## 1. 背景与判断
 
@@ -246,6 +246,8 @@ task-next
 16. `task-complete` 与 `route-audit` 能拒绝缺候选 JSON/报告、缺 sidecar completion、缺 review、缺用户 approval、使用 `--allow-unapproved` 或 promotion 输出缺失的角色/世界资产。`v0.84.5` 已完成。
 17. `review-and-audit` 能通过 `task-next` 派发 canon-lint、canon review、longform audit、committee review，并拒绝 warnings、unresolved facts、timeline risks、action_items 或 disagreements 未清零的项目级审查。`v0.84.6` 已完成。
 18. `export-and-release` 能通过 `task-next` 派发 chapter-workspace、export-package、release approval、publish-release，并拒绝 `include_blocked`、缺 approval、latest 指针错误、发布输出缺失和读者正文工程痕迹泄漏。`v0.84.6` 已完成。
+19. `prompt-registry-list`、`prompt-registry-validate`、`prompt-preview` 能管理文件型 prompt assets，且 `task-open` 能注入解析后的 Prompt Asset。`v0.85.0` 已完成。
+20. `prompt-registry-validate` 能确认 `task_registry.py` 中全部 prompt id 都能通过 exact 或 wildcard asset 解析。`v0.85.0` 已完成。
 
 ### 6.10 横向接入优先级
 
@@ -311,6 +313,8 @@ Phase 84 后续横向接入顺序：
 1. 所有正式 agent task 都带 `prompt_asset_id`、版本和输出契约。
 2. `prompt-registry-validate` 能检查缺字段、非法上下文槽位、无输出契约等问题。
 3. 不再依赖“读者自己知道该怎么写”的隐式约束。
+
+执行记录：`v0.85.0` 已完成最小文件型 Prompt Registry。七个 route-level wildcard asset 覆盖当前 56 个 task registry prompt id；`task-open` 会把解析后的 Prompt Asset 写入任务包。后续增强重点是给正文生成、AgentReview、revision、style prompt execute 等高风险任务补 exact prompt asset。
 
 ## 8. Phase 86：Context Broker 与 Context Trace
 

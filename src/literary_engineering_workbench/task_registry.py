@@ -16,6 +16,7 @@ from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, PROMOTABLE
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .draft_text import final_body_from_draft_path
 from .flow_gates import FlowGateError, branch_selection_status, ensure_composition_ready_for_generation
+from .prompt_registry import resolve_prompt_asset
 from .style_prompt import style_prompt_quality_report
 from .word_budget import ensure_scene_word_budget_ready, word_budget_adherence_for_body
 from .workflow_state import build_workflow_state
@@ -1705,6 +1706,8 @@ def _render_task_markdown(task: dict[str, object], root: Path) -> str:
         f"- status: `{task.get('status', '')}`",
         f"- completion_marker: `{_rel(completion, root)}`",
         "",
+        *_prompt_asset_lines(str(task.get("prompt_asset_id") or "")),
+        "",
         "## Required Reading",
         "",
     ]
@@ -1766,6 +1769,41 @@ def _render_task_markdown(task: dict[str, object], root: Path) -> str:
         ]
     )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _prompt_asset_lines(prompt_asset_id: str) -> list[str]:
+    lines = ["## Prompt Asset", ""]
+    if not prompt_asset_id:
+        lines.append("- missing prompt_asset_id")
+        return lines
+    try:
+        preview = resolve_prompt_asset(prompt_asset_id)
+    except FileNotFoundError as exc:
+        lines.append(f"- registry_error: `{exc}`")
+        return lines
+    if preview.asset is None:
+        lines.append(f"- requested_id: `{prompt_asset_id}`")
+        lines.append("- status: `missing`")
+        lines.append("- action: run `prompt-registry-validate` before treating this task package as complete.")
+        return lines
+
+    asset = preview.asset
+    lines.extend(
+        [
+            f"- requested_id: `{prompt_asset_id}`",
+            f"- resolved_id: `{asset.prompt_asset_id}`",
+            f"- match: `{asset.match}`",
+            f"- version: `{asset.version}`",
+            f"- title: {asset.title}",
+            "",
+            "### Prompt Output Contract",
+            "",
+        ]
+    )
+    for item in asset.metadata.get("output_contract") or []:
+        lines.append(f"- {item}")
+    lines.extend(["", "### Prompt Body", "", asset.body.strip()])
+    return lines
 
 
 def _workflow_payload(root: Path, route: str) -> dict[str, object]:

@@ -124,6 +124,8 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 
 从 `v0.84.6` 起，`export-and-release` 已接入同一生命周期：`chapter-workspace`、`export-package`、`release-approval`、`publish-release`。正式交付必须先得到 ready chapter workspace 和 clean export manifest，再取得人类 approve 记录，最后由 `publish-chapter` 写 release manifest、notes、rollback 和 latest 指针。`--include-blocked`、`--allow-unapproved`、自写导出脚本和读者正文泄漏工程痕迹都会阻塞路线。
 
+从 `v0.85.0` 起，`task-open` 会解析 `prompt_asset_id` 并把 Prompt Registry 中的资产正文写进任务包。`templates/prompt_assets/*.md` 现在覆盖七条正式路线，`prompt-registry-validate` 会检查所有 task registry prompt id 是否有 exact 或 wildcard asset 可用。这样 prompt id 不再只是占位符，而是 CLI 输出给平台 Agent 的实际提示词资产。
+
 ## 4. Scene-development 样板状态
 
 第一版按 `workflow_state.py` 已有推导状态发任务。典型顺序：
@@ -387,6 +389,7 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 下一阶段应将本模块继续接入：
 
 1. Prompt Registry：让 `prompt_asset_id` 不再只是标识，而是真正可验证的提示词资产。
+   - `v0.85.0` 已完成文件型 registry、CLI list/validate/preview、task-open 注入；后续可以为高风险任务补 exact prompt asset。
 2. Context Broker：让 `task-open` 输出稳定的 context trace。
 3. Reader Experience Contract：让字数和章节义务进入 `task-open` 与 `task-complete`。
 4. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
