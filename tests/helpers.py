@@ -142,6 +142,92 @@ def write_platform_scene_review(project_root: Path, scene_id: str = "scene_0001"
     return json_path
 
 
+def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_id: str = "scene_0001", *, revision: bool = False) -> None:
+    rel_candidate = candidate.resolve().relative_to(project_root.resolve()).as_posix()
+    prompt_manifest = candidate.with_suffix(".prompt.json")
+    manifest = candidate.with_suffix(".json")
+    task = candidate.with_suffix(".agent_tasks.md")
+    prompt_manifest.write_text(
+        json.dumps(
+            {
+                "schema": "literary-engineering-workbench/prompt-pack/v0.1",
+                "provider": "platform-agent",
+                "model": "tool-layer-agent",
+                "scene": f"scenes/{scene_id}.yaml",
+                "context": f"memory/context_packets/{scene_id}.md",
+                "composition": f"drafts/compositions/{scene_id}_composition.md",
+                "generation_standards": {
+                    "style": "test style standard",
+                    "word_budget": "test word budget standard",
+                    "review_notes": "test review notes",
+                    "anti_evasion": "test anti-evasion",
+                    "hard_constraints": "test hard constraints",
+                },
+                "messages": [],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    if revision:
+        payload = {
+            "schema": "literary-engineering-workbench/scene-revision/v0.1",
+            "scene_id": scene_id,
+            "candidate": rel_candidate,
+            "prompt_manifest": prompt_manifest.resolve().relative_to(project_root.resolve()).as_posix(),
+            "source_paths": [
+                f"scenes/{scene_id}.yaml",
+                f"memory/context_packets/{scene_id}.md",
+                f"reviews/agent/{scene_id}_scene_review.json",
+            ],
+            "generated_by": "platform-agent",
+            "anti_evasion_protocol_applied": True,
+            "anti_evasion_rows": [],
+            "retained_transition_proofs": [],
+            "evasion_risks_unresolved": [],
+        }
+    else:
+        payload = {
+            "schema": "literary-engineering-workbench/scene-generation-candidate/v0.1",
+            "scene_id": scene_id,
+            "candidate": rel_candidate,
+            "prompt_manifest": prompt_manifest.resolve().relative_to(project_root.resolve()).as_posix(),
+            "source_paths": [
+                f"scenes/{scene_id}.yaml",
+                f"memory/context_packets/{scene_id}.md",
+                f"drafts/compositions/{scene_id}_composition.md",
+                prompt_manifest.resolve().relative_to(project_root.resolve()).as_posix(),
+            ],
+            "generated_by": "platform-agent",
+            "created_at": "2026-01-01T00:00:00Z",
+            "style_profile": "",
+            "context": f"memory/context_packets/{scene_id}.md",
+            "composition": f"drafts/compositions/{scene_id}_composition.md",
+            "style_generation_standard_applied": True,
+            "word_budget_standard_applied": False,
+            "hard_constraints_applied": True,
+            "anti_evasion_protocol_applied": True,
+            "pass_with_notes_actions_applied": False,
+        }
+    manifest.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    task.write_text(
+        f"""# 平台 Agent 任务说明：formal candidate fixture {scene_id}
+
+## Source Artifacts
+
+- `scenes/{scene_id}.yaml`
+- `memory/context_packets/{scene_id}.md`
+
+## Tasks
+
+[AGENT_TASK: 创建或覆盖 `{rel_candidate}`。创建或覆盖 `{manifest.resolve().relative_to(project_root.resolve()).as_posix()}`。]
+""",
+        encoding="utf-8",
+    )
+
+
 def prepare_formal_scene_flow(project_root: Path, scene_id: str = "scene_0001") -> None:
     context_path = project_root / "memory" / "context_packets" / f"{scene_id}.md"
     if not context_path.exists():
@@ -151,6 +237,8 @@ def prepare_formal_scene_flow(project_root: Path, scene_id: str = "scene_0001") 
     branch_dir.mkdir(parents=True, exist_ok=True)
     (branch_dir / "roleplay_simulation.md").write_text(
         f"""# 角色推演实验室：{scene_id}
+
+正式 CLI 来源：`simulate-scene`
 
 ### 读取回执
 
@@ -172,6 +260,11 @@ def prepare_formal_scene_flow(project_root: Path, scene_id: str = "scene_0001") 
         json.dumps(
             {
                 "schema": "literary-engineering-workbench/branch-manifest/v0.1",
+                "formal_cli_provenance": {
+                    "created_by": "branch-simulate",
+                    "agent_tasks_requested": True,
+                    "manual_file_creation_allowed": False,
+                },
                 "scene_id": scene_id,
                 "recommended_branch": "branch_character_inevitable",
                 "branches": [
@@ -207,6 +300,11 @@ def prepare_formal_scene_flow(project_root: Path, scene_id: str = "scene_0001") 
         json.dumps(
             {
                 "schema": "literary-engineering-workbench/scene-composition/v0.1",
+                "formal_cli_provenance": {
+                    "created_by": "compose-scene",
+                    "agent_tasks_requested": True,
+                    "manual_file_creation_allowed": False,
+                },
                 "scene_id": scene_id,
                 "selected_branch": "branch_character_inevitable",
                 "selection_source": "selection",

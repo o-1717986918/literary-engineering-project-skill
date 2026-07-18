@@ -59,6 +59,9 @@ def promote_scene_candidate(
     body = _candidate_body(candidate_text)
     if not body:
         raise ValueError(f"candidate has no usable body: {candidate_path}")
+    generation_gate = candidate_generation_gate(root, scene_id, candidate_path)
+    if not allow_unreviewed:
+        _ensure_candidate_generation_provenance(generation_gate)
     review_gate = candidate_review_gate(root, scene_id, candidate_path)
     if not allow_unreviewed:
         _ensure_candidate_reviewed(review_gate, allow_review_notes=allow_review_notes)
@@ -93,6 +96,7 @@ def promote_scene_candidate(
         "approval_run_id": approval_run_id,
         "selection_note": selection_note,
         "candidate_review": review_gate,
+        "candidate_generation": generation_gate,
         "style_lint_gate": review_gate.get("style_lint", {}),
         "allow_unreviewed": allow_unreviewed,
         "allow_review_notes": allow_review_notes,
@@ -101,6 +105,7 @@ def promote_scene_candidate(
         "guardrails": [
             "本命令只把候选稿转入草稿审查通道，不确认 canon。",
             "默认必须先完成针对该候选稿的正式平台 Agent 场景审查。",
+            "默认必须先完成正式生成 provenance：CLI prompt manifest、.agent_tasks.md 和平台 Agent candidate manifest。",
             "候选正文必须通过 Style Lint Gate：机械对照句式和 medium+ AI 腔风险阻塞 promotion，low 风险进入审查 notes。",
             "转正后的草稿仍必须运行 review-scene 和后续平台 Agent 场景审查。",
             "人物、关系和 canon 写回仍必须走单独审批链路。",
@@ -131,6 +136,72 @@ def _resolve_candidate(root: Path, scene_id: str, candidate: Path | None) -> Pat
     if not candidates:
         raise FileNotFoundError(f"no candidate found for scene: {scene_id}")
     return candidates[0]
+
+
+def candidate_generation_gate(root: Path, scene_id: str, candidate_path: Path) -> dict[str, object]:
+    """Check that a prose candidate came from the formal CLI sidecar handoff."""
+
+    rel_candidate = _rel(candidate_path, root)
+    manifest_path = candidate_path.with_suffix(".json")
+    prompt_manifest_path = candidate_path.with_suffix(".prompt.json")
+    task_path = candidate_path.with_suffix(".agent_tasks.md")
+    gate: dict[str, object] = {
+        "required": True,
+        "candidate": rel_candidate,
+        "manifest": _rel(manifest_path, root),
+        "prompt_manifest": _rel(prompt_manifest_path, root),
+        "agent_tasks": _rel(task_path, root),
+        "status": "missing",
+        "message": "candidate generation provenance is missing",
+        "missing": [],
+        "invalid": [],
+        "revision_candidate": _is_revision_candidate_path(root, candidate_path),
+    }
+    missing: list[str] = []
+    invalid: list[str] = []
+    if not candidate_path.exists():
+        missing.append(rel_candidate)
+    if not manifest_path.exists():
+        missing.append(_rel(manifest_path, root))
+    if not prompt_manifest_path.exists():
+        missing.append(_rel(prompt_manifest_path, root))
+    if not task_path.exists():
+        missing.append(_rel(task_path, root))
+    payload = _read_json(manifest_path)
+    if manifest_path.exists() and not payload:
+        invalid.append("manifest is not valid JSON")
+    if payload:
+        generated_by = str(payload.get("generated_by") or "").strip()
+        provider = str(payload.get("provider") or "").strip()
+        manifest_candidate = str(payload.get("candidate") or "").strip()
+        if generated_by != "platform-agent":
+            invalid.append(f"generated_by={generated_by or 'missing'}")
+        if provider in {"dry-run", "http-chat"}:
+            invalid.append(f"legacy provider candidate: {provider}")
+        if manifest_candidate and _normalize_review_path(manifest_candidate) != _normalize_review_path(rel_candidate):
+            invalid.append(f"manifest candidate mismatch: {manifest_candidate}")
+        if gate["revision_candidate"]:
+            if payload.get("anti_evasion_protocol_applied") is not True:
+                invalid.append("anti_evasion_protocol_applied is not true")
+            unresolved = payload.get("evasion_risks_unresolved")
+            if not _empty_unresolved(unresolved):
+                invalid.append("evasion_risks_unresolved is not clean")
+        else:
+            for key in ("style_generation_standard_applied", "hard_constraints_applied", "anti_evasion_protocol_applied"):
+                if payload.get(key) is not True:
+                    invalid.append(f"{key} is not true")
+            for key in ("word_budget_standard_applied", "pass_with_notes_actions_applied"):
+                if key not in payload or not isinstance(payload.get(key), bool):
+                    invalid.append(f"{key} must be a boolean")
+            if not str(payload.get("prompt_manifest") or "").strip() and not prompt_manifest_path.exists():
+                invalid.append("prompt_manifest is missing")
+    if missing:
+        gate.update({"status": "missing", "missing": missing, "invalid": invalid, "message": "formal candidate generation files are missing"})
+    elif invalid:
+        gate.update({"status": "invalid", "missing": missing, "invalid": invalid, "message": "formal candidate generation provenance is invalid"})
+    else:
+        gate.update({"status": "pass", "missing": [], "invalid": [], "message": "formal candidate generation provenance passed"})
+    return gate
 
 
 def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> dict[str, object]:
@@ -204,6 +275,26 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
     return gate
 
 
+def _ensure_candidate_generation_provenance(gate: dict[str, object]) -> None:
+    if gate.get("status") == "pass":
+        return
+    candidate = str(gate.get("candidate") or "")
+    missing = gate.get("missing")
+    invalid = gate.get("invalid")
+    details: list[str] = []
+    if isinstance(missing, list) and missing:
+        details.append("missing=" + ", ".join(str(item) for item in missing))
+    if isinstance(invalid, list) and invalid:
+        details.append("invalid=" + ", ".join(str(item) for item in invalid))
+    suffix = (" " + "; ".join(details) + ".") if details else ""
+    raise FlowGateError(
+        "formal CLI generation provenance required before promote-candidate: "
+        f"{candidate} is not a formal platform-agent candidate.{suffix} "
+        "Run generate-scene to create the prompt manifest and .agent_tasks.md, have the main platform agent write the candidate Markdown and manifest JSON with constraint flags, "
+        "then run agent-review-scene on that exact candidate. Manual files are exploratory/debug-only; --allow-unreviewed is maintainer/debug-only."
+    )
+
+
 def _ensure_candidate_reviewed(gate: dict[str, object], *, allow_review_notes: bool) -> None:
     if gate.get("status") == "pass":
         return
@@ -266,6 +357,24 @@ def _unresolved_review_notes(payload: dict[str, object]) -> list[str]:
 
 def _normalize_review_path(value: str) -> str:
     return value.replace("\\", "/").strip().strip("`").lstrip("./")
+
+
+def _is_revision_candidate_path(root: Path, candidate_path: Path) -> bool:
+    try:
+        rel = candidate_path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        rel = str(candidate_path)
+    return rel.startswith("drafts/revisions/") or candidate_path.name.endswith("_revision.md")
+
+
+def _empty_unresolved(value: object) -> bool:
+    if isinstance(value, bool):
+        return not value
+    if isinstance(value, list):
+        return len(value) == 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"", "false", "none", "no", "[]", "无"}
+    return value in (None, 0)
 
 
 def _mounted_style_exists(root: Path) -> bool:

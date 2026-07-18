@@ -21,7 +21,7 @@ Common entry points:
 - Character/world/outline candidates: read asset candidate docs, then write candidate files first.
 - Scene work: read plot/character/scene composer docs, then create context, branches, composition, draft candidate, review, and state patch.
 - Review/release: read artifact contracts, review CI, canon lint, chapter, longform, export, and publish docs.
-- Optional CLI: read `references/workflows.md`.
+- Formal route CLI: read `references/workflows.md` when a route has sidecars, manifests, or provenance gates.
 - Orchestration/Dify/LangGraph: read `references/orchestration.md`.
 
 Principle: Codex/Claude owns planning, generation, review, and subagent delegation. Local CLI commands are helpers, not the source of creative authority.

@@ -145,11 +145,11 @@ For a scene:
 4. Produce 2-5 plausible branches when the direction is open.
 5. Select or ask the user to select a branch.
 6. Compose beats, subtext, dialogue intents, sensory palette, and prose seed.
-7. Generate candidate prose through the platform model or optional CLI.
+7. Generate exploratory prose through the platform model when appropriate; generate formal scene candidates through the route CLI sidecar/provenance chain plus the main platform agent.
 8. Review candidate prose before promotion.
 9. Propose character state patches; do not auto-apply major state changes.
 
-If optional CLI commands produce roleplay, branch, composition, generation, or state artifacts, inspect their raw output and manifests before using them. Do not let the highest score or recommended branch replace the platform agent's own continuity and story judgment.
+If formal CLI commands produce roleplay, branch, composition, generation, or state artifacts, inspect their raw output and manifests before using them. Do not let the highest score or recommended branch replace the platform agent's own continuity and story judgment. Do not hand-write formal route artifacts merely to avoid the CLI; manual equivalents require a recorded command failure and CLI-equivalent workaround marker.
 
 When using `simulate-scene --agent`, fill the platform-agent execution gate first: list read scene/context/character/canon files, missing files, hard constraints, and writeback boundaries before treating RP notes as usable evidence.
 

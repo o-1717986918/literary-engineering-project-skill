@@ -112,6 +112,16 @@ def ensure_composition_ready_for_generation(
             "Fill branch_selection.md with decision: selected and selected_branch, then rebuild compose-scene. "
             "For internal experiments only, pass allow_unselected_composition=True or the CLI flag."
         )
+    provenance = payload.get("formal_cli_provenance")
+    created_by = str(provenance.get("created_by") or "") if isinstance(provenance, dict) else ""
+    if created_by != "compose-scene":
+        rel = _rel(composition_path, root)
+        raise FlowGateError(
+            "CLI-generated composition required before formal generate-scene: "
+            f"{rel} is missing formal_cli_provenance.created_by=compose-scene. "
+            "Manual composition files are exploratory/debug-only and cannot satisfy the formal generation gate. "
+            "Run compose-scene after context, simulate-scene --agent, branch-simulate --agent, and formal branch_selection.md."
+        )
     return payload
 
 

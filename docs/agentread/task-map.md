@@ -70,7 +70,7 @@ Read: `docs/implementation/phase9-export-package.md`, `docs/implementation/phase
 
 Output: export package, release manifest, release notes, rollback notes.
 
-## Optional CLI And Integration
+## Formal Route CLI And Integration
 
 Read: `references/workflows.md` for commands and `references/orchestration.md` for LangGraph/Dify/FastAPI.
 

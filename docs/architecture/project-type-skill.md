@@ -40,7 +40,7 @@ This repository:
 - schemas;
 - source import and reverse-extraction contracts;
 - style project and Style Skill mechanics;
-- optional deterministic CLI helpers;
+- deterministic CLI helpers for formal route sidecars, manifests, and provenance gates;
 - optional integration docs for LangGraph, Dify, and FastAPI.
 
 ## Downgraded Components

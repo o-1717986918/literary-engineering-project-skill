@@ -552,7 +552,7 @@ drafts/candidates/{scene_id}-platform-agent.prompt.json
 drafts/candidates/{scene_id}-platform-agent.agent_tasks.md
 ```
 
-The prompt manifest records rendered messages, source files, and generation standards for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. The adjacent `.agent_tasks.md` is the execution program: the CLI writes the task, and the main platform agent reads it, applies the prompt manifest, and writes the expected candidate Markdown/JSON. Formal prompt manifests require a ready composition with `selection_source=selection` and `ready_for_generation=true`; missing or unselected composition blocks formal generation. Generated prose candidates require platform-agent review before promotion; run `agent-review-scene --draft <candidate>` or write an equivalent exact-candidate review, then read the generated sidecar and fill the expected `scene_review.v1` JSON/Markdown. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
+The prompt manifest records rendered messages, source files, and generation standards for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. The adjacent `.agent_tasks.md` is the execution program: the CLI writes the task, and the main platform agent reads it, applies the prompt manifest, and writes the expected candidate Markdown/JSON. Formal prompt manifests require a ready `compose-scene` composition with `selection_source=selection`, `ready_for_generation=true`, and `formal_cli_provenance.created_by=compose-scene`; missing, hand-written, or unselected composition blocks formal generation. Generated prose candidates require a platform-agent candidate manifest with prompt/task provenance before promotion. Generated prose candidates also require platform-agent review before promotion; run `agent-review-scene --draft <candidate>` or write an equivalent exact-candidate review, then read the generated sidecar and fill the expected `scene_review.v1` JSON/Markdown. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
 
 Generation standards include:
 
@@ -561,6 +561,8 @@ Generation standards include:
 - `review_notes`
 - `anti_evasion`
 - `hard_constraints`
+
+Candidate manifests written by the platform agent must record `generated_by=platform-agent`, `prompt_manifest`, `source_paths`, `style_generation_standard_applied`, `word_budget_standard_applied`, `hard_constraints_applied`, `anti_evasion_protocol_applied`, and `pass_with_notes_actions_applied`. If these fields are missing, `promote-candidate` and `route-audit` treat the candidate as informal/debug material rather than formal prose.
 
 If `review_notes` contains a prior `pass_with_notes`, the next writing pass must apply local revision actions and return to review before promotion, chapter readiness, export, or writeback. If `anti_evasion` is present, the writing pass must avoid same-function contrast replacements and should express information reversal through action, fact order, information gaps, evidence, or direct statement before using any explicit transition.
 

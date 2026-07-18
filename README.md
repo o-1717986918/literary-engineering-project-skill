@@ -6,13 +6,13 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.81.0`
+- 当前版本：`0.82.0`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
 ## 一句话理解
 
-用户提供创作方向和审美判断；平台 Agent 担任项目总监、创作总监和审查者；本仓库提供规则、文件契约、提示词结构、流程门禁和可选 CLI 工具箱。
+用户提供创作方向和审美判断；平台 Agent 担任项目总监、创作总监和审查者；本仓库提供规则、文件契约、提示词结构、流程门禁和正式路线 CLI 工具箱。
 
 ```mermaid
 flowchart LR
@@ -63,7 +63,7 @@ flowchart LR
 这个仓库采用“项目型 Skill”架构：
 
 - **Codex / Claude**：项目总监、创作总监、真实 LLM provider、子 Agent 编排者。
-- **本仓库**：工程规范、文件结构、artifact contract、文风机制、模板、schema、可选 CLI 工具箱。
+- **本仓库**：工程规范、文件结构、artifact contract、文风机制、模板、schema、正式路线 CLI 工具箱。
 - **作品项目目录**：实际小说、剧本或文本项目的文件化状态。
 - **本地 `director-chat`**：历史实现和回归工具，不是主入口。
 - **FastAPI / LangGraph / Dify / 前端**：可选适配层，不是核心依赖。
@@ -119,6 +119,8 @@ context packet
 `v0.80.0` 起，Style Lint 从审查证据升级为分级机器门禁：`mechanical-contrast-frame` 和所有 medium+ AI 腔风险会阻塞 `promote-candidate`、`route-audit` 和 chapter/export readiness；low 风险不阻塞，但必须进入 AgentReview notes 或保留理由。也就是说，即使审查 JSON 被写成 `pass`，候选正文仍会被确定性 lint 重新检查。
 
 `v0.81.0` 起，修订进入反规避协议：不能把“不是……而是……”换成“并不是……只是……”“看似……其实……”“表面上……实则……”等同功能转折。`generate-scene` 写出的 `.agent_tasks.md` 会要求主平台 Agent 先执行 prompt manifest 中的 `generation_standards.anti_evasion`；`revise-scene` 会把 Style Lint 证据和反规避负担证明表写入修订任务；`route-audit` 会显式检查静态 `review-scene` clean pass，并在修订候选参与链路时要求反规避 manifest clean。
+
+`v0.82.0` 起，正式路线 CLI 不再被描述为“可选步骤”。探索性讨论可以不用 CLI，但正式 `scene-development` 必须保留 CLI provenance：`simulate-scene --agent`、`branch-simulate --agent`、`compose-scene --agent-tasks`、`generate-scene` prompt manifest、生成 `.agent_tasks.md` 和平台 Agent candidate manifest。`promote-candidate` 与 `route-audit` 会阻塞缺少 prompt/task/manifest provenance 或把手写文件冒充正式产物的候选。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 
@@ -304,7 +306,7 @@ cd literary-engineering-project-skill
 4. `agentread.yaml`
 5. `references/project-director-playbook.md`
 
-### 方式 C：使用可选 CLI 工具箱
+### 方式 C：使用正式路线 CLI 工具箱
 
 开发仓库使用 `src/`：
 
@@ -398,7 +400,7 @@ literary-engineering-project-skill/
 ├── references/
 │   ├── project-director-playbook.md # 项目总监行为手册
 │   ├── artifact-contracts.md        # 产物、候选、审查和晋升规则
-│   ├── workflows.md                 # 可选 CLI 工作流
+│   ├── workflows.md                 # 正式路线 CLI 工作流
 │   └── orchestration.md             # LangGraph / Dify / 外部编排说明
 ├── docs/                            # 架构、模块和历史实现文档
 ├── templates/                       # 作品项目模板和提示词模板
@@ -451,7 +453,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.81.0`。
+- 当前版本：`0.82.0`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -469,7 +471,7 @@ literary-engineering-project-skill/
 - 正式宿主禁用调试跳审：已禁止 Skill 宿主用 allow/unreview/include-blocked 类参数绕过 review，并要求创作正文只能由主平台 Agent 完成。
 - Style Lint 分级硬门禁：已对机械对照句式、换皮转折和 medium+ AI 腔风险执行 promotion、route-audit、chapter/export readiness 阻塞；low 风险保留为审查 notes。
 - 反规避修订协议：已要求生成任务读取 `generation_standards.anti_evasion`，修订任务输出负担证明表，route-audit 检查静态 review 和修订反规避 manifest。
-- 可选 CLI 工具箱：可运行。
+- 正式路线 CLI 工具箱：可运行。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 
 ## 推荐下一步

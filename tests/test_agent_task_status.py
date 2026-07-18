@@ -9,7 +9,7 @@ from literary_engineering_workbench.character_state_evolver import build_charact
 from literary_engineering_workbench.cli import build_parser
 from literary_engineering_workbench.scene_composer import build_scene_composition
 
-from helpers import TempProjectMixin, add_character, make_reviewed_passing_scene, write_platform_scene_review
+from helpers import TempProjectMixin, add_character, make_reviewed_passing_scene, write_formal_candidate_artifacts, write_platform_scene_review
 
 
 class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
@@ -112,7 +112,7 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
         roleplay = project / "branches" / "scene_0001" / "roleplay_simulation.md"
         roleplay.parent.mkdir(parents=True, exist_ok=True)
         roleplay.write_text(
-            "# 角色推演实验室：scene_0001\n\n### 读取回执\n\n- 已读取：scenes/scene_0001.yaml\n- 写回边界：候选。\n",
+            "# 角色推演实验室：scene_0001\n\n正式 CLI 来源：`simulate-scene`\n\n### 读取回执\n\n- 已读取：scenes/scene_0001.yaml\n- 写回边界：候选。\n",
             encoding="utf-8",
         )
         branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
@@ -168,6 +168,7 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
         promotion_dir.mkdir(parents=True, exist_ok=True)
         candidate_dir.mkdir(parents=True, exist_ok=True)
         (candidate_dir / "scene_0001-platform-agent.md").write_text("## 正文候选\n\n测试。\n", encoding="utf-8")
+        write_formal_candidate_artifacts(project, candidate_dir / "scene_0001-platform-agent.md")
         (promotion_dir / "scene_0001_promotion.json").write_text(
             json.dumps(
                 {
@@ -258,6 +259,7 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
             any(gate["key"] == "scene_0001:revision-evasion-clean" and gate["status"] == "fail" for gate in audit["gates"])
         )
 
+        write_formal_candidate_artifacts(project, revision, revision=True)
         (project / "drafts" / "revisions" / "scene_0001_revision.json").write_text(
             json.dumps(
                 {
@@ -341,7 +343,7 @@ def _write_roleplay_receipt(project: Path):
     roleplay = project / "branches" / "scene_0001" / "roleplay_simulation.md"
     roleplay.parent.mkdir(parents=True, exist_ok=True)
     roleplay.write_text(
-        "# 角色推演实验室：scene_0001\n\n### 读取回执\n\n- 已读取：scenes/scene_0001.yaml\n- 写回边界：候选。\n",
+        "# 角色推演实验室：scene_0001\n\n正式 CLI 来源：`simulate-scene`\n\n### 读取回执\n\n- 已读取：scenes/scene_0001.yaml\n- 写回边界：候选。\n",
         encoding="utf-8",
     )
 
@@ -406,6 +408,7 @@ def _write_candidate(project: Path, scene_id: str = "scene_0001") -> Path:
 """,
         encoding="utf-8",
     )
+    write_formal_candidate_artifacts(project, candidate, scene_id=scene_id)
     return candidate
 
 

@@ -118,6 +118,15 @@ def build_branch_simulation(
         "schema": "literary-engineering-workbench/branch-simulation/v0.1",
         "generated_at": _now(),
         "project_root": str(root),
+        "formal_cli_provenance": {
+            "created_by": "branch-simulate",
+            "agent_tasks_requested": bool(agent_tasks),
+            "manual_file_creation_allowed": False,
+            "required_predecessors": [
+                "context",
+                "simulate-scene --agent",
+            ],
+        },
         "scene_id": scene_facts.scene_id,
         "scene_file": _rel(scene_path, root),
         "context_packet": _rel(context_path, root),
@@ -444,6 +453,7 @@ def _render_markdown(root: Path, scene_path: Path, context_path: Path, payload: 
         f"# 多分支剧情推演：{payload['scene_id']}",
         "",
         f"- 生成时间：{payload['generated_at']}",
+        "- 正式 CLI 来源：`branch-simulate`",
         f"- 场景文件：`{_rel(scene_path, root)}`",
         f"- 上下文包：`{_rel(context_path, root)}`",
         f"- 推荐分支：`{payload['recommended_branch'] or 'n/a'}`",

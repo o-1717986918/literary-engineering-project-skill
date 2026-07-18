@@ -240,6 +240,10 @@
 
 已在 `v0.81.0` 将“不能用另一种转折替换生硬转折”做成正式链路：`anti_ai_style.py` 新增 `contrast-evasion-frame`，把“并不是……只是……”“看似……其实……”“表面上……实则……”等同功能替换列为 blocking；`prompt_pack.py` 将 `generation_standards.anti_evasion` 写入 prompt manifest；`generate-scene` 的平台 Agent task 要求主 Agent 读取该协议后再写候选正文；`agent-review-scene` 和旧兼容 review prompt 都要求写反规避检查；`revise-scene` 写入修订前 Style Lint 证据、反规避协议、反规避表和保留转折负担证明；`promote-candidate` 支持 `## 修订正文候选`；`route-audit --route scene-development` 新增静态 `review-scene` clean pass gate，并在修订候选参与时要求 `revision-evasion-clean`。
 
+## Phase 82 - Formal CLI Provenance Gate
+
+已在 `v0.82.0` 将“正式路线 CLI 不是可省步骤”做成文档和代码门禁：探索性讨论可不走 CLI，但正式场景生成必须有 `simulate-scene --agent`、`branch-simulate --agent`、`compose-scene --agent-tasks`、`generate-scene` prompt manifest、`.agent_tasks.md` 和平台 Agent candidate manifest。`promote-candidate` 会阻塞缺少正式 generation provenance 的候选；`route-audit --route scene-development` 新增 RP/branch/composition/candidate provenance gates，防止手写同名文件冒充正式链路产物。
+
 ## Phase 47：前端显式 API Key 配置
 
 已实现前端 API Key 密码输入框、`/config` 明文保存与脱敏响应、空 key 保存保留既有密钥、`model_config.py` 从环境变量或保存的 profile key 读取密钥。

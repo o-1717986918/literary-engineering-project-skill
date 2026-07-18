@@ -4,7 +4,7 @@ language: zh-CN
 purpose: >
   给 Codex、Claude 等工具层 agent 使用的大型项目型 Skill。
   平台 agent 担任项目总监、创作总监、LLM provider 和子 agent 编排者；
-  本项目提供文学工程文件结构、artifact contract、文风机制、审查流程和可选 CLI 工具。
+  本项目提供文学工程文件结构、artifact contract、文风机制、审查流程和正式路线 CLI sidecar/provenance 工具。
 
 read_first:
   - SKILL.md
@@ -28,8 +28,8 @@ core_project_files:
   agent_entry: AGENTS.md
   claude_entry: CLAUDE.md
   project_router: agentread.yaml
-  optional_toolkit_development: src/literary_engineering_workbench/
-  optional_toolkit_installed: scripts/literary_engineering_workbench/
+  formal_route_toolkit_development: src/literary_engineering_workbench/
+  formal_route_toolkit_installed: scripts/literary_engineering_workbench/
   templates: templates/
   schemas: schemas/
   docs: docs/
@@ -83,7 +83,7 @@ route_execution_contract:
     - inspect current project state and latest review/workflow/approval records
     - state intended artifacts, review gates, and approval boundary
   cli_preflight:
-    - read references/cli-run-protocol.md before any CLI-backed task
+    - read references/cli-run-protocol.md before any formal route with CLI sidecars, manifests, or provenance gates
     - run "python -m literary_engineering_workbench protocol <route>" before route-specific command chains
     - inspect command output paths instead of trusting terminal success alone
     - read and execute required .agent_tasks.md sidecars and expected route artifacts
@@ -301,9 +301,9 @@ task_routes:
       - revision candidate and revision report when review notes require local fixes
       - character state patch
     completion_gates:
-      - context packet or equivalent project-state inspection completed
-      - roleplay simulation, branch manifest, formal branch_selection, and ready composition completed before generation
-      - roleplay/branch/composition platform-agent tasks or direct platform-agent records handled before generation
+      - CLI-generated context packet or recorded CLI-equivalent workaround completed
+      - simulate-scene --agent roleplay, branch-simulate --agent branch manifest, formal branch_selection, and compose-scene --agent-tasks ready composition completed before generation
+      - roleplay/branch/composition platform-agent tasks handled before generation; hand-written files are exploratory/debug-only unless command failure and workaround provenance are recorded
       - prose candidate reviewed for canon, character, style, and punctuation
       - exact prose candidate passed scene_review.v1 before promote-candidate; stale or missing candidate review blocks promotion
       - mounted Style Skill reviewed through scene_review.v1 style_adherence before promotion, readiness, export, or writeback

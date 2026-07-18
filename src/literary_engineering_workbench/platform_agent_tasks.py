@@ -158,6 +158,10 @@ def write_platform_scene_generation_task(
         ],
         tasks=[
             (
+                "确认正式路线 provenance",
+                """在写正文前，先确认本任务来自 `generate-scene`，并且 source artifacts 中存在 prompt manifest、context packet、composition packet。composition JSON 必须包含 `formal_cli_provenance.created_by=compose-scene`，且本候选的 `.agent_tasks.md`、`.prompt.json`、预期 candidate manifest 路径齐全。若缺失，停止正文生成，把本轮标记为 formal route blocked，不得手写文件冒充正式候选。""",
+            ),
+            (
                 "读取创作材料",
                 f"""读取 scene.yaml、context packet、composition packet、prompt manifest、style prompt/profile、长篇字数预算、上一轮 AgentReview 小修约束、生成前最终硬约束摘要、标点规范和相关 canon/character 文件。确认人物 BDI、hidden background_story、scene goal、output_state、用户约束、文风生成标准、长篇字数预算标准、pass_with_notes 小修项和标点边界。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
             ),
@@ -188,7 +192,7 @@ def write_platform_scene_generation_task(
             ),
             (
                 "生成候选 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false 和待审查事项。""",
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false 和待审查事项。""",
             ),
             (
                 "后续门禁",

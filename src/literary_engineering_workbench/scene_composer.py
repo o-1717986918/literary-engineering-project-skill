@@ -104,6 +104,17 @@ def build_scene_composition(
         "schema": "literary-engineering-workbench/scene-composition/v0.1",
         "generated_at": _now(),
         "project_root": str(root),
+        "formal_cli_provenance": {
+            "created_by": "compose-scene",
+            "agent_tasks_requested": bool(agent_tasks),
+            "manual_file_creation_allowed": False,
+            "required_predecessors": [
+                "context",
+                "simulate-scene --agent",
+                "branch-simulate --agent",
+                "branch_selection.md decision:selected",
+            ],
+        },
         "scene_id": facts.scene_id,
         "scene_file": _rel(scene_path, root),
         "context_packet": _rel(context_path, root),

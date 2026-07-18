@@ -14,7 +14,7 @@ Use this protocol whenever a tool-layer agent runs a literary engineering task t
 5. Inspect current project state before planning: `project.yaml`, relevant canon/character/plot/style files, latest reviews, workflow runs, and approval records.
 6. State a short plan to yourself or in the working trace: objective, route, artifacts to inspect, artifacts to create, review gates, and user approval boundary.
 7. Probe documented tools before declaring them unavailable. Use `--help`, `protocol <route>`, or the smallest safe command attempt; if a command fails, record the exact command, error, and next workaround instead of guessing.
-8. Execute deterministic preparation with CLI only when useful: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars.
+8. Execute deterministic preparation with CLI whenever the selected formal route declares sidecars, manifests, or provenance gates: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars. Exploratory notes may skip CLI, but formal artifacts may not silently replace CLI outputs with hand-written files.
 9. Perform every non-deterministic creative or judgment step as the supervising platform agent. This includes prose, JSON drafting, schema repair, roleplay, branch choice, review findings, style prompts, and promotion recommendations.
 10. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, then inspect the produced artifact. Do not report the task file as completed work by itself.
 11. For scene batches, maintain per-scene coverage. Each scene needs its own context, RP, branch selection, composition, prose candidate, exact-candidate review, promotion, promoted draft, and state patch; one completed scene does not cover the rest.
@@ -54,6 +54,14 @@ The following must never be delegated to local dry-run, HTTP helper, or CLI outp
 
 Local tools may prepare inputs and task files for those actions, but the supervising platform agent must make the judgment and write or approve the artifact.
 
+## Formal Vs Exploratory Outputs
+
+Exploratory discussion, throwaway snippets, and analysis notes may be written without CLI provenance. They must stay outside formal candidate, promotion, chapter, export, and writeback lanes.
+
+Formal artifacts are different. If an artifact may be promoted, counted toward word budget, exported, published, or written back to canon/characters/state, the agent must use the route's deterministic CLI sidecars and manifests where available. A hand-written file with the same path as a CLI output is exploratory/debug-only unless the agent first attempted the documented command, recorded the exact failure, and marked the replacement as a CLI-equivalent workaround for route audit and human review.
+
+For `scene-development`, formal prose generation requires CLI-generated context, `simulate-scene --agent` roleplay, `branch-simulate --agent` branch manifest, formal `branch_selection.md`, `compose-scene --agent-tasks` composition, `generate-scene` prompt/task provenance, and exact-candidate review before promotion.
+
 ## Command Attempt Rule
 
 If a route names a command, the supervising agent should assume it can try that command with the local shell/tooling unless a real error proves otherwise. In particular, do not skip `agent-review-scene`, `agent-canon-review`, `agent-task-status`, `route-audit`, `promote-candidate`, `chapter-workspace`, or `export-package` because they sound model-backed or environment-dependent. Run `--help` first if uncertain. Many `agent-*` commands only generate sidecars, deterministic evidence such as `Style Lint (auto-detected)`, and expected output paths; the platform agent then performs the judgment and writes the artifacts.
@@ -85,6 +93,7 @@ Before final response, check:
 - Do not promote candidates without clean review and approval.
 - Do not use debug/bypass flags such as `--allow-unreviewed`, `--allow-review-notes`, `--include-blocked`, `--allow-unapproved`, `--allow-unresolved`, `--allow-missing-composition`, `--allow-unselected-composition`, `--allow-recommended-branch`, or `--allow-missing-branch` during formal Skill-host work.
 - Do not batch-write scenes while skipping RP, branch simulation, composition, exact-candidate review, promotion, or state patch for most scenes.
+- Do not satisfy formal route gates by hand-writing files that merely imitate CLI outputs. Manual equivalents require a real attempted-command failure, recorded workaround provenance, and route-audit visibility.
 - Do not declare a documented CLI/tool step impossible without probing it or recording a real command failure.
 - Do not bypass failed readiness/export gates with a custom script and present the result as final release output.
 - Do not skip punctuation review for Chinese prose because a Style Skill is mounted.

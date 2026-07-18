@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import re
 
-from .candidate_promotion import candidate_review_gate
+from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .flow_gates import branch_selection_status
 from .anti_ai_style import style_lint_gate_message
 
@@ -434,6 +434,7 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
     selection_gate = branch_selection_status(selection)
     composition_json = root / "drafts" / "compositions" / f"{scene_id}_composition.json"
     composition_payload = _read_json(composition_json)
+    composition_provenance = composition_payload.get("formal_cli_provenance", {}) if isinstance(composition_payload.get("formal_cli_provenance"), dict) else {}
     flow_gate = composition_payload.get("flow_gate", {}) if isinstance(composition_payload.get("flow_gate"), dict) else {}
     composition_ready = (
         composition_json.exists()
@@ -446,6 +447,11 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         candidate_review_gate(root, scene_id, candidate_path)
         if candidate_path is not None
         else {"status": "missing", "message": "no prose candidate found for exact-candidate review"}
+    )
+    generation_gate = (
+        candidate_generation_gate(root, scene_id, candidate_path)
+        if candidate_path is not None
+        else {"status": "missing", "message": "no prose candidate found for generation provenance"}
     )
     promotion_json = root / "drafts" / "promotions" / f"{scene_id}_promotion.json"
     promotion_payload = _read_json(promotion_json)
@@ -473,6 +479,14 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
     )
     _add_gate(
         gates,
+        f"{scene_id}:roleplay-cli-provenance",
+        roleplay.exists() and "正式 CLI 来源：`simulate-scene`" in roleplay_text,
+        "blocking",
+        f"{scene_id} roleplay has simulate-scene CLI provenance",
+        f"{scene_id} 的 RP 文件缺少 simulate-scene 正式来源标记；手写 RP 只能作为 exploratory/debug，不满足正式路线。",
+    )
+    _add_gate(
+        gates,
         f"{scene_id}:roleplay-reading-receipt",
         roleplay.exists() and "读取回执" in roleplay_text,
         "blocking",
@@ -494,6 +508,14 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         "blocking",
         f"{scene_id} branch manifest exists",
         f"{scene_id} 缺少有效 branches/{scene_id}/branch_manifest.json；正式场景开发必须运行 branch-simulate --agent。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:branch-cli-provenance",
+        branch_payload.get("formal_cli_provenance", {}).get("created_by") == "branch-simulate" if isinstance(branch_payload.get("formal_cli_provenance"), dict) else False,
+        "blocking",
+        f"{scene_id} branch manifest has branch-simulate CLI provenance",
+        f"{scene_id} 的 branch_manifest.json 缺少 formal_cli_provenance.created_by=branch-simulate；手写 manifest 只能作为 exploratory/debug。",
     )
     _add_gate(
         gates,
@@ -521,11 +543,27 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
     )
     _add_gate(
         gates,
+        f"{scene_id}:composition-cli-provenance",
+        composition_provenance.get("created_by") == "compose-scene",
+        "blocking",
+        f"{scene_id} composition has compose-scene CLI provenance",
+        f"{scene_id} 的 composition 缺少 formal_cli_provenance.created_by=compose-scene；手写 composition 不能满足正式 generate-scene 门禁。",
+    )
+    _add_gate(
+        gates,
         f"{scene_id}:prose-candidate",
         candidate_path is not None and candidate_path.exists(),
         "blocking",
         f"{scene_id} prose candidate exists",
         f"{scene_id} 缺少 drafts/candidates/{scene_id}-*.md；不能直接写 drafts/scenes 正式草稿。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:candidate-generation-provenance",
+        generation_gate.get("status") == "pass",
+        "blocking",
+        f"{scene_id} candidate has formal CLI/platform-agent generation provenance",
+        f"{scene_id} 候选稿缺少正式 generate-scene provenance：{generation_gate.get('message') or generation_gate.get('status') or 'missing'}。正式候选必须有 prompt manifest、.agent_tasks.md 和平台 Agent manifest 约束字段。",
     )
     lint_gate = candidate_gate.get("style_lint") if isinstance(candidate_gate, dict) else {}
     if candidate_path is not None:

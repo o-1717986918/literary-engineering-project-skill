@@ -1,6 +1,6 @@
 # AGENTS
 
-This repository is now a project-type skill for tool-layer agents such as Codex and Claude. The agent using the repository is the project director and creative director. The repository provides operating rules, artifact contracts, templates, schemas, and optional deterministic CLI helpers.
+This repository is now a project-type skill for tool-layer agents such as Codex and Claude. The agent using the repository is the project director and creative director. The repository provides operating rules, artifact contracts, templates, schemas, and formal-route deterministic CLI helpers.
 
 ## Read First
 
@@ -9,7 +9,7 @@ This repository is now a project-type skill for tool-layer agents such as Codex 
 3. `references/agent-run-protocol.md`
 4. `references/project-director-playbook.md`
 5. `references/artifact-contracts.md` when writing or moving project artifacts
-6. `references/cli-run-protocol.md` and `references/workflows.md` when using the optional CLI
+6. `references/cli-run-protocol.md` and `references/workflows.md` when a formal route has CLI sidecars, manifests, or provenance gates
 7. `references/punctuation-standard.md` when generating, reviewing, revising, or exporting Chinese prose
 8. `references/orchestration.md` only for LangGraph, Dify, subagents, or external workflow design
 
@@ -37,7 +37,7 @@ Every task must run through the protocol loop before it is considered complete:
 
 - Codex/Claude is the director, planner, LLM provider, conversation layer, and subagent orchestrator.
 - This repository is the skill and toolbox.
-- `src/literary_engineering_workbench/` in the development copy or `scripts/literary_engineering_workbench/` in the installed skill contains optional helper code, not the primary intelligence layer.
+- `src/literary_engineering_workbench/` in the development copy or `scripts/literary_engineering_workbench/` in the installed skill contains deterministic helper code and formal-route provenance generators, not the primary intelligence layer.
 - The local `director-chat` implementation is legacy/experimental. Use it only when the user explicitly wants local orchestration or regression testing.
 - Prefer platform-native reasoning, file editing, review, and subagents for creative work.
 - Every creative generation, LLM-authored JSON/schema draft, simulation, review, branch choice, style prompt, candidate promotion recommendation, and free-form project decision must stay under the supervision of the tool-layer agent that loaded this skill.
@@ -62,7 +62,7 @@ Every task must run through the protocol loop before it is considered complete:
 - Source-derived facts from existing works start as candidates with evidence references, confidence, contradictions, and unknowns. They must not directly overwrite formal `canon/`, `characters/`, `plot/`, `style/`, drafts, exports, or releases.
 - For 100000+ word or multi-volume targets, create or inspect `plot/word_budget/word_budget.json` before bulk generation. If budget status is `needs_expansion`, process `word_budget.agent_tasks.md`, process `scene_inventory_expansion.agent_tasks.md`, and review the budgeted outline plus scene inventory candidates first.
 - Count only cleaned deliverable prose as draft/chapter/longform/export length. Exclude workflow notes, review text, canon explanations, prompt manifests, `[AGENT_TASK: ...]`, status/writeback candidates, scene IDs, and internal paths.
-- Formal scene generation must be gated by context, roleplay simulation, branch manifest, formal `branch_selection.md`, and ready `selection_source=selection` composition. Do not start `generate-scene`, manual drafting, state writeback, or export from a scene that skipped RP/branch/composition.
+- Formal scene generation must be gated by CLI-generated context, `simulate-scene --agent` roleplay with reading receipt and CLI provenance, `branch-simulate --agent` branch manifest with CLI provenance, formal `branch_selection.md`, and `compose-scene --agent-tasks` composition with `selection_source=selection`, `ready_for_generation=true`, and `formal_cli_provenance.created_by=compose-scene`. Manual file creation before generation is exploratory/debug-only and cannot satisfy formal route gates unless an attempted CLI failure and CLI-equivalent workaround are recorded. Do not start `generate-scene`, manual drafting, state writeback, or export from a scene that skipped this chain.
 - `route-audit --route scene-development` is the per-scene completion ledger. For each `scenes/*.yaml`, missing prose candidate, exact-candidate AgentReview, Style Lint clean/notes-only, promotion manifest, promoted draft, static `review-scene` clean pass, revision anti-evasion manifest when applicable, or `state-evolve` patch is a blocking work item before chapter/export readiness.
 - Promote candidates only after review and explicit user approval.
 - `promote-candidate` is a formal gate, not a shortcut into review. Before promotion, the exact prose candidate must be cited in a passing `reviews/agent/{scene_id}_scene_review.json`; stale scene reviews, missing source paths, `pass_with_notes`, warnings, revision actions, or style deviations require `revise-scene` and re-review.
@@ -94,7 +94,7 @@ Every task must run through the protocol loop before it is considered complete:
 - Style work: build author style project, compile profile, generate LLM-facing style prompt, package/mount Style Skill.
 - Release work: run readiness, canon, longform, export, DOCX delivery, and approval checks before delivery.
 
-## Optional CLI
+## Formal Route CLI
 
 Development workspace:
 
@@ -111,6 +111,8 @@ python -m literary_engineering_workbench --help
 ```
 
 Provider flags on formal commands are compatibility fields. Use local model providers only when the user explicitly wants legacy/debug behavior. Otherwise the tool-layer platform's own model is the creative provider and reviewer.
+
+Informal discussion, outline brainstorming, and throwaway snippets may skip CLI. Formal artifacts that may be promoted, counted, exported, or written back must preserve CLI sidecar/manifest provenance where this skill provides a route command.
 
 Print a route runbook before a CLI-backed task:
 

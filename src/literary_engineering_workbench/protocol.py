@@ -329,11 +329,11 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "Character state patch interpretation and promotion recommendation.",
         ),
         completion_gates=(
-            "Context packet or equivalent project-state inspection completed.",
-            "Roleplay simulation exists, includes a platform-agent reading receipt, and has no unresolved AGENT_TASK directives.",
-            "Branch manifest exists and branch_selection.md records decision: selected plus selected_branch before composition or generation.",
-            "Composition exists with selection_source=selection and ready_for_generation=true before generate-scene or state writeback.",
-            "Prose candidate exists for each target scene and was written by the main platform agent, not a subagent.",
+            "CLI-generated context packet or recorded CLI-equivalent workaround exists.",
+            "simulate-scene --agent roleplay simulation exists, includes CLI provenance, includes a platform-agent reading receipt, and has no unresolved AGENT_TASK directives.",
+            "branch-simulate --agent branch manifest exists with CLI provenance, and branch_selection.md records decision: selected plus selected_branch before composition or generation.",
+            "compose-scene --agent-tasks composition exists with selection_source=selection, ready_for_generation=true, and formal_cli_provenance.created_by=compose-scene before generate-scene or state writeback.",
+            "Prose candidate exists for each target scene, has generate-scene prompt/task/manifest provenance, and was written by the main platform agent, not a subagent.",
             "Prose candidate reviewed for canon, character, style, and punctuation.",
             "agent-review-scene was run or an equivalent exact-candidate platform review was written with a concrete reason for any CLI skip.",
             "Exact candidate path is cited in a passing scene_review.v1 JSON before promote-candidate.",
@@ -346,7 +346,8 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         forbidden_shortcuts=COMMON_FORBIDDEN
         + (
             "Do not let branch scores become final plot decisions without platform-agent review.",
-            "Do not process one representative scene and bulk-write the rest without their own RP/branch/composition/review/promotion/state gates.",
+            "Do not process one representative scene and bulk-write the rest without their own RP/branch/composition/generation/review/promotion/state gates.",
+            "Do not hand-write same-named formal files to satisfy route gates unless a documented CLI failure and CLI-equivalent workaround are recorded.",
             "Do not skip Chinese punctuation review for Chinese prose.",
         ),
     ),
@@ -434,8 +435,8 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
     ),
     "optional-cli": ProtocolRoute(
         key="optional-cli",
-        title="Optional CLI",
-        purpose="Use deterministic helper commands, local regression tests, Dify/LangGraph adapters, or frontend/API utilities.",
+        title="Formal Route CLI",
+        purpose="Use deterministic helper commands, formal sidecar/provenance generators, local regression tests, Dify/LangGraph adapters, or frontend/API utilities.",
         read=(
             "references/agent-run-protocol.md",
             "references/cli-run-protocol.md",

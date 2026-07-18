@@ -9,7 +9,7 @@ from literary_engineering_workbench.flow_gates import FlowGateError
 from literary_engineering_workbench.generation_provider import generate_scene_candidate
 from literary_engineering_workbench.scene_composer import build_scene_composition
 
-from helpers import TempProjectMixin
+from helpers import TempProjectMixin, write_formal_candidate_artifacts
 
 
 class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
@@ -25,6 +25,7 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
 
         with self.assertRaises(FlowGateError):
             promote_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), candidate=candidate.candidate_path)
+        write_formal_candidate_artifacts(project, candidate.candidate_path)
         _write_candidate_review(project, candidate.candidate_path)
 
         result = promote_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), candidate=candidate.candidate_path)
@@ -48,6 +49,7 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
         project = self.make_project()
         _prepare_generation_ready(project)
         candidate = generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, provider="dry-run")
+        write_formal_candidate_artifacts(project, candidate.candidate_path)
         _write_candidate_review(project, candidate.candidate_path)
 
         self.assertIn("promote-candidate", build_parser().format_help())
@@ -86,6 +88,7 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
         _prepare_generation_ready(project)
         candidate = generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, provider="dry-run")
         _replace_candidate_body(candidate.candidate_path, "不是C营的——是那个E营的年轻人，他把袖章藏在雨衣里面。")
+        write_formal_candidate_artifacts(project, candidate.candidate_path)
         _write_candidate_review(project, candidate.candidate_path)
 
         with self.assertRaises(FlowGateError) as ctx:
@@ -132,6 +135,7 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
 """,
             encoding="utf-8",
         )
+        write_formal_candidate_artifacts(project, revision, revision=True)
         _write_candidate_review(project, revision)
 
         result = promote_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), candidate=revision)
@@ -144,7 +148,7 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
 def _prepare_generation_ready(project: Path):
     branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
     _select_branch(branch.selection_path, branch.recommended_branch)
-    build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+    build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, agent_tasks=True)
 
 
 def _select_branch(path: Path, branch_id: str):

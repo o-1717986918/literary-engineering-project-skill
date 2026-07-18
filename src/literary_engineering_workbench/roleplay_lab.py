@@ -348,6 +348,8 @@ def build_roleplay_simulation(
 
 生成时间：{datetime.now(timezone.utc).isoformat()}
 
+正式 CLI 来源：`simulate-scene`
+
 场景文件：`{scene_rel}`
 上下文包：`{context_rel}`
 

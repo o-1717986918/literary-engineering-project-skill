@@ -1,11 +1,11 @@
 ---
 name: literary-engineering-project-skill
-description: Project-type skill for Codex, Claude, and similar tool-layer agents to manage long-form fictional literature projects as engineering workspaces. Use when the agent needs to act as project director, creative director, editor, continuity auditor, style engineer, source-text analyst, longform word-budget planner, scene planner, prose generator, reviewer, or release manager for novels, screenplays, pseudo-record texts, web fiction, short-drama scripts, or long-video prompt projects; especially when work involves AGENTS.md/agentread.yaml project onboarding, canon/character/plot/style file maintenance, importing existing works for continuation or rewrite, target length planning, author style projects, mounted Style Skills, candidate asset review/promotion, hidden character background causality, scene simulation, branch planning, context packets, prompt packs, chapter exports, or optional local CLI tooling. The tool-layer platform provides the LLM, subagents, planning, and conversation; this skill provides the operating manual, file contracts, and deterministic helper commands.
+description: Project-type skill for Codex, Claude, and similar tool-layer agents to manage long-form fictional literature projects as engineering workspaces. Use when the agent needs to act as project director, creative director, editor, continuity auditor, style engineer, source-text analyst, longform word-budget planner, scene planner, prose generator, reviewer, or release manager for novels, screenplays, pseudo-record texts, web fiction, short-drama scripts, or long-video prompt projects; especially when work involves AGENTS.md/agentread.yaml project onboarding, canon/character/plot/style file maintenance, importing existing works for continuation or rewrite, target length planning, author style projects, mounted Style Skills, candidate asset review/promotion, hidden character background causality, scene simulation, branch planning, context packets, prompt packs, chapter exports, or formal route CLI sidecars. The tool-layer platform provides the LLM, subagents, planning, and conversation; this skill provides the operating manual, file contracts, and deterministic helper commands.
 ---
 
 # Literary Engineering Project Skill
 
-Use this skill to let Codex, Claude, or another capable tool-layer agent manage a long-form fictional work as an engineering project. The platform agent is the project director. This repository is the operating manual and optional toolbox.
+Use this skill to let Codex, Claude, or another capable tool-layer agent manage a long-form fictional work as an engineering project. The platform agent is the project director. This repository is the operating manual, artifact contract, and formal-route toolbox.
 
 ## Core Shift
 
@@ -13,7 +13,15 @@ Use this skill to let Codex, Claude, or another capable tool-layer agent manage 
 - Treat this skill as project structure, contracts, procedures, prompts, schemas, and helper CLI.
 - Do not assume the local `director-chat` command is the main interface. It is an optional experimental/local helper.
 - Prefer direct tool-layer reasoning, file edits, review passes, and subagent delegation when the platform supports them.
-- Use the local CLI only when deterministic project operations are useful: initialization, source import/chunking, indexing, context packet generation, style compilation, lint, audit, export, and packaging.
+- Treat the local CLI as optional only for informal brainstorming or exploratory notes. Formal routes that generate, review, promote, or export project artifacts must use the route CLI sidecar/provenance chain where the skill provides one, or record an attempted-command failure and a clearly marked CLI-equivalent workaround.
+
+## Formal Route CLI Clarification
+
+"CLI optional" means a user may discuss ideas, ask for analysis, or request exploratory snippets without running local tools. It does not mean formal project routes can be hand-written around the CLI.
+
+For formal `scene-development`, `style-engineering`, `longform-planning`, `source-ingest`, `review-and-audit`, and `export-and-release`, run the route protocol and the documented deterministic commands when they are available. Manual files with the same names as CLI outputs are exploratory/debug-only unless the agent first tried the command, recorded the exact failure, and marked the replacement artifact as a CLI-equivalent workaround for route audit and human review.
+
+Formal candidates must carry provenance. A scene candidate cannot be promoted or exported merely because `drafts/candidates/*.md` exists; it must also have prompt manifest, `.agent_tasks.md`, platform-agent candidate manifest, exact-candidate review, Style Lint, and route-audit gates.
 
 ## Tool-Layer Participation Gate
 
@@ -73,7 +81,7 @@ Never let generated JSON, simulation output, local-director output, model scores
 3. Select the smallest task route in `agentread.yaml`.
 4. Apply the mandatory run protocol before doing work:
    - Read `references/agent-run-protocol.md` for every project task.
-   - Read `references/cli-run-protocol.md` before using the optional CLI.
+   - Read `references/cli-run-protocol.md` before any formal route that has deterministic CLI sidecars or provenance gates.
    - If using the CLI, run `python -m literary_engineering_workbench protocol <route>` first and follow its preflight, handoff points, completion gates, and forbidden shortcuts.
 5. Load only the needed reference file:
    - `references/project-director-playbook.md` for project-director behavior and user interaction.
@@ -87,7 +95,7 @@ Never let generated JSON, simulation output, local-director output, model scores
 
 Every task must follow the loop in `references/agent-run-protocol.md`: classify workspace, choose a route, read route references, record a reading receipt, inspect project state, plan, execute deterministic helpers only as helpers, let the platform agent handle creative judgment, process `.agent_tasks.md`, validate outputs, decide candidate/revision/promotion status, and finish with an audit summary.
 
-Every CLI-backed task must follow `references/cli-run-protocol.md`. The CLI is never the creative authority. A command that writes `.agent_tasks.md` has prepared work for the platform agent; it has not completed the creative or review step. Use `agent-task-status` and route-specific `route-audit` when you need a single dashboard of pending sidecars, missing expected artifacts, and incomplete route gates.
+Every formal CLI-backed route must follow `references/cli-run-protocol.md`. The CLI is never the creative authority, but its sidecars and manifests are the formal provenance layer. A command that writes `.agent_tasks.md` has prepared work for the platform agent; it has not completed the creative or review step. Use `agent-task-status` and route-specific `route-audit` when you need a single dashboard of pending sidecars, missing expected artifacts, and incomplete route gates.
 
 Before final response, explicitly account for the relevant completion gates: route selected, references read, reading receipt, project state inspected, task sidecars handled or listed as pending, schema/canon/character/style/punctuation/release checks applied when relevant, and approval boundaries recorded.
 
@@ -100,7 +108,7 @@ Before final response, explicitly account for the relevant completion gates: rou
 - Longform word budgets are generation constraints, not final plot. For 100000+ word or multi-volume targets, build or inspect `plot/word_budget/word_budget.json`, have the platform agent handle the budget expansion and scene-inventory sidecars, and do not bulk-generate while budget status is `needs_expansion` or chapter/scene inventory shortfalls are unresolved.
 - Scene loop evidence is per-scene evidence. A batch is incomplete if any scene lacks context, RP, branch selection, composition, candidate, exact-candidate AgentReview, Style Lint clean/notes-only, promotion, promoted draft, static review clean pass, or state patch; `route-audit --route scene-development` is the default ledger for this.
 - Draft length, chapter progress, longform progress, and export manifest `draft_chars` must use cleaned deliverable prose only. Do not count workflow notes, review text, canon explanations, prompt manifests, `[AGENT_TASK: ...]`, status/writeback candidates, scene IDs, or file paths as prose length.
-- Formal scene generation must not start from `generate-scene`, manual drafting, or provider-backed helpers until the scene has a context packet, roleplay simulation with platform-agent reading receipt, branch manifest, formal `branch_selection.md`, and a ready `selection_source=selection` composition. Shortcuts are maintainer/debug-only and must not be used by a formal Skill host.
+- Formal scene generation must not start from `generate-scene`, manual drafting, or provider-backed helpers until the scene has a CLI-generated context packet, `simulate-scene --agent` roleplay simulation with platform-agent reading receipt and CLI provenance, `branch-simulate --agent` branch manifest with CLI provenance, formal `branch_selection.md`, and `compose-scene --agent-tasks` composition with `selection_source=selection`, `ready_for_generation=true`, and `formal_cli_provenance.created_by=compose-scene`. Manual file creation before generation is exploratory/debug-only and cannot satisfy formal route gates unless an attempted CLI failure and CLI-equivalent workaround are recorded.
 - LLM-authored JSON is a draft artifact until the tool-layer agent validates schema, checks project constraints, and accepts it as a candidate or asks for approval.
 - New characters, world rules, locations, organizations, relationship graphs, outlines, and major plot turns start as candidates.
 - Promote candidates only after review and explicit user approval. Do not use debug or unreview instructions to skip review.
@@ -144,7 +152,7 @@ Do not expose raw schemas, internal file paths, or command chatter unless the us
 - Review/audit: run canon, character, plot, style, and release checks before treating text as ready.
 - Export/release: confirm chapter readiness, longform audit status, approval records, and requested delivery formats such as DOCX before packaging or release.
 
-## Optional CLI
+## Formal Route CLI
 
 For this copied development workspace:
 
@@ -161,6 +169,8 @@ python -m literary_engineering_workbench --help
 ```
 
 Provider flags on formal commands are compatibility fields. In normal Codex/Claude use, the platform's main agent is the creative writing provider and reviewer. Subagents may provide bounded mechanical support, but must not draft, rewrite, polish, or finalize body text. Use local provider paths only when the user explicitly asks for legacy/debug behavior.
+
+Exploratory work may skip CLI. Formal project artifacts may not: run route commands, process sidecars, and preserve prompt/task/manifest provenance before promotion, chapter readiness, export, or release.
 
 Before using a route-specific command chain, print the runbook:
 
