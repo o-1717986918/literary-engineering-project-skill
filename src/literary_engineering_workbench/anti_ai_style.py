@@ -26,6 +26,7 @@ ANTI_AI_STYLE_SHORT_RULE = (
 )
 
 AI_STYLE_SOFT_DENSITY_LIMIT = 0.02
+AI_STYLE_GATE_BLOCKING_RULES = {"mechanical-contrast-frame"}
 
 BANNED_AI_PHRASES: tuple[str, ...] = (
     "嘴角划过弧度",
@@ -154,6 +155,59 @@ class AIStyleIssue:
     severity: str
     message: str
     sample: str = ""
+
+
+def style_lint_gate(text: str) -> dict[str, object]:
+    """Return a machine gate result for AI-style lint findings.
+
+    Mechanical contrast frames are always blocking. Other medium-or-higher
+    findings are blocking; low findings remain review notes.
+    """
+
+    issues = lint_ai_style(text)
+    blocking = [issue for issue in issues if is_style_lint_blocking(issue)]
+    notes = [issue for issue in issues if not is_style_lint_blocking(issue)]
+    status = "blocking" if blocking else ("notes" if notes else "pass")
+    return {
+        "status": status,
+        "blocking_count": len(blocking),
+        "note_count": len(notes),
+        "blocking": [ai_style_issue_to_dict(issue) for issue in blocking],
+        "notes": [ai_style_issue_to_dict(issue) for issue in notes],
+    }
+
+
+def is_style_lint_blocking(issue: AIStyleIssue) -> bool:
+    severity = issue.severity.strip().lower()
+    return issue.rule in AI_STYLE_GATE_BLOCKING_RULES or severity not in {"", "low"}
+
+
+def ai_style_issue_to_dict(issue: AIStyleIssue) -> dict[str, str]:
+    return {
+        "rule": issue.rule,
+        "severity": issue.severity,
+        "message": issue.message,
+        "sample": issue.sample,
+    }
+
+
+def style_lint_gate_message(gate: dict[str, object], *, max_items: int = 3) -> str:
+    blocking = gate.get("blocking")
+    notes = gate.get("notes")
+    items = blocking if isinstance(blocking, list) and blocking else notes if isinstance(notes, list) else []
+    if not items:
+        return "Style Lint clean"
+    rendered = []
+    for item in items[:max_items]:
+        if not isinstance(item, dict):
+            continue
+        sample = str(item.get("sample") or "").strip()
+        suffix = f" 示例：{sample}" if sample else ""
+        rendered.append(f"{item.get('rule', 'unknown')}[{item.get('severity', '')}]{suffix}")
+    extra_count = max(0, len(items) - len(rendered))
+    if extra_count:
+        rendered.append(f"另有 {extra_count} 项")
+    return "；".join(rendered) if rendered else "Style Lint findings present"
 
 
 def render_ai_style_lint_block(text: str, *, max_issues: int = 12, max_sample_chars: int = 120) -> str:

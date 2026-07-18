@@ -232,6 +232,10 @@
 
 已在 `v0.79.0` 将 `anti_ai_style.py` 的确定性 lint 接入正式平台 Agent 场景审查：`agent-review-scene` 生成的 `.agent_tasks.md` 会包含 `Style Lint (auto-detected)` 证据块，旧兼容路径 `review_scene_with_agent()` 的 LLM prompt 也会注入同一证据。审查 Agent 必须处理中级及以上风险，尤其是“不是 A——是 B”“不是 A。是 B”等机械对照变体，不得以“合理修辞”跳过，也不得用脚本直接删改正文。dry-run 占位审查会把确定性 lint 风险写入 warnings / revision_actions，避免被误解为质量审查通过。
 
+## Phase 80：Style Lint 分级硬门禁
+
+已在 `v0.80.0` 将 Style Lint 从“审查证据”升级为“分级机器门禁”：`mechanical-contrast-frame` 一律 blocking；其他 medium 或更高严重度的 AI 腔风险 blocking；low 风险保留为 notes。`promote-candidate` 会在 promotion 前对候选正文重跑 Style Lint Gate，阻塞带有核心违规或 medium+ 风险的候选；`route-audit --route scene-development` 新增逐场景 `style-lint-clean` gate；chapter/export readiness 会对 cleaned deliverable body 再跑一次 gate，避免 pass review JSON 掩盖正文仍带病的问题。
+
 ## Phase 47：前端显式 API Key 配置
 
 已实现前端 API Key 密码输入框、`/config` 明文保存与脱敏响应、空 key 保存保留既有密钥、`model_config.py` 从环境变量或保存的 profile key 读取密钥。

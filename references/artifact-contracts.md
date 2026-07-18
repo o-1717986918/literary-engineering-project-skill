@@ -605,6 +605,7 @@ Default promotion is blocked until the exact candidate has passed formal platfor
 - `source_paths`, `candidate`, or `reviewed_candidate` must cite the candidate path being promoted;
 - `conclusion` must be `pass`;
 - `blocking_issues`, `warnings`, `revision_actions`, `style_notes`, `style_adherence.deviations`, and `style_adherence.revision_actions` must be empty;
+- Style Lint Gate must be clean or notes-only: `mechanical-contrast-frame` and medium-or-higher AI trace findings block promotion/readiness/export even if AgentReview JSON says `pass`;
 - if a Style Skill is mounted, `style_adherence.status` must be clean `pass`; unresolved `pass_with_notes` requires `revise-scene` and re-review before promotion.
 
 `--allow-unreviewed` and `--allow-review-notes` are maintainer/debug-only. A formal Skill host must not use them, even if the user asks to “unreview” or skip review; complete the exact-candidate review or revision loop instead. If these flags appear in a project manifest, `route-audit` should block formal readiness.

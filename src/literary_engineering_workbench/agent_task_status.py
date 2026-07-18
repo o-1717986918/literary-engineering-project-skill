@@ -10,6 +10,7 @@ import re
 
 from .candidate_promotion import candidate_review_gate
 from .flow_gates import branch_selection_status
+from .anti_ai_style import style_lint_gate_message
 
 
 BACKTICK_RE = re.compile(r"`([^`]+)`")
@@ -524,6 +525,16 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         f"{scene_id} prose candidate exists",
         f"{scene_id} 缺少 drafts/candidates/{scene_id}-*.md；不能直接写 drafts/scenes 正式草稿。",
     )
+    lint_gate = candidate_gate.get("style_lint") if isinstance(candidate_gate, dict) else {}
+    if candidate_path is not None:
+        _add_gate(
+            gates,
+            f"{scene_id}:style-lint-clean",
+            isinstance(lint_gate, dict) and lint_gate.get("status") != "blocking",
+            "blocking",
+            f"{scene_id} Style Lint Gate clean or notes-only",
+            f"{scene_id} 候选稿未通过 Style Lint Gate：{style_lint_gate_message(lint_gate if isinstance(lint_gate, dict) else {})}。机械对照句式和 medium+ AI 腔风险必须先修订。",
+        )
     _add_gate(
         gates,
         f"{scene_id}:agent-review-json",

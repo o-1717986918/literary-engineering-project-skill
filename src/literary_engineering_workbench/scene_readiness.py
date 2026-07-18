@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_schema import validate_payload
+from .anti_ai_style import style_lint_gate, style_lint_gate_message
 from .flow_gates import branch_selection_status
 
 
@@ -132,6 +133,7 @@ def scene_readiness_status(
     style_status = str(agent_review_state.get("style_adherence_status") or "").strip().lower()
     unresolved = [str(item) for item in agent_review_state.get("unresolved_notes", [])]
     source_match = bool(agent_review_state.get("source_match"))
+    lint_gate = style_lint_gate(body)
 
     if not draft_path.exists() or not body:
         return "needs_draft", ("missing cleaned draft body",)
@@ -147,6 +149,8 @@ def scene_readiness_status(
         return "needs_revision", (f"static review is {conclusion}",)
     if conclusion != "pass":
         return "blocked", (f"static review conclusion is {conclusion or 'missing'}",)
+    if lint_gate.get("status") == "blocking":
+        return "needs_revision", (f"Style Lint Gate failed: {style_lint_gate_message(lint_gate)}",)
 
     if not agent_review_json_path.exists() or not agent_conclusion or not schema_status:
         return "needs_agent_review", ("missing platform Agent scene_review.v1 JSON",)

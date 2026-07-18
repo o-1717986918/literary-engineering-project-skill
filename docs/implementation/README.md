@@ -75,3 +75,4 @@
 - `phase77-batch-scene-ledger-gates.md`：批量场景逐场景账本门禁
 - `phase78-host-debug-ban-main-agent-prose.md`：宿主调试跳审禁令与主 Agent 正文权
 - `phase79-agent-review-style-lint-evidence.md`：AgentReview 确定性 Style Lint 证据注入
+- `phase80-style-lint-gate-hardening.md`：Style Lint 分级硬门禁

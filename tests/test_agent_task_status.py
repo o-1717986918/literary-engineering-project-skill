@@ -190,6 +190,32 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
             any(gate["key"] == "scene_0001:promotion-candidate-review" and gate["status"] == "fail" for gate in payload["gates"])
         )
 
+    def test_route_audit_blocks_style_lint_even_when_agent_review_passes(self):
+        project = self.make_project()
+        candidate = _write_candidate(project)
+        text = candidate.read_text(encoding="utf-8")
+        text = text.replace("林舟站在旧楼门口，先看了一眼街角的灯。", "不是C营的——是那个E营的年轻人，他把袖章藏在雨衣里面。")
+        candidate.write_text(text, encoding="utf-8")
+        review = write_platform_scene_review(project, scene_id="scene_0001")
+        payload = json.loads(review.read_text(encoding="utf-8"))
+        payload["candidate"] = "drafts/candidates/scene_0001-platform-agent.md"
+        payload["source_paths"] = [
+            "scenes/scene_0001.yaml",
+            "drafts/candidates/scene_0001-platform-agent.md",
+            "memory/context_packets/scene_0001.md",
+        ]
+        review.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        result = build_route_audit(project, route="scene-development")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:style-lint-clean" and gate["status"] == "fail" for gate in payload["gates"])
+        )
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:candidate-review-pass" and gate["status"] == "fail" for gate in payload["gates"])
+        )
+
     def test_route_audit_requires_word_budget_before_bulk_longform_scene_work(self):
         project = self.make_project()
         project_yaml = project / "project.yaml"

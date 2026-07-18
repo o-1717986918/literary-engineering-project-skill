@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.79.0`
+- 当前版本：`0.80.0`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -115,6 +115,8 @@ context packet
 `v0.78.0` 起，正式 Skill 宿主禁用调试/跳审参数：`--allow-unreviewed`、`--allow-review-notes`、`--include-blocked`、`--allow-unapproved` 等只保留给维护者回归测试，不能作为项目运行指令。`route-audit` 会扫描 manifest 中的 debug waiver 字段并阻塞正式路线。同时，正文创作权收束到主平台 Agent：subagent 只能做资料摘要、连续性表、schema/标点/风险检查等机械支持，不得代写、改写、扩写或最终化正文。
 
 `v0.79.0` 起，平台 Agent 场景审查会自动注入确定性 `Style Lint (auto-detected)` 证据：在审查 Agent 做文学判断前，先由 `anti_ai_style.py` 抓取“不是 A——是 B”等机械对照变体、破折号/模板句式/AI 腔风险，再要求审查 JSON 和 Markdown 明确处理这些证据。这样审查不再只依赖同一个 LLM 的语义直觉，也避免用正则脚本直接改坏正文。
+
+`v0.80.0` 起，Style Lint 从审查证据升级为分级机器门禁：`mechanical-contrast-frame` 和所有 medium+ AI 腔风险会阻塞 `promote-candidate`、`route-audit` 和 chapter/export readiness；low 风险不阻塞，但必须进入 AgentReview notes 或保留理由。也就是说，即使审查 JSON 被写成 `pass`，候选正文仍会被确定性 lint 重新检查。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 
@@ -447,7 +449,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.79.0`。
+- 当前版本：`0.80.0`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -463,6 +465,7 @@ literary-engineering-project-skill/
 - Supervisor Agent 执行纪律：已要求文档命令先试再判断，`.agent_tasks.md` 必须由当前平台 Agent 执行，`agent-review-scene` 不得被误判为外部模型依赖，官方 gate 失败不得用自写脚本冒充正式交付。
 - 批量场景账本门禁：已要求 scene-development 按每个 scene 检查候选、候选专属审查、promotion、正式草稿和 state-evolve patch，避免只跑一场 RP/review 后批量直写正文。
 - 正式宿主禁用调试跳审：已禁止 Skill 宿主用 allow/unreview/include-blocked 类参数绕过 review，并要求创作正文只能由主平台 Agent 完成。
+- Style Lint 分级硬门禁：已对机械对照句式和 medium+ AI 腔风险执行 promotion、route-audit、chapter/export readiness 阻塞；low 风险保留为审查 notes。
 - 可选 CLI 工具箱：可运行。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 

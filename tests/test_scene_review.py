@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from literary_engineering_workbench.anti_ai_style import lint_ai_style
+from literary_engineering_workbench.anti_ai_style import lint_ai_style, style_lint_gate
 from literary_engineering_workbench.punctuation_standard import lint_punctuation
 from literary_engineering_workbench.review_ci import review_scene_draft
 from literary_engineering_workbench.scene_draft import build_scene_draft
@@ -130,6 +130,18 @@ class SceneReviewTests(TempProjectMixin, unittest.TestCase):
 
         self.assertIn("dash-prohibited-in-plain-narration", rules)
         self.assertIn("comma-overload-in-sentence", rules)
+
+    def test_style_lint_gate_blocks_core_and_medium_issues_but_keeps_low_as_notes(self):
+        blocking = style_lint_gate("不是C营的——是那个E营的年轻人，他把袖章藏在雨衣里面。")
+
+        self.assertEqual(blocking["status"], "blocking")
+        self.assertEqual(blocking["blocking"][0]["rule"], "mechanical-contrast-frame")
+
+        notes = style_lint_gate("她把账本合上。院门外有人敲了两下。她嘴角微扬，又把灯拨暗。")
+
+        self.assertEqual(notes["status"], "notes")
+        self.assertEqual(notes["blocking_count"], 0)
+        self.assertGreater(notes["note_count"], 0)
 
 
 if __name__ == "__main__":

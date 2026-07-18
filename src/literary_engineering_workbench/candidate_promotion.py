@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .agent_schema import validate_payload
+from .anti_ai_style import style_lint_gate, style_lint_gate_message
 from .flow_gates import FlowGateError
 
 
@@ -92,6 +93,7 @@ def promote_scene_candidate(
         "approval_run_id": approval_run_id,
         "selection_note": selection_note,
         "candidate_review": review_gate,
+        "style_lint_gate": review_gate.get("style_lint", {}),
         "allow_unreviewed": allow_unreviewed,
         "allow_review_notes": allow_review_notes,
         "chars": len(draft),
@@ -99,6 +101,7 @@ def promote_scene_candidate(
         "guardrails": [
             "本命令只把候选稿转入草稿审查通道，不确认 canon。",
             "默认必须先完成针对该候选稿的正式平台 Agent 场景审查。",
+            "候选正文必须通过 Style Lint Gate：机械对照句式和 medium+ AI 腔风险阻塞 promotion，low 风险进入审查 notes。",
             "转正后的草稿仍必须运行 review-scene 和后续平台 Agent 场景审查。",
             "人物、关系和 canon 写回仍必须走单独审批链路。",
         ],
@@ -133,10 +136,14 @@ def _resolve_candidate(root: Path, scene_id: str, candidate: Path | None) -> Pat
 def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> dict[str, object]:
     review_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
     rel_candidate = _rel(candidate_path, root)
+    candidate_text = _read(candidate_path)
+    candidate_body = _candidate_body(candidate_text) or candidate_text
+    lint_gate = style_lint_gate(candidate_body)
     gate: dict[str, object] = {
         "required": True,
         "review": _rel(review_path, root),
         "candidate": rel_candidate,
+        "style_lint": lint_gate,
         "mounted_style_required": _mounted_style_exists(root),
         "status": "missing",
         "conclusion": "",
@@ -157,7 +164,8 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
     unresolved = _unresolved_review_notes(payload)
     style_required = _mounted_style_exists(root)
     style_passed = not style_required or style_status in {"pass", "pass_with_notes"}
-    passed = not errors and source_match and conclusion == "pass" and style_passed and not unresolved
+    style_lint_passed = lint_gate.get("status") != "blocking"
+    passed = not errors and source_match and conclusion == "pass" and style_passed and not unresolved and style_lint_passed
     if passed:
         status = "pass"
         message = "candidate review passed"
@@ -173,6 +181,9 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
     elif not style_passed:
         status = "style_failed"
         message = f"mounted style review did not pass for this candidate: style_adherence.status={style_status or 'missing'}"
+    elif not style_lint_passed:
+        status = "style_lint_failed"
+        message = f"candidate failed Style Lint Gate: {style_lint_gate_message(lint_gate)}"
     elif unresolved:
         status = "notes_unresolved"
         message = "candidate review has pass_with_notes/warnings/revision/style notes that must be revised or explicitly waived"
@@ -201,9 +212,13 @@ def _ensure_candidate_reviewed(gate: dict[str, object], *, allow_review_notes: b
     message = str(gate.get("message") or "candidate review gate failed")
     review = str(gate.get("review") or "")
     candidate = str(gate.get("candidate") or "")
+    lint_gate = gate.get("style_lint")
+    lint_hint = ""
+    if isinstance(lint_gate, dict) and lint_gate.get("status") == "blocking":
+        lint_hint = f" Style Lint Gate: {style_lint_gate_message(lint_gate)}."
     raise FlowGateError(
         "formal candidate review required before promote-candidate: "
-        f"{message}. Run agent-review-scene with --draft {candidate}, have the platform agent write {review}, "
+        f"{message}.{lint_hint} Run agent-review-scene with --draft {candidate}, have the platform agent write {review}, "
         "and promote only after conclusion=pass with this candidate listed in source_paths. "
         "Formal Skill hosts must not use --allow-unreviewed to bypass this gate; that flag is maintainer/debug-only."
     )

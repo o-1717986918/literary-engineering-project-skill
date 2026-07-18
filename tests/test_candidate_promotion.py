@@ -81,6 +81,19 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue(manifest["allow_unreviewed"])
         self.assertEqual(manifest["candidate_review"]["status"], "missing")
 
+    def test_promote_candidate_blocks_style_lint_gate_even_with_pass_review(self):
+        project = self.make_project()
+        _prepare_generation_ready(project)
+        candidate = generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, provider="dry-run")
+        _replace_candidate_body(candidate.candidate_path, "不是C营的——是那个E营的年轻人，他把袖章藏在雨衣里面。")
+        _write_candidate_review(project, candidate.candidate_path)
+
+        with self.assertRaises(FlowGateError) as ctx:
+            promote_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), candidate=candidate.candidate_path)
+
+        self.assertIn("Style Lint Gate", str(ctx.exception))
+        self.assertIn("mechanical-contrast-frame", str(ctx.exception))
+
 
 def _prepare_generation_ready(project: Path):
     branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
@@ -135,6 +148,13 @@ def _write_candidate_review(project: Path, candidate: Path):
     }
     (review_dir / "scene_0001_scene_review.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (review_dir / "scene_0001_scene_review.md").write_text("# 候选审查\n\n- 结论：`pass`\n", encoding="utf-8")
+
+
+def _replace_candidate_body(candidate: Path, body: str) -> None:
+    text = candidate.read_text(encoding="utf-8")
+    start = text.index("## 正文候选") + len("## 正文候选")
+    end = text.index("## 状态变化候选")
+    candidate.write_text(text[:start] + "\n\n" + body.strip() + "\n\n" + text[end:], encoding="utf-8")
 
 
 if __name__ == "__main__":
