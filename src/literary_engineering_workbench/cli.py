@@ -390,6 +390,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--out", default="", help="Output candidate markdown path.")
     generate.add_argument("--agent-tasks", action="store_true", help="Legacy compatibility only; formal command always writes a platform-agent task.")
     generate.add_argument("--allow-unselected-composition", action="store_true", help="Internal experiments only: allow generation task from composition without formal branch_selection.")
+    generate.add_argument("--allow-missing-composition", action="store_true", help="Internal experiments only: allow generation task without a scene composition packet.")
 
     revise = sub.add_parser("revise-scene", help="Write a formal platform-agent scene revision task.")
     revise.add_argument("project", help="Work project directory.")
@@ -463,6 +464,7 @@ def build_parser() -> argparse.ArgumentParser:
     compose.add_argument("--json-out", default="", help="Output composition JSON path.")
     compose.add_argument("--agent-tasks", action="store_true", help="Write a platform-agent task sidecar without polluting composition artifacts.")
     compose.add_argument("--allow-recommended-branch", action="store_true", help="Internal experiments only: allow recommended_branch when branch_selection is still pending.")
+    compose.add_argument("--allow-missing-branch", action="store_true", help="Internal experiments only: allow fallback composition without branch-simulate artifacts.")
 
     orchestration = sub.add_parser("orchestration-plan", help="Create an agent workflow platform blueprint.")
     orchestration.add_argument("project", help="Work project directory.")
@@ -1292,6 +1294,7 @@ def main(argv=None) -> int:
                 context_path,
                 composition=composition,
                 allow_unselected_composition=args.allow_unselected_composition,
+                allow_missing_composition=args.allow_missing_composition,
             )
             prompt_manifest = candidate.with_suffix(".prompt.json")
             write_prompt_manifest(prompt_pack, prompt_manifest, provider="platform-agent", model="tool-layer-agent")
@@ -1475,6 +1478,7 @@ def main(argv=None) -> int:
                 json_output=json_out,
                 agent_tasks=args.agent_tasks,
                 allow_recommended_branch=args.allow_recommended_branch,
+                allow_missing_branch=args.allow_missing_branch,
             )
         except (FileNotFoundError, RuntimeError, ValueError) as exc:
             parser.error(str(exc))

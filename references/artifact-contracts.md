@@ -467,7 +467,7 @@ Files:
 - `branch_selection.md`
 - `branch_manifest.agent_tasks.md` when `--agent` / `--agent-tasks` is enabled
 
-Branches are scored candidates, not canon. The recommended branch is a heuristic suggestion until the platform agent evaluates it and a human or approved tool-layer decision records the actual decision. Formal scene composition requires `branch_selection.md` to contain a formal decision such as `decision: selected` plus a valid `selected_branch`.
+Branches are scored candidates, not canon. The recommended branch is a heuristic suggestion until the platform agent evaluates it and a human or approved tool-layer decision records the actual decision. Formal scene composition requires `branch_manifest.json` plus `branch_selection.md` containing a formal decision such as `decision: selected` and a valid `selected_branch`. Missing branch simulation, recommended-only selection, or fallback composition is internal-experiment material only.
 
 ## Scene Composition
 
@@ -529,7 +529,7 @@ drafts/candidates/{scene_id}-platform-agent.prompt.json
 drafts/candidates/{scene_id}-platform-agent.agent_tasks.md
 ```
 
-The prompt manifest records rendered messages, source files, and generation standards for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. Generated prose candidates require platform-agent review before promotion; use the sidecar task file for that review. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
+The prompt manifest records rendered messages, source files, and generation standards for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. Formal prompt manifests require a ready composition with `selection_source=selection` and `ready_for_generation=true`; missing or unselected composition is allowed only with an explicit internal-experiment waiver. Generated prose candidates require platform-agent review before promotion; use the sidecar task file for that review. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
 
 Generation standards include:
 

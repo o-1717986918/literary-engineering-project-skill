@@ -4,9 +4,11 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
+from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.cli import main
 from literary_engineering_workbench.generation_provider import generate_scene_candidate
 from literary_engineering_workbench.longform_audit import build_longform_audit
+from literary_engineering_workbench.scene_composer import build_scene_composition
 from literary_engineering_workbench.word_budget import build_word_budget
 
 from helpers import TempProjectMixin, make_reviewed_passing_scene
@@ -78,6 +80,7 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
     def test_prompt_manifest_includes_word_budget_standard(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_generation_ready(project)
         build_word_budget(project, target_words=120000, volumes=2, genre="general")
 
         result = generate_scene_candidate(
@@ -108,6 +111,27 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(payload["summary"]["word_budget_status"], "needs_expansion")
         self.assertGreater(payload["summary"]["word_budget_scene_count"], 0)
         self.assertTrue(any(issue["category"] == "scene_inventory" for issue in payload["issues"]))
+
+
+def _prepare_generation_ready(project: Path):
+    branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+    _select_branch(branch.selection_path, branch.recommended_branch)
+    build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+
+
+def _select_branch(path: Path, branch_id: str):
+    path.write_text(
+        f"""# Branch Selection：scene_0001
+
+## 人工决定
+
+- decision: selected
+- selected_branch: {branch_id}
+- reviewer: platform-agent-test
+- selected_at: 2026-01-01T00:00:00Z
+""",
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":

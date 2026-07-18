@@ -21,6 +21,7 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
     def test_dry_run_generates_candidate_and_manifest(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_generation_ready(project)
         result = generate_scene_candidate(
             project,
             scene=Path("scenes/scene_0001.yaml"),
@@ -50,6 +51,7 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
     def test_agent_tasks_sidecar_reviews_prompt_manifest_without_pollution(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_generation_ready(project)
 
         result = generate_scene_candidate(
             project,
@@ -77,6 +79,7 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         project = self.make_project()
         make_reviewed_passing_scene(project)
         write_platform_scene_review(project, conclusion="pass_with_notes")
+        _prepare_generation_ready(project)
 
         result = generate_scene_candidate(
             project,
@@ -110,6 +113,7 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
     def test_prompt_pack_injects_style_generation_standard_into_legacy_project_prompt(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_generation_ready(project)
         (project / "prompts" / "scene_generation_user.md").write_text(
             "# 场景生成请求：{scene_id}\n\n## 输出契约\n\n{output_contract}\n",
             encoding="utf-8",
@@ -124,7 +128,8 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
     def test_generation_blocks_unselected_composition_by_default(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
-        build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, allow_recommended_branch=True)
 
         with self.assertRaises(FlowGateError) as raised:
             generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), provider="dry-run")
@@ -138,9 +143,26 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         )
         self.assertTrue(result.prompt_manifest_path.exists())
 
+    def test_generation_requires_composition_by_default(self):
+        project = self.make_project()
+        make_reviewed_passing_scene(project)
+
+        with self.assertRaises(FlowGateError) as raised:
+            generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), provider="dry-run")
+        self.assertIn("formal scene composition required", str(raised.exception))
+
+        result = generate_scene_candidate(
+            project,
+            scene=Path("scenes/scene_0001.yaml"),
+            provider="dry-run",
+            allow_missing_composition=True,
+        )
+        self.assertTrue(result.prompt_manifest_path.exists())
+
     def test_prompt_pack_prefers_style_prompt_over_profile_report(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_generation_ready(project)
         corpus = project / "corpus"
         corpus.mkdir()
         (corpus / "sample.txt").write_text("雨落旧城。灯影摇晃。人们沉默。", encoding="utf-8")
@@ -166,6 +188,7 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
     def test_http_chat_provider_posts_prompt_pack_to_endpoint(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_generation_ready(project)
         server = _FakeChatServer()
         server.start()
         self.addCleanup(server.stop)
@@ -195,6 +218,7 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
     def test_http_chat_provider_requires_model_environment(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_generation_ready(project)
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(
                 "os.environ",
@@ -214,6 +238,7 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
     def test_unknown_provider_fails(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_generation_ready(project)
         with self.assertRaises(ValueError):
             generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), provider="unknown")
 
@@ -238,6 +263,12 @@ def _select_branch(path: Path, branch_id: str):
 """,
         encoding="utf-8",
     )
+
+
+def _prepare_generation_ready(project: Path):
+    branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+    _select_branch(branch.selection_path, branch.recommended_branch)
+    build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
 
 
 class _FakeChatServer:

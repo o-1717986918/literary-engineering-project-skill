@@ -121,13 +121,14 @@ python -m literary_engineering_workbench simulate-scene <project> --scene scenes
 python -m literary_engineering_workbench branch-simulate <project> --scene scenes/scene_0001.yaml --agent
 # Platform agent fills branches/scene_0001/branch_selection.md with decision: selected and selected_branch.
 python -m literary_engineering_workbench compose-scene <project> --scene scenes/scene_0001.yaml --agent-tasks
+python -m literary_engineering_workbench route-audit <project> --route scene-development
 python -m literary_engineering_workbench generate-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench review-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench revise-scene <project> --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench state-evolve <project> --scene scenes/scene_0001.yaml --agent-tasks
 ```
 
-The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review character causality and punctuation, then decide whether to revise or request promotion approval. Use `revise-scene` when `agent-review-scene`, `review-scene`, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the platform agent to produce a revision candidate and report without overwriting the formal draft.
+The platform agent must handle every task sidecar, formally record branch selection before composition/generation, draft prose candidate, review character causality and punctuation, then decide whether to revise or request promotion approval. `route-audit --route scene-development` must show that context, RP, branch manifest, formal branch selection, and ready composition gates are complete before formal generation. Use `revise-scene` when `agent-review-scene`, `review-scene`, or human notes identify local fixes; it writes a revision prompt manifest and `.agent_tasks.md` that asks the platform agent to produce a revision candidate and report without overwriting the formal draft.
 
 ### Review And Audit
 

@@ -33,7 +33,7 @@ python -m literary_engineering_workbench compose-scene work/demo-work --scene sc
 - `branches/{scene_id}/branch_manifest.json`
 - `branches/{scene_id}/branch_selection.md`
 
-如果缺少分支 manifest，`compose-scene` 会退回保守模式：仍生成节拍、潜台词、对白意图和正文种子，但会提示先运行 `branch-simulate`。
+正式链路中，如果缺少分支 manifest，`compose-scene` 会阻塞，而不是退回保守模式。先运行 `simulate-scene --agent` 与 `branch-simulate --agent`，再由平台 Agent 在 `branch_selection.md` 中记录正式选择。只有内部实验可以显式使用 `--allow-missing-branch` 生成 fallback composition，该产物不能进入正式 `generate-scene`、state writeback 或发布链路。
 
 如果已经存在 `branch_manifest.json`，正式流程必须先由平台 agent 或用户在 `branch_selection.md` 中写入 `decision: selected` 和 `selected_branch`。默认不会再把 `recommended_branch` 自动带入 composition；`--allow-recommended-branch` 只用于内部实验，生成的 composition 会标记为 `selection_source: recommended`，不能直接进入 `generate-scene`。
 

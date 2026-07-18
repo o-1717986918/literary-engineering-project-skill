@@ -358,15 +358,16 @@ The lint only reports project-state issues. It does not edit canon, approve cand
 ## Scene Loop
 
 ```powershell
-python -m literary_engineering_workbench simulate-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
+python -m literary_engineering_workbench context "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-index
 python -m literary_engineering_workbench simulate-scene "<work-dir>" --scene scenes/scene_0001.yaml --agent
-python -m literary_engineering_workbench branch-simulate "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
-python -m literary_engineering_workbench compose-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
+python -m literary_engineering_workbench branch-simulate "<work-dir>" --scene scenes/scene_0001.yaml --agent
+# Platform agent fills branches/scene_0001/branch_selection.md with decision: selected and selected_branch.
+python -m literary_engineering_workbench compose-scene "<work-dir>" --scene scenes/scene_0001.yaml --agent-tasks
+python -m literary_engineering_workbench route-audit "<work-dir>" --route scene-development
 python -m literary_engineering_workbench generate-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
-python -m literary_engineering_workbench revise-scene "<work-dir>" --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench promote-candidate "<work-dir>" --scene scenes/scene_0001.yaml
-python -m literary_engineering_workbench draft-scene "<work-dir>" --scene scenes/scene_0001.yaml --rebuild-context
 python -m literary_engineering_workbench review-scene "<work-dir>" drafts/scenes/scene_0001.md
+python -m literary_engineering_workbench revise-scene "<work-dir>" --scene scenes/scene_0001.yaml
 python -m literary_engineering_workbench state-evolve "<work-dir>" --scene scenes/scene_0001.yaml
 ```
 
@@ -380,13 +381,13 @@ Branches are not canon. The recommended branch is only a scoring hint; the platf
 
 Use `branch-simulate --agent` / `--agent-tasks` to write `branch_manifest.agent_tasks.md`. This sidecar tells the platform agent how to review branch scores and choose or revise a branch without polluting `branch_manifest.json`.
 
-`compose-scene` turns the formally selected branch into a creation packet under `drafts/compositions/{scene_id}_composition.md` and `.json`, including scene beats, subtext, dialogue intents, sensory palette, prose seed, revision targets, and writeback candidates. If `branch_manifest.json` exists but `branch_selection.md` still lacks `decision: selected` plus `selected_branch`, formal composition is blocked. The recommended branch is never used by default; `--allow-recommended-branch` is only for internal experiments and writes `selection_source: recommended`, which is not ready for generation.
+`compose-scene` turns the formally selected branch into a creation packet under `drafts/compositions/{scene_id}_composition.md` and `.json`, including scene beats, subtext, dialogue intents, sensory palette, prose seed, revision targets, and writeback candidates. Formal composition now requires `branch_manifest.json` plus `branch_selection.md` with `decision: selected` and `selected_branch`; missing branch simulation is blocked instead of silently using fallback. The recommended branch is never used by default; `--allow-recommended-branch` and `--allow-missing-branch` are internal-experiment flags and produce composition artifacts that are not ready for formal generation.
 
 Use `compose-scene --agent-tasks` to write `drafts/compositions/{scene_id}_composition.agent_tasks.md`. Keep `[AGENT_TASK: ...]` out of the composition Markdown because it may be read into `generate-scene` prompt packs.
 
 When character `background_story` is present, scene and branch work should convert it into choices, hesitation, avoidance, misreadings, tone, and relationship pressure. Do not turn it into an explanatory background paragraph unless the selected scene explicitly reveals the past.
 
-`generate-scene` writes a prompt manifest and `drafts/candidates/{scene_id}-platform-agent.agent_tasks.md`. It does not call a local provider, does not overwrite `drafts/scenes/`, and does not write canon. If a composition packet exists, `generate-scene` requires `selection_source: selection`; unselected or recommended-only composition packets are blocked unless `--allow-unselected-composition` is explicitly passed for internal preview. The platform agent reads the prompt manifest, writes the expected candidate Markdown and manifest JSON, then reviews the candidate before promotion.
+`generate-scene` writes a prompt manifest and `drafts/candidates/{scene_id}-platform-agent.agent_tasks.md`. It does not call a local provider, does not overwrite `drafts/scenes/`, and does not write canon. Formal generation requires a composition packet with `selection_source: selection`; missing, unselected, fallback, or recommended-only composition packets are blocked unless an internal-experiment flag such as `--allow-missing-composition` or `--allow-unselected-composition` is explicitly passed. The platform agent reads the prompt manifest, writes the expected candidate Markdown and manifest JSON, then reviews the candidate before promotion.
 
 The prompt manifest includes `generation_standards.style`, `generation_standards.word_budget`, `generation_standards.review_notes`, and `generation_standards.hard_constraints`. These are generation-time contracts, not merely review checklists: before drafting, the platform agent should translate the mounted Style Skill / style profile into concrete scene tactics, apply any `pass_with_notes` revision actions, honor longform budget load, and follow the hard-constraint priority order. Do not output that plan in the candidate; use it to reduce review failures before they happen.
 

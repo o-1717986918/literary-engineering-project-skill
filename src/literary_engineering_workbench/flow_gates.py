@@ -73,11 +73,25 @@ def ensure_composition_ready_for_generation(
     composition_path: Path | None,
     *,
     allow_unselected_composition: bool = False,
+    allow_missing_composition: bool = False,
 ) -> dict[str, Any]:
     """Reject composition packets that have not crossed the branch-selection gate."""
 
     if composition_path is None:
-        return {}
+        if allow_missing_composition:
+            return {}
+        raise FlowGateError(
+            "formal scene composition required before generate-scene: "
+            "run simulate-scene --agent, branch-simulate --agent, record branch_selection.md, "
+            "then rebuild compose-scene. For internal experiments only, pass allow_missing_composition=True or the CLI flag."
+        )
+    if not composition_path.exists():
+        if allow_missing_composition:
+            return {}
+        raise FlowGateError(
+            f"formal scene composition required before generate-scene: {composition_path} does not exist. "
+            "Run compose-scene after roleplay simulation, branch simulation, and formal branch selection."
+        )
     json_path = composition_path if composition_path.suffix.lower() == ".json" else composition_path.with_suffix(".json")
     if not json_path.exists():
         raise FlowGateError(

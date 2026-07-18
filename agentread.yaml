@@ -85,7 +85,7 @@ route_execution_contract:
     - read references/cli-run-protocol.md before any CLI-backed task
     - run "python -m literary_engineering_workbench protocol <route>" before route-specific command chains
     - inspect command output paths instead of trusting terminal success alone
-    - read and execute .agent_tasks.md sidecars when generated
+    - read and execute required .agent_tasks.md sidecars and expected route artifacts
   completion_gates:
     - route selected and route references accounted for
     - reading receipt recorded or summarized
@@ -299,7 +299,8 @@ task_routes:
       - character state patch
     completion_gates:
       - context packet or equivalent project-state inspection completed
-      - roleplay/branch/composition sidecars handled by platform agent when generated
+      - roleplay simulation, branch manifest, formal branch_selection, and ready composition completed before generation
+      - roleplay/branch/composition platform-agent tasks or direct platform-agent records handled before generation
       - prose candidate reviewed for canon, character, style, and punctuation
       - pass_with_notes, warnings, or revise_required findings resolved through revise-scene or explicit waiver
       - state patch remains candidate until reviewed and approved

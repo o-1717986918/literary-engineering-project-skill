@@ -3,9 +3,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.cli import build_parser, main
 from literary_engineering_workbench.generation_provider import generate_scene_candidate
 from literary_engineering_workbench.platform_agent_tasks import write_platform_scene_review_task
+from literary_engineering_workbench.scene_composer import build_scene_composition
 from literary_engineering_workbench.style_lab import (
     active_project_style,
     build_style_skill,
@@ -30,6 +32,7 @@ class StyleLabTests(TempProjectMixin, unittest.TestCase):
     def test_author_project_builds_mountable_style_skill(self):
         project = self.make_project()
         make_reviewed_passing_scene(project)
+        _prepare_generation_ready(project)
         with tempfile.TemporaryDirectory() as tmp:
             library = Path(tmp) / "style-library"
             author = create_author_project(library, name="测试作家", author_id="demo-author", source_note="测试语料")
@@ -213,6 +216,27 @@ def _valid_style_prompt_text() -> str:
 
 不得摘抄原文、堆叠高频词、把候选事实写成 canon、用密集句号或破折号伪装文学性。输出前检查叙述距离是否稳定，意象是否服务人物状态，标点是否服务节奏，文本是否仍服从项目事实。
 """
+
+
+def _prepare_generation_ready(project: Path):
+    branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+    _select_branch(branch.selection_path, branch.recommended_branch)
+    build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+
+
+def _select_branch(path: Path, branch_id: str):
+    path.write_text(
+        f"""# Branch Selection：scene_0001
+
+## 人工决定
+
+- decision: selected
+- selected_branch: {branch_id}
+- reviewer: platform-agent-test
+- selected_at: 2026-01-01T00:00:00Z
+""",
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":

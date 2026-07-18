@@ -45,6 +45,8 @@ drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json
 
 这些都是生成前硬约束，不是候选正文的一部分。正文不得输出硬约束摘要、review notes、prompt manifest 或自检过程。
 
+`v0.70.0` 起，正式 `generate-scene` / prompt pack 默认要求已经存在 ready composition：场景必须先完成 context、`simulate-scene --agent`、`branch-simulate --agent`、正式 `branch_selection.md` 和 `compose-scene`。缺失 composition、fallback composition、recommended-only composition 或未正式选择的 composition 都会阻塞正式生成；`--allow-missing-composition` 与 `--allow-unselected-composition` 只用于内部实验，产物不得直接晋升或发布。
+
 ### Provider
 
 当前 provider：

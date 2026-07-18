@@ -1,10 +1,13 @@
 import json
 import unittest
+from pathlib import Path
 
 from literary_engineering_workbench.agent_task_status import build_agent_task_status, build_route_audit
+from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.cli import build_parser
+from literary_engineering_workbench.scene_composer import build_scene_composition
 
-from helpers import TempProjectMixin, make_reviewed_passing_scene, write_platform_scene_review
+from helpers import TempProjectMixin, add_character, make_reviewed_passing_scene, write_platform_scene_review
 
 
 class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
@@ -84,10 +87,57 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
 
         self.assertTrue(any(gate["key"] == "scene-review-notes-resolved" and gate["status"] == "pass" for gate in resolved_payload["gates"]))
 
+    def test_route_audit_reports_missing_scene_flow_artifacts(self):
+        project = self.make_project()
+
+        result = build_route_audit(project, route="scene-development")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        failing_keys = {gate["key"] for gate in payload["gates"] if gate["status"] == "fail"}
+        self.assertIn("scene_0001:roleplay-simulation", failing_keys)
+        self.assertIn("scene_0001:branch-manifest", failing_keys)
+        self.assertIn("scene_0001:branch-selection", failing_keys)
+        self.assertIn("scene_0001:composition-ready", failing_keys)
+
+    def test_route_audit_passes_scene_flow_after_rp_branch_and_composition(self):
+        project = self.make_project()
+        add_character(project)
+        make_reviewed_passing_scene(project)
+        roleplay = project / "branches" / "scene_0001" / "roleplay_simulation.md"
+        roleplay.parent.mkdir(parents=True, exist_ok=True)
+        roleplay.write_text(
+            "# 角色推演实验室：scene_0001\n\n### 读取回执\n\n- 已读取：scenes/scene_0001.yaml\n- 写回边界：候选。\n",
+            encoding="utf-8",
+        )
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        _select_branch(branch.selection_path, branch.recommended_branch)
+        build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
+
+        result = build_route_audit(project, route="scene-development")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+        blocking_failures = [gate for gate in payload["gates"] if gate["severity"] == "blocking" and gate["status"] == "fail"]
+
+        self.assertEqual(blocking_failures, [])
+
     def test_cli_exposes_task_status_commands(self):
         help_text = build_parser().format_help()
         self.assertIn("agent-task-status", help_text)
         self.assertIn("route-audit", help_text)
+
+
+def _select_branch(path: Path, branch_id: str):
+    path.write_text(
+        f"""# Branch Selection：scene_0001
+
+## 人工决定
+
+- decision: selected
+- selected_branch: {branch_id}
+- reviewer: platform-agent-test
+- selected_at: 2026-01-01T00:00:00Z
+""",
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":

@@ -319,7 +319,9 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
         ),
         completion_gates=(
             "Context packet or equivalent project-state inspection completed.",
-            "Roleplay, branch, and composition sidecars handled when generated.",
+            "Roleplay simulation exists, includes a platform-agent reading receipt, and has no unresolved AGENT_TASK directives.",
+            "Branch manifest exists and branch_selection.md records decision: selected plus selected_branch before composition or generation.",
+            "Composition exists with selection_source=selection and ready_for_generation=true before generate-scene or state writeback.",
             "Prose candidate reviewed for canon, character, style, and punctuation.",
             "Any pass_with_notes, warning, or revise_required finding is resolved through revise-scene or a recorded waiver.",
             "State patch remains candidate until reviewed and approved.",

@@ -138,6 +138,7 @@ def generate_scene_candidate(
     output: Path | None = None,
     agent_tasks: bool = False,
     allow_unselected_composition: bool = False,
+    allow_missing_composition: bool = False,
 ) -> GenerationResult:
     root = project_root.resolve()
     if not root.is_dir():
@@ -164,6 +165,7 @@ def generate_scene_candidate(
         context_path,
         composition=composition,
         allow_unselected_composition=allow_unselected_composition,
+        allow_missing_composition=allow_missing_composition,
     )
 
     provider_impl = _provider_for(resolved_provider)

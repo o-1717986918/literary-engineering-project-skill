@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from literary_engineering_workbench.character_state_evolver import build_character_state_patch
+from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.cli import build_parser, main
 from literary_engineering_workbench.flow_gates import FlowGateError
 from literary_engineering_workbench.scene_composer import build_scene_composition
@@ -49,7 +50,12 @@ class CharacterStateEvolverTests(TempProjectMixin, unittest.TestCase):
     def test_state_patch_blocks_unselected_composition_source(self):
         project = self.make_project()
         add_character(project)
-        composition = build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"))
+        build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        composition = build_scene_composition(
+            project,
+            scene=Path("scenes/scene_0001.yaml"),
+            allow_recommended_branch=True,
+        )
 
         with self.assertRaises(FlowGateError) as raised:
             build_character_state_patch(

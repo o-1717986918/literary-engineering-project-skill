@@ -50,12 +50,21 @@ class SceneComposerTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("不得直白交代人物背景故事", report)
         self.assertIsNone(result.agent_tasks_path)
 
-    def test_build_scene_composition_without_branch_manifest_uses_fallback(self):
+    def test_build_scene_composition_requires_branch_manifest_by_default(self):
         project = self.make_project()
         add_character(project)
         _write_scene(project)
 
-        result = build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"))
+        with self.assertRaises(FlowGateError) as raised:
+            build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"))
+        self.assertIn("branch simulation required", str(raised.exception))
+
+    def test_build_scene_composition_allows_missing_branch_for_internal_experiment(self):
+        project = self.make_project()
+        add_character(project)
+        _write_scene(project)
+
+        result = build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), allow_missing_branch=True)
         payload = json.loads(result.json_path.read_text(encoding="utf-8"))
 
         self.assertEqual(result.selected_branch, "none")
@@ -116,6 +125,8 @@ class SceneComposerTests(TempProjectMixin, unittest.TestCase):
         project = self.make_project()
         add_character(project)
         _write_scene(project)
+        branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
+        _select_branch(branch.selection_path, branch.recommended_branch)
 
         self.assertIn("compose-scene", build_parser().format_help())
         code = main(["compose-scene", str(project), "--scene", "scenes/scene_0001.yaml"])

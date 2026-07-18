@@ -59,6 +59,7 @@ def build_scene_composition(
     json_output: Path | None = None,
     agent_tasks: bool = False,
     allow_recommended_branch: bool = False,
+    allow_missing_branch: bool = False,
 ) -> SceneCompositionResult:
     """Build a scene composition packet and JSON manifest."""
 
@@ -83,7 +84,7 @@ def build_scene_composition(
 
     all_cards = _load_characters(root)
     active_cards = _active_cards(all_cards, facts.participants)
-    branch = _load_branch_choice(root, facts.scene_id, branch_manifest, branch_selection, allow_recommended_branch)
+    branch = _load_branch_choice(root, facts.scene_id, branch_manifest, branch_selection, allow_recommended_branch, allow_missing_branch)
     beats = _build_beats(facts, active_cards, branch)
     subtext_map = _build_subtext_map(facts, active_cards or all_cards)
     dialogue_intents = _build_dialogue_intents(facts, active_cards or all_cards)
@@ -210,12 +211,19 @@ def _load_branch_choice(
     manifest: Path | None,
     selection: Path | None,
     allow_recommended_branch: bool,
+    allow_missing_branch: bool,
 ) -> dict[str, Any]:
     manifest_path = _resolve(root, manifest, root / "branches" / scene_id / "branch_manifest.json")
     selection_path = _resolve(root, selection, root / "branches" / scene_id / "branch_selection.md")
     selection_gate = branch_selection_status(selection_path)
     selected = selected_branch_from(selection_path)
     if not manifest_path.exists():
+        if not allow_missing_branch:
+            raise FlowGateError(
+                "branch simulation required before compose-scene: "
+                f"missing {_rel(manifest_path, root)}. Run simulate-scene --agent, branch-simulate --agent, "
+                "then record branch_selection.md before composing. For internal experiments only, pass allow_missing_branch=True or the CLI flag."
+            )
         return {
             "branch_id": "",
             "title": "未加载分支",

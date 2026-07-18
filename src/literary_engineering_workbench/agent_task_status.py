@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 import re
 
+from .flow_gates import branch_selection_status
+
 
 BACKTICK_RE = re.compile(r"`([^`]+)`")
 EXPECTED_HINT_RE = re.compile(r"(完成后写入|创建或覆盖|expected_|写入候选|写入正式|输出到|输出至)")
@@ -258,7 +260,10 @@ def _route_gates(root: Path, route: str, records: list[AgentTaskRecord]) -> list
             _add_gate(gates, "word-budget-review", review.exists(), "blocking", "word-budget review exists", "平台 Agent 需写入 reviews/word_budget/word_budget_review.md。")
             _add_gate(gates, "scene-inventory-expansion", scene_plan.exists(), "warning", "scene inventory expansion candidate exists", "平台 Agent 需处理 scene_inventory_expansion.agent_tasks.md。")
     if route == "scene-development":
-        _add_gate(gates, "scene-files", any((root / "scenes").glob("*.yaml")) if (root / "scenes").exists() else False, "blocking", "scene yaml exists", "先创建 scenes/{scene_id}.yaml。")
+        scene_files = _scene_files(root)
+        _add_gate(gates, "scene-files", bool(scene_files), "blocking", "scene yaml exists", "先创建 scenes/{scene_id}.yaml。")
+        for scene_path in scene_files:
+            _add_scene_development_gates(gates, root, scene_path)
         scene_pending = [record for record in pending if record.route == "scene-development"]
         _add_gate(gates, "scene-sidecars-handled", not scene_pending, "blocking", "scene-development sidecars handled", f"仍有 {len(scene_pending)} 个 scene-development sidecar 未完成。")
         unresolved_reviews = _unresolved_scene_review_count(root)
@@ -280,6 +285,105 @@ def _add_gate(gates: list[dict[str, str]], key: str, passed: bool, severity: str
             "message": passed_message if passed else failed_message,
         }
     )
+
+
+def _scene_files(root: Path) -> list[Path]:
+    scenes = root / "scenes"
+    if not scenes.exists():
+        return []
+    return sorted(path for path in scenes.glob("*.yaml") if not path.name.startswith("_"))
+
+
+def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_path: Path) -> None:
+    scene_id = _scene_id(scene_path)
+    context = root / "memory" / "context_packets" / f"{scene_id}.md"
+    roleplay = root / "branches" / scene_id / "roleplay_simulation.md"
+    roleplay_text = _read_text(roleplay)
+    branch_manifest = root / "branches" / scene_id / "branch_manifest.json"
+    branch_payload = _read_json(branch_manifest)
+    branches = branch_payload.get("branches")
+    selection = root / "branches" / scene_id / "branch_selection.md"
+    selection_gate = branch_selection_status(selection)
+    composition_json = root / "drafts" / "compositions" / f"{scene_id}_composition.json"
+    composition_payload = _read_json(composition_json)
+    flow_gate = composition_payload.get("flow_gate", {}) if isinstance(composition_payload.get("flow_gate"), dict) else {}
+    composition_ready = (
+        composition_json.exists()
+        and composition_payload.get("selection_source") == "selection"
+        and flow_gate.get("ready_for_generation") is True
+    )
+
+    _add_gate(
+        gates,
+        f"{scene_id}:context-packet",
+        context.exists(),
+        "blocking",
+        f"{scene_id} context packet exists",
+        f"{scene_id} 缺少 memory/context_packets/{scene_id}.md；先运行 context 或 rebuild-context。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:roleplay-simulation",
+        roleplay.exists(),
+        "blocking",
+        f"{scene_id} roleplay simulation exists",
+        f"{scene_id} 缺少 branches/{scene_id}/roleplay_simulation.md；正式场景开发必须先运行 simulate-scene --agent。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:roleplay-reading-receipt",
+        roleplay.exists() and "读取回执" in roleplay_text,
+        "blocking",
+        f"{scene_id} roleplay reading receipt exists",
+        f"{scene_id} 的 RP 文件缺少平台 Agent 读取回执；用 simulate-scene --agent 或补正式读取回执。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:roleplay-agent-tasks-resolved",
+        roleplay.exists() and "[AGENT_TASK:" not in roleplay_text,
+        "blocking",
+        f"{scene_id} roleplay AGENT_TASK directives resolved",
+        f"{scene_id} 的 roleplay_simulation.md 仍含 [AGENT_TASK: ...]；平台 Agent 需补全/替换后再继续。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:branch-manifest",
+        branch_manifest.exists() and isinstance(branches, list) and bool(branches),
+        "blocking",
+        f"{scene_id} branch manifest exists",
+        f"{scene_id} 缺少有效 branches/{scene_id}/branch_manifest.json；正式场景开发必须运行 branch-simulate --agent。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:branch-selection",
+        selection_gate["status"] == "selected",
+        "blocking",
+        f"{scene_id} formal branch selection exists",
+        f"{scene_id} 的 branch_selection.md 未记录 decision: selected 与 selected_branch；当前状态：{selection_gate['message']}。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:composition-json",
+        composition_json.exists(),
+        "blocking",
+        f"{scene_id} composition JSON exists",
+        f"{scene_id} 缺少 drafts/compositions/{scene_id}_composition.json；先基于正式分支运行 compose-scene。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:composition-ready",
+        composition_ready,
+        "blocking",
+        f"{scene_id} composition is ready for generation",
+        f"{scene_id} 的 composition 未达到 selection_source=selection 且 ready_for_generation=true；重建 compose-scene。",
+    )
+
+
+def _scene_id(scene_path: Path) -> str:
+    text = _read_text(scene_path)
+    match = re.search(r"(?m)^\s*scene_id:\s*['\"]?([^'\"\n#]+)", text)
+    scene_id = match.group(1).strip() if match else ""
+    return scene_id or scene_path.stem
 
 
 def _non_ready_scene_count(chapter_jsons: list[Path]) -> int:
@@ -318,6 +422,12 @@ def _review_needs_revision(payload: dict) -> bool:
         if isinstance(value, list) and value:
             return True
     return False
+
+
+def _read_text(path: Path) -> str:
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8", errors="ignore")
 
 
 def _summary(records: list[AgentTaskRecord]) -> dict[str, int]:

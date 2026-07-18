@@ -93,6 +93,7 @@ def build_scene_prompt_pack(
     context_path: Path,
     composition: Path | None = None,
     allow_unselected_composition: bool = False,
+    allow_missing_composition: bool = False,
 ) -> PromptPack:
     """Render system/user prompts for a scene generation provider."""
 
@@ -108,6 +109,7 @@ def build_scene_prompt_pack(
         root,
         composition_path,
         allow_unselected_composition=allow_unselected_composition,
+        allow_missing_composition=allow_missing_composition,
     )
     style_profile_path = _find_style_asset(root)
     word_budget_path = _find_word_budget(root)
@@ -117,7 +119,7 @@ def build_scene_prompt_pack(
         "scene_id": scene_id,
         "scene_text": _read(scene_path),
         "context_text": _limit(_read(context_path), DEFAULT_CONTEXT_LIMIT),
-        "composition_text": _limit(_read(composition_path), DEFAULT_COMPOSITION_LIMIT) if composition_path else "未找到场景创作编排包。若需要更稳的正文候选，请先运行 compose-scene。",
+        "composition_text": _limit(_read(composition_path), DEFAULT_COMPOSITION_LIMIT) if composition_path else "内部实验模式：未加载场景创作编排包。正式生成必须先运行 simulate-scene --agent、branch-simulate --agent、记录 branch_selection.md，并重建 compose-scene。",
         "style_profile": _render_style_constraint(root, style_profile_path),
         "style_generation_standard": _render_style_generation_standard(root, style_profile_path),
         "word_budget_generation_standard": render_word_budget_generation_standard(root),
@@ -443,7 +445,7 @@ def _render_generation_constraint_brief(
 写作 agent 必须按以下顺序执行，不能只把它们当成审查清单：
 
 1. Canon / 用户明确约束优先：不得改动已确认事实、适用范围、时间线、角色身份、规则边界和用户给定方向。
-2. 场景目标与编排包优先：若存在 composition，先执行 selected branch、beats、subtext、dialogue intents 和 prose seed；偏离必须写入“需要人工确认”。
+2. 场景目标与编排包优先：正式生成必须存在 composition，并先执行 selected branch、beats、subtext、dialogue intents 和 prose seed；偏离必须写入“需要人工确认”。仅内部实验可显式缺省 composition。
 3. 人物逻辑优先：行动来自 BDI、当前信息差、关系压力、道德边界和 hidden background_story 的隐性影响，不为方便剧情强行转向。
 4. 文风优先级：{_loaded_label(style_path, root, "已加载", "未加载")}。文风改变表达机制，不覆盖事实。
 5. 长篇预算：{_loaded_label(word_budget_path, root, "已加载", "未加载")}。场景必须承担明确叙事功能，不用空泛描写灌字数，也不把剧情量压缩成摘要。
