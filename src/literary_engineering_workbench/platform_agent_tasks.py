@@ -16,8 +16,10 @@ import re
 from .agent_tasks import write_agent_tasks
 from .anti_ai_style import ANTI_EVASION_REVISION_PROTOCOL, ANTI_EVASION_SHORT_RULE, render_ai_style_lint_block
 from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, ASSET_TYPES
+from .draft_text import count_delivery_chars, final_body_from_workbench_text
 from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
 from .style_prompt import STYLE_PROMPT_LENGTH_RULE, STYLE_PROMPT_QUALITY_RULE
+from .word_budget import scene_word_budget_contract, word_budget_adherence_for_body
 
 
 @dataclass(frozen=True)
@@ -43,7 +45,10 @@ def write_platform_scene_review_task(
     if context_path.exists():
         source_paths.append(context_path)
     _extend_unique(source_paths, _style_source_paths(root))
-    style_lint_block = render_ai_style_lint_block(_read_optional(draft_path))
+    draft_text = _read_optional(draft_path)
+    body = final_body_from_workbench_text(draft_text)
+    style_lint_block = render_ai_style_lint_block(body or draft_text)
+    word_budget_adherence = word_budget_adherence_for_body(root, scene_path, body)
     task_path = json_output.with_suffix(".agent_tasks.md")
     write_agent_tasks(
         task_path,
@@ -82,6 +87,12 @@ def write_platform_scene_review_task(
                 """若项目存在 `style/active_style_skill.json` 或已挂载 style prompt/profile，必须正式判断文风是否已经塑造正文表达，而不是只作为参考材料出现。对照挂载文风审查叙述距离、视角稳定性、句法和段落节奏、意象/感官路由、心理呈现、对白语气、标点停顿节奏、AI 腔规避和禁止倾向。`style_adherence.status` 只能取 `pass`、`pass_with_notes`、`revise_required` 或 `not_applicable`；有挂载文风时不得使用 `not_applicable`。若正文基本忽略挂载文风，必须用 `revise_required` 并给出可执行重写动作。""",
             ),
             (
+                "执行字数预算硬门禁",
+                f"""使用清洗后的可交付正文做字数判断，不得统计状态变化候选、canon 说明、workflow 痕迹、scene 编号或文件路径。本次确定性计数：
+{json.dumps(word_budget_adherence, ensure_ascii=False, indent=2)}
+若 `status` 为 under_target、over_target、revise_required、missing 或 needs_expansion，`conclusion` 不得为 pass。若字数在区间内，还要判断 narrative_load 是否真实完成；不能靠空泛描写、重复心理解释或流程文本填字数。""",
+            ),
+            (
                 "写入正式 JSON",
                 f"""创建或覆盖 `{_rel(json_output, root)}`，JSON 必须符合 `scene_review.v1`：
 {{
@@ -108,9 +119,18 @@ def write_platform_scene_review_task(
     "retained_transitions": [],
     "burden_of_proof": []
   }},
+  "word_budget_adherence": {{
+    "status": "pass | not_required | under_target | over_target | revise_required",
+    "target_words": {word_budget_adherence.get("target_words", 0)},
+    "min_words": {word_budget_adherence.get("min_words", 0)},
+    "max_words": {word_budget_adherence.get("max_words", 0)},
+    "clean_body_words": {word_budget_adherence.get("clean_body_words", 0)},
+    "narrative_load_satisfied": true,
+    "message": "{str(word_budget_adherence.get("message") or "").replace('"', "'")}"
+  }},
   "source_paths": []
 }}
-`conclusion=pass` 且 warnings / revision_actions / style_notes / style_adherence 偏差为空，才可进入 clean ready。`pass_with_notes` 必须先进入 revise-scene 或记录明确 waiver，不能直接章节装配或导出；新增事实仍保持候选。""",
+`conclusion=pass` 且 warnings / revision_actions / style_notes / style_adherence 偏差为空，且 word_budget_adherence.status 为 pass 或 not_required、narrative_load_satisfied=true，才可进入 clean ready。`pass_with_notes` 必须先进入 revise-scene 或记录明确 waiver，不能直接章节装配或导出；新增事实仍保持候选。""",
             ),
             (
                 "处理 pass_with_notes 语义",
@@ -118,7 +138,7 @@ def write_platform_scene_review_task(
             ),
             (
                 "写入正式 Markdown 报告",
-                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。必须新增“反规避负担证明”段落：列出是否存在换皮转折、保留显式转折的理由、批判性反驳和最终判断。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
+                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。必须新增“字数预算门禁”段落：写明目标/最低/最高/清洗后正文字符数、叙事负载是否满足、是否存在灌水或摘要化。必须新增“反规避负担证明”段落：列出是否存在换皮转折、保留显式转折的理由、批判性反驳和最终判断。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
             ),
         ],
     )
@@ -144,6 +164,7 @@ def write_platform_scene_generation_task(
     if prompt_manifest_path and prompt_manifest_path.exists():
         source_paths.append(prompt_manifest_path)
     _extend_unique(source_paths, _style_source_paths(root))
+    word_budget_contract = scene_word_budget_contract(root, scene_path)
     task_path = candidate.with_suffix(".agent_tasks.md")
     write_agent_tasks(
         task_path,
@@ -180,7 +201,9 @@ def write_platform_scene_generation_task(
             ),
             (
                 "执行生成前字数预算标准",
-                """在写候选正文前，检查 prompt manifest 的 generation_standards.word_budget。若 word_budget_loaded=true，本场景必须承担明确剧情功能、信息变化、关系压力、后果链或伏笔推进，服务卷/章/场景预算；不得靠水化描写拉长，也不得把预算需要的剧情量压缩为摘要。若预算状态是 needs_expansion，先暂停批量生成并回到 longform-planning。""",
+                f"""在写候选正文前，检查 prompt manifest 的 generation_standards.word_budget 和 scene_word_budget_contract。本场景预算硬属性如下：
+{json.dumps(word_budget_contract, ensure_ascii=False, indent=2)}
+若 status 不是 pass 或 not_required，停止正文生成并回到 longform-planning。若 status=pass，正文清洗后的可交付部分必须落在 min_words 到 max_words 之间，同时满足 narrative_load；不得靠水化描写拉长，也不得把预算需要的剧情量压缩为摘要。""",
             ),
             (
                 "执行 AgentReview 小修约束",
@@ -192,7 +215,7 @@ def write_platform_scene_generation_task(
             ),
             (
                 "生成候选 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false 和待审查事项。""",
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false、word_budget_contract、clean_body_words、word_budget_adherence.status 和待审查事项。""",
             ),
             (
                 "后续门禁",

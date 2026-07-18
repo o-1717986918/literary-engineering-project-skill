@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 from uuid import uuid4
 
+from .agent_tasks import agent_task_completion_status, default_agent_tasks_path
 from .branch_lab import build_branch_simulation
 from .candidate_promotion import promote_scene_candidate
 from .character_state_evolver import build_character_state_patch
@@ -219,10 +220,16 @@ def _run_scene_loop(
         "character_simulation",
         lambda: _simulation_artifact(root, scene_path, agent_tasks),
     )
+    if agent_tasks and _block_on_pending_agent_task(state, root, "character_simulation_handoff", "simulation_agent_tasks"):
+        return
     node(
         "branch_simulation",
         lambda: _branch_artifact(root, scene_path, agent_tasks),
     )
+    if state.events[-1].status != "completed":
+        return
+    if agent_tasks and _block_on_pending_agent_task(state, root, "branch_simulation_handoff", "branch_agent_tasks"):
+        return
     branch_selection = state.artifacts.get("branch_selection", "")
     selection_path = root / branch_selection if branch_selection else root / "branches" / scene_id / "branch_selection.md"
     selection_status = branch_selection_status(selection_path)
@@ -233,6 +240,8 @@ def _run_scene_loop(
             lambda: _composition_artifact(root, scene_path, agent_tasks),
         )
         composition_ready = state.events[-1].status == "completed" and bool(state.artifacts.get("scene_composition"))
+        if agent_tasks and _block_on_pending_agent_task(state, root, "scene_composition_handoff", "scene_composition_agent_tasks"):
+            return
     else:
         artifacts = {"branch_selection": branch_selection} if branch_selection else {}
         message = (
@@ -257,6 +266,8 @@ def _run_scene_loop(
                 "generate_candidate",
                 lambda: _generation_artifact(root, scene_path, provider, agent_tasks),
             )
+            if agent_tasks and _block_on_pending_agent_task(state, root, "candidate_generation_handoff", "candidate_task"):
+                return
     if promote_candidate:
         promotion_candidate = state.artifacts.get("candidate", "") or state.artifacts.get("expected_candidate", "")
         if promotion_candidate and not _artifact_exists(root, promotion_candidate):
@@ -291,6 +302,8 @@ def _run_scene_loop(
             state.human_approval_required = True
             state.warnings.append("platform agent review tasks were written; complete their JSON reports before chapter readiness.")
         node("state_evolution_patch", lambda: _state_patch_artifact(root, scene_path, draft_path, agent_tasks))
+        if agent_tasks:
+            _block_on_pending_agent_task(state, root, "state_evolution_handoff", "state_patch_agent_tasks")
     else:
         _skip_node(state, "review_ci", {}, "draft missing; review skipped")
         _skip_node(state, "state_evolution_patch", {}, "draft missing; state evolution skipped")
@@ -390,6 +403,27 @@ def _block_node(state: WorkflowState, node_id: str, artifacts: dict[str, str], m
     state.artifacts.update(artifacts)
 
 
+def _block_on_pending_agent_task(state: WorkflowState, root: Path, node_id: str, artifact_key: str) -> bool:
+    rel_task = state.artifacts.get(artifact_key, "")
+    if not rel_task:
+        return False
+    task_path = root / rel_task
+    status = agent_task_completion_status(task_path, root=root)
+    if status.get("complete"):
+        return False
+    artifacts = {artifact_key: rel_task}
+    completion_marker = str(status.get("completion_marker") or "")
+    if completion_marker:
+        artifacts[f"{artifact_key}_completion_marker"] = completion_marker
+    _block_node(
+        state,
+        node_id,
+        artifacts,
+        f"platform-agent task pending: {status.get('message') or status.get('status')}. Complete {rel_task} before the next formal step.",
+    )
+    return True
+
+
 def _artifact(key: str, path: Path, root: Path) -> tuple[dict[str, str], str]:
     return {key: _rel_str(path, root)}, "ok"
 
@@ -405,11 +439,15 @@ def _simulation_artifact(root: Path, scene_path: Path, agent_tasks: bool) -> tup
     if existing.exists():
         text = existing.read_text(encoding="utf-8", errors="ignore")
         if "读取回执" in text and "[AGENT_TASK:" not in text:
-            return {"simulation": _rel_str(existing, root)}, "existing platform-agent roleplay receipt preserved"
+            artifacts = {"simulation": _rel_str(existing, root)}
+            task_path = default_agent_tasks_path(existing)
+            if agent_tasks and task_path.exists():
+                artifacts["simulation_agent_tasks"] = _rel_str(task_path, root)
+            return artifacts, "existing platform-agent roleplay receipt preserved"
     result = build_roleplay_simulation(root, scene=scene_path, rebuild_context=False, agent_mode=agent_tasks)
     artifacts = {"simulation": _rel_str(result.output_path, root)}
-    if agent_tasks:
-        artifacts["simulation_agent_tasks"] = _rel_str(result.output_path, root)
+    if result.agent_tasks_path:
+        artifacts["simulation_agent_tasks"] = _rel_str(result.agent_tasks_path, root)
     return artifacts, f"characters={result.character_count}"
 
 

@@ -78,3 +78,4 @@
 - `phase80-style-lint-gate-hardening.md`：Style Lint 分级硬门禁
 - `phase81-anti-evasion-agent-task-protocol.md`：反规避修订协议与生成任务程序强化
 - `phase82-formal-cli-provenance.md`：正式路线 CLI provenance 门禁
+- `phase83-sidecar-state-machine-word-budget-chain.md`：显式 sidecar 完成标记、workflow 状态机与字数预算写作链路

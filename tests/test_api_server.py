@@ -55,7 +55,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(state_payload["run_id"], run_payload["run_id"])
         self.assertEqual(state_payload["status"], "blocked")
         self.assertIn("simulation_agent_tasks", state_payload["artifacts"])
-        self.assertIn("branch_agent_tasks", state_payload["artifacts"])
+        self.assertNotIn("branch_agent_tasks", state_payload["artifacts"])
         self.assertNotIn("candidate_agent_tasks", state_payload["artifacts"])
         self.assertTrue((project / state_payload["artifacts"]["simulation_agent_tasks"]).exists())
 

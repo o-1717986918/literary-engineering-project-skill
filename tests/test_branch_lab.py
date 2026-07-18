@@ -2,8 +2,10 @@ import json
 import unittest
 from pathlib import Path
 
+from literary_engineering_workbench.agent_tasks import write_agent_completion_marker
 from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.cli import main
+from literary_engineering_workbench.roleplay_lab import build_roleplay_simulation
 
 from helpers import TempProjectMixin, add_character
 
@@ -13,6 +15,9 @@ class BranchLabTests(TempProjectMixin, unittest.TestCase):
         project = self.make_project()
         add_character(project)
         _write_scene(project)
+        roleplay = build_roleplay_simulation(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, agent_mode=True)
+        assert roleplay.agent_tasks_path is not None
+        write_agent_completion_marker(roleplay.agent_tasks_path, root=project, handled_by="platform-agent-test")
 
         result = build_branch_simulation(
             project,
@@ -65,6 +70,9 @@ class BranchLabTests(TempProjectMixin, unittest.TestCase):
         project = self.make_project()
         add_character(project)
         _write_scene(project)
+        roleplay = build_roleplay_simulation(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, agent_mode=True)
+        assert roleplay.agent_tasks_path is not None
+        write_agent_completion_marker(roleplay.agent_tasks_path, root=project, handled_by="platform-agent-test")
 
         result = build_branch_simulation(
             project,

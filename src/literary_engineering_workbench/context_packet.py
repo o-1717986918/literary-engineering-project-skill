@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 
 from .memory_index import build_memory_index, search_memory
+from .word_budget import render_scene_word_budget_contract
 
 
 @dataclass(frozen=True)
@@ -215,6 +216,7 @@ def build_context_packet(
         build_memory_index(root)
 
     scene_text = _read(scene_path)
+    word_budget_contract = render_scene_word_budget_contract(root, scene_path)
     retrieval_query = _query_from_scene(scene_text, query)
     raw_hits = search_memory(root, retrieval_query, top_k=top_k)
     character_text, loaded_character_ids, restrict_character_hits = _character_section(root, scene_text)
@@ -249,6 +251,10 @@ def build_context_packet(
 ```yaml
 {scene_text}
 ```
+
+## 场景字数预算
+
+{word_budget_contract}
 
 ## 硬约束：Canon 与时间线
 
@@ -291,8 +297,9 @@ def build_context_packet(
 2. 人物行动符合 BDI 和当前信息差。
 3. 人物背景故事只能作为隐性动因，不得变成解释性设定段落。
 4. 场景输出必须包含状态变化。
-5. 风格遵守 profile，而不是只模仿表面词汇。
-6. 若需要新增事实，写入候选，不直接确认为 canon。
+5. 正文清洗后的可交付部分必须遵守“场景字数预算”的目标、上下限和叙事负载；不得用流程痕迹、状态候选、canon 说明或空泛重复填字数。
+6. 风格遵守 profile，而不是只模仿表面词汇。
+7. 若需要新增事实，写入候选，不直接确认为 canon。
 
 ## 写回清单
 

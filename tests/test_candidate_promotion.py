@@ -2,6 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
+from literary_engineering_workbench.agent_tasks import write_agent_completion_marker
 from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.candidate_promotion import promote_scene_candidate
 from literary_engineering_workbench.cli import build_parser, main
@@ -148,7 +149,7 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
 def _prepare_generation_ready(project: Path):
     branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
     _select_branch(branch.selection_path, branch.recommended_branch)
-    build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, agent_tasks=True)
+    build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True)
 
 
 def _select_branch(path: Path, branch_id: str):
@@ -188,6 +189,15 @@ def _write_candidate_review(project: Path, candidate: Path):
             "deviations": [],
             "revision_actions": [],
         },
+        "word_budget_adherence": {
+            "status": "not_required",
+            "target_words": 0,
+            "min_words": 0,
+            "max_words": 0,
+            "clean_body_words": 120,
+            "narrative_load_satisfied": True,
+            "message": "test project does not require longform budget",
+        },
         "source_paths": [
             "scenes/scene_0001.yaml",
             rel_candidate,
@@ -198,6 +208,12 @@ def _write_candidate_review(project: Path, candidate: Path):
     }
     (review_dir / "scene_0001_scene_review.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (review_dir / "scene_0001_scene_review.md").write_text("# 候选审查\n\n- 结论：`pass`\n", encoding="utf-8")
+    task = review_dir / "scene_0001_scene_review.agent_tasks.md"
+    task.write_text(
+        "# 平台 Agent 任务说明：fixture candidate review\n\n创建或覆盖 `reviews/agent/scene_0001_scene_review.json`。\n",
+        encoding="utf-8",
+    )
+    write_agent_completion_marker(task, root=project, handled_by="platform-agent-test")
 
 
 def _replace_candidate_body(candidate: Path, body: str) -> None:

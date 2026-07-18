@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import re
 
-from .agent_tasks import write_agent_tasks
+from .agent_tasks import agent_task_completion_status, write_agent_tasks
 from .draft_text import count_delivery_chars, final_body_from_draft_path
 
 
@@ -220,6 +220,214 @@ def load_word_budget_summary(root: Path) -> dict[str, object]:
     }
 
 
+def scene_word_budget_contract(root: Path, scene_path: Path) -> dict[str, object]:
+    """Return the hard per-scene word-budget contract for formal generation/review."""
+
+    root = root.resolve()
+    scene_path = scene_path if scene_path.is_absolute() else root / scene_path
+    scene_text = _read(scene_path)
+    scene_id = _scalar(scene_text, "scene_id") or scene_path.stem
+    chapter_id = _scalar(scene_text, "chapter_id") or "unassigned"
+    scene_yaml_target = _scene_word_count_target(scene_text)
+    scene_yaml_min = _to_int(_scalar(scene_text, "word_count_min"))
+    scene_yaml_max = _to_int(_scalar(scene_text, "word_count_max"))
+    project_text = _read(root / "project.yaml")
+    project_target = int(_project_int(project_text, "target_length") or _project_int(project_text, "target_words") or 0)
+    required = project_target >= 100000
+    budget_path = root / "plot" / "word_budget" / "word_budget.json"
+    base = {
+        "schema": "literary-engineering-workbench/scene-word-budget-contract/v1",
+        "scene_id": scene_id,
+        "chapter_id": chapter_id,
+        "required": required,
+        "budget_path": _rel(budget_path, root),
+        "status": "not_required",
+        "message": "word budget is not required for this project scale",
+        "target_words": 0,
+        "min_words": 0,
+        "max_words": 0,
+        "scene_yaml_target_words": scene_yaml_target,
+        "derived_target_words": 0,
+        "source": "",
+        "alignment_status": "",
+        "warnings": [],
+        "tolerance": {"min_ratio": 0.85, "max_ratio": 1.25},
+        "narrative_load": [],
+        "budget_status": "",
+    }
+    if not budget_path.exists():
+        if required:
+            base.update(
+                {
+                    "status": "missing",
+                    "message": "formal longform scene generation requires plot/word_budget/word_budget.json",
+                }
+            )
+        return base
+    payload = _read_json(budget_path)
+    if not payload:
+        base.update({"status": "invalid", "required": True, "message": "word_budget.json is not valid JSON"})
+        return base
+    budget_status = str(payload.get("status") or "").strip().lower()
+    target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
+    totals = payload.get("totals") if isinstance(payload.get("totals"), dict) else {}
+    if int(target.get("target_words") or totals.get("target_words") or project_target or 0) >= 100000:
+        required = True
+    base["required"] = required
+    base["budget_status"] = budget_status
+    if budget_status == "needs_expansion":
+        base.update(
+            {
+                "status": "needs_expansion",
+                "message": "word budget reports needs_expansion; process budget and scene-inventory sidecars before formal generation",
+            }
+        )
+        return base
+    chapter_row = _chapter_budget_row(payload, chapter_id)
+    if not chapter_row:
+        if required:
+            base.update(
+                {
+                    "status": "missing_chapter",
+                    "message": f"word budget has no chapter row for {chapter_id}",
+                }
+            )
+        return base
+    chapter_target = _to_int(chapter_row.get("target_words"))
+    scene_count = max(
+        _to_int(chapter_row.get("target_scene_count")),
+        _to_int(chapter_row.get("scene_count")),
+        len(_scene_ids_for_chapter(root, chapter_id)),
+        1,
+    )
+    derived_target = _to_int(chapter_row.get("avg_scene_words")) or round(chapter_target / max(scene_count, 1))
+    target_words = scene_yaml_target or derived_target
+    min_words = max(round(target_words * 0.85), 1) if target_words else 0
+    max_words = max(round(target_words * 1.25), min_words) if target_words else 0
+    if scene_yaml_target:
+        min_words = scene_yaml_min or min_words
+        max_words = scene_yaml_max or max_words
+        if max_words and min_words > max_words:
+            base.update(
+                {
+                    "status": "invalid",
+                    "message": "scene.yaml word_count_min is greater than word_count_max",
+                    "target_words": target_words,
+                    "min_words": min_words,
+                    "max_words": max_words,
+                    "source": "scene_yaml",
+                    "derived_target_words": derived_target,
+                }
+            )
+            return base
+    warnings: list[str] = []
+    alignment_status = "derived_from_word_budget"
+    source = "word_budget"
+    if scene_yaml_target:
+        source = "scene_yaml"
+        if derived_target and (scene_yaml_target < round(derived_target * 0.5) or scene_yaml_target > round(derived_target * 1.8)):
+            alignment_status = "manual_override_needs_review"
+            warnings.append(
+                f"scene.yaml word_count_target={scene_yaml_target} differs sharply from derived chapter average {derived_target}; require word-budget review confirmation"
+            )
+        else:
+            alignment_status = "scene_yaml_aligned"
+    narrative_load = chapter_row.get("required_functions") or chapter_row.get("scene_load") or [
+        "mainline_action",
+        "relationship_pressure",
+        "information_release",
+        "consequence_chain",
+        "setup_or_payoff",
+    ]
+    if isinstance(narrative_load, dict):
+        narrative_load = [str(key) for key, value in narrative_load.items() if _to_int(value) > 0]
+    if not isinstance(narrative_load, list):
+        narrative_load = [str(narrative_load)]
+    base.update(
+        {
+            "status": "pass" if target_words else "invalid",
+            "message": "scene word budget contract is ready" if target_words else "scene target words could not be computed",
+            "target_words": target_words,
+            "min_words": min_words,
+            "max_words": max_words,
+            "scene_yaml_target_words": scene_yaml_target,
+            "derived_target_words": derived_target,
+            "source": source,
+            "alignment_status": alignment_status,
+            "warnings": warnings,
+            "narrative_load": [str(item) for item in narrative_load if str(item).strip()],
+            "chapter_target_words": chapter_target,
+            "chapter_scene_count": scene_count,
+        }
+    )
+    return base
+
+
+def ensure_scene_word_budget_ready(root: Path, scene_path: Path) -> dict[str, object]:
+    """Raise when a formal scene has no usable word-budget contract."""
+
+    contract = scene_word_budget_contract(root, scene_path)
+    if contract.get("status") == "not_required":
+        return contract
+    if contract.get("status") == "pass":
+        budget_task = root / "plot" / "word_budget" / "word_budget.agent_tasks.md"
+        budget_review = root / "reviews" / "word_budget" / "word_budget_review.md"
+        completion = agent_task_completion_status(budget_task, root=root)
+        if completion.get("complete") is not True:
+            raise ValueError(
+                "formal scene generation requires the word-budget platform-agent task to be completed before prose: "
+                f"{completion.get('message')}"
+            )
+        if not budget_review.exists():
+            raise ValueError(
+                "formal scene generation requires reviews/word_budget/word_budget_review.md before prose. "
+                "The platform agent must review the word-budget to confirm the target-length to narrative-inventory mapping."
+            )
+        return contract
+    raise ValueError(
+        "formal scene generation requires a ready scene word-budget contract: "
+        f"{contract.get('message')}. Run word-budget / longform-budget, handle its .agent_tasks.md sidecars, "
+        "review the budgeted outline and scene inventory, then retry."
+    )
+
+
+def word_budget_adherence_for_body(root: Path, scene_path: Path, body: str) -> dict[str, object]:
+    """Return deterministic cleaned-body word-budget adherence for a scene draft/candidate."""
+
+    contract = scene_word_budget_contract(root, scene_path)
+    clean_chars = count_delivery_chars(body)
+    status = str(contract.get("status") or "")
+    if status == "not_required":
+        conclusion = "not_required"
+        message = "word budget is not required for this project scale"
+    elif status != "pass":
+        conclusion = "revise_required"
+        message = str(contract.get("message") or "word budget contract is not ready")
+    else:
+        min_words = _to_int(contract.get("min_words"))
+        max_words = _to_int(contract.get("max_words"))
+        if clean_chars < min_words:
+            conclusion = "under_target"
+            message = f"cleaned body has {clean_chars} chars, below min_words={min_words}"
+        elif max_words and clean_chars > max_words:
+            conclusion = "over_target"
+            message = f"cleaned body has {clean_chars} chars, above max_words={max_words}"
+        else:
+            conclusion = "pass"
+            message = "cleaned body is within the scene word-budget range"
+    return {
+        "status": conclusion,
+        "clean_body_words": clean_chars,
+        "target_words": _to_int(contract.get("target_words")),
+        "min_words": _to_int(contract.get("min_words")),
+        "max_words": _to_int(contract.get("max_words")),
+        "narrative_load": contract.get("narrative_load", []),
+        "budget_contract_status": status,
+        "budget_path": contract.get("budget_path", ""),
+        "message": message,
+    }
+
+
 def render_word_budget_generation_standard(root: Path) -> str:
     summary = load_word_budget_summary(root)
     if not summary:
@@ -249,6 +457,30 @@ def render_word_budget_generation_standard(root: Path) -> str:
 - 正文缺口：{shortfall}
 
 场景生成前必须确认当前场景承担明确叙事负载：主线行动、关系压力、世界/信息释放、行动后果或节奏调节。若 `scene_inventory_binding` 显示当前章节欠场景或正文缺口，先处理 `scene_inventory_expansion.agent_tasks.md`，补候选场景和因果链，不要用长段总结、空泛抒情或重复心理解释灌字数。"""
+
+
+def render_scene_word_budget_contract(root: Path, scene_path: Path) -> str:
+    contract = scene_word_budget_contract(root, scene_path)
+    status = contract.get("status", "")
+    if status == "not_required":
+        return "本项目当前未达到强制长篇预算规模；仍应避免把剧情量压缩成摘要或用空泛描写灌字数。"
+    if status != "pass":
+        return f"本场景字数预算门禁未通过：{contract.get('message')}"
+    return "\n".join(
+        [
+            f"- 场景：{contract.get('scene_id')}",
+            f"- 章节：{contract.get('chapter_id')}",
+            f"- 目标字数：{contract.get('target_words')}",
+            f"- 最低字数：{contract.get('min_words')}",
+            f"- 最高字数：{contract.get('max_words')}",
+            f"- 目标来源：{contract.get('source') or 'unknown'}",
+            f"- scene.yaml 显式目标：{contract.get('scene_yaml_target_words') or 0}",
+            f"- 预算推导目标：{contract.get('derived_target_words') or 0}",
+            f"- 叙事负载：{', '.join(str(item) for item in contract.get('narrative_load', []))}",
+            f"- 预算来源：{contract.get('budget_path')}",
+            f"- 对齐状态：{contract.get('alignment_status') or 'n/a'}",
+        ]
+    )
 
 
 def _write_agent_tasks(root: Path, markdown_path: Path, json_path: Path, outline_path: Path, task_path: Path, payload: dict) -> None:
@@ -462,6 +694,46 @@ def _scan_scene_files(root: Path) -> list[dict[str, object]]:
             }
         )
     return rows
+
+
+def _chapter_budget_row(payload: dict[str, object], chapter_id: str) -> dict[str, object]:
+    binding = payload.get("scene_inventory_binding") if isinstance(payload.get("scene_inventory_binding"), dict) else {}
+    rows = binding.get("chapter_rows") if isinstance(binding, dict) else []
+    if isinstance(rows, list):
+        for row in rows:
+            if isinstance(row, dict) and str(row.get("chapter_id") or "") == chapter_id:
+                return row
+    rows = payload.get("chapter_budgets")
+    if isinstance(rows, list):
+        for row in rows:
+            if isinstance(row, dict) and str(row.get("chapter_id") or "") == chapter_id:
+                return row
+    return {}
+
+
+def _scene_ids_for_chapter(root: Path, chapter_id: str) -> list[str]:
+    scene_dir = root / "scenes"
+    if not scene_dir.exists():
+        return []
+    ids = []
+    for path in sorted(scene_dir.glob("*.yaml")):
+        if path.name.startswith("_"):
+            continue
+        text = _read(path)
+        if (_scalar(text, "chapter_id") or "unassigned") != chapter_id:
+            continue
+        ids.append(_scalar(text, "scene_id") or path.stem)
+    return ids
+
+
+def _scene_word_count_target(scene_text: str) -> int:
+    """Read explicit per-scene word target aliases from scene YAML."""
+
+    for key in ("word_count_target", "target_words", "word_target"):
+        value = _to_int(_scalar(scene_text, key))
+        if value > 0:
+            return value
+    return 0
 
 
 def _budget_issues(totals: dict[str, int], inventory: dict[str, int | str], scene_inventory_binding: dict[str, object]) -> list[dict[str, str]]:
@@ -695,6 +967,27 @@ def _resolve_output(root: Path, output: Path | None, *default_parts: str) -> Pat
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore").strip() if path.exists() else ""
+
+
+def _read_json(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _to_int(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    try:
+        return int(str(value).replace(",", "").replace("_", "").strip())
+    except (TypeError, ValueError):
+        return 0
 
 
 def _rel(path: Path, root: Path) -> str:

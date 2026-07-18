@@ -113,21 +113,18 @@ class WorkflowRunnerTests(TempProjectMixin, unittest.TestCase):
             agent_tasks=True,
         )
 
-        self.assertIn(result.status, {"completed", "completed_with_skips"})
+        self.assertEqual(result.status, "blocked")
         state = load_workflow_state(project, "agent-tasks-run")
         artifacts = state["artifacts"]
         self.assertIn("simulation_agent_tasks", artifacts)
-        self.assertIn("branch_agent_tasks", artifacts)
-        self.assertIn("scene_composition_agent_tasks", artifacts)
-        self.assertIn("candidate_task", artifacts)
-        self.assertIn("state_patch_agent_tasks", artifacts)
-        for key in [
-            "branch_agent_tasks",
-            "scene_composition_agent_tasks",
-            "candidate_task",
-            "state_patch_agent_tasks",
-        ]:
-            self.assertIn("[AGENT_TASK:", (project / artifacts[key]).read_text(encoding="utf-8"))
+        self.assertNotIn("branch_agent_tasks", artifacts)
+        self.assertNotIn("scene_composition_agent_tasks", artifacts)
+        self.assertNotIn("candidate_task", artifacts)
+        self.assertNotIn("state_patch_agent_tasks", artifacts)
+        self.assertIn("[AGENT_TASK:", (project / artifacts["simulation_agent_tasks"]).read_text(encoding="utf-8"))
+        blocked_events = [event for event in state["events"] if event["node_id"] == "character_simulation_handoff"]
+        self.assertEqual(blocked_events[-1]["status"], "blocked")
+        self.assertIn("completion marker", blocked_events[-1]["message"])
 
     def test_scene_loop_can_promote_generated_candidate(self):
         project = self.make_project()

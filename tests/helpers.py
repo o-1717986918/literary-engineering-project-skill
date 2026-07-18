@@ -2,6 +2,7 @@ import json
 import tempfile
 from pathlib import Path
 
+from literary_engineering_workbench.agent_tasks import write_agent_completion_marker
 from literary_engineering_workbench.context_packet import build_context_packet
 from literary_engineering_workbench.init_project import InitOptions, init_work_project
 from literary_engineering_workbench.review_ci import review_scene_draft
@@ -64,8 +65,8 @@ def make_passing_scene(project_root: Path) -> Path:
     draft = build_scene_draft(project_root, scene=Path("scenes/scene_0001.yaml")).draft_path
     text = draft.read_text(encoding="utf-8")
     body = (
-        "林舟站在旧楼门口，听见楼道深处的电流声断断续续。他没有立刻进去，而是先数了三次呼吸，确认街角的巡逻灯还没有转向。"
-        "这一次他不是为了证明什么，只是要把那页残缺档案和眼前的停电连起来。门后的灰尘被风推开，像有人刚从黑暗里离开。"
+        "林舟站在旧楼门口，听见楼道深处的电流声断断续续。他停在门外，数了三次呼吸，确认街角的巡逻灯还没有转向。"
+        "这一次，他要把那页残缺档案和眼前的停电连起来。门后的灰尘被风推开，刚好露出一串新的脚印。"
         "他把手电压低，沿着墙边移动，心里清楚每一步都会改变同伴明天能否继续调查。"
     )
     replacements = {
@@ -126,6 +127,15 @@ def write_platform_scene_review(project_root: Path, scene_id: str = "scene_0001"
             "deviations": [],
             "revision_actions": [],
         },
+        "word_budget_adherence": {
+            "status": "not_required",
+            "target_words": 0,
+            "min_words": 0,
+            "max_words": 0,
+            "clean_body_words": 120,
+            "narrative_load_satisfied": True,
+            "message": "test project does not require longform budget",
+        },
         "source_paths": [
             f"scenes/{scene_id}.yaml",
             f"drafts/scenes/{scene_id}.md",
@@ -139,6 +149,12 @@ def write_platform_scene_review(project_root: Path, scene_id: str = "scene_0001"
         f"# 平台 Agent 场景审查：{scene_id}\n\n- 结论：`{conclusion}`\n- 测试报告：已通过正式门禁样例。\n",
         encoding="utf-8",
     )
+    task_path = json_path.with_suffix(".agent_tasks.md")
+    task_path.write_text(
+        f"# 平台 Agent 任务说明：fixture review {scene_id}\n\n创建或覆盖 `{json_path.resolve().relative_to(project_root.resolve()).as_posix()}`。\n",
+        encoding="utf-8",
+    )
+    write_agent_completion_marker(task_path, root=project_root, handled_by="platform-agent-test")
     return json_path
 
 
@@ -226,6 +242,7 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
 """,
         encoding="utf-8",
     )
+    write_agent_completion_marker(task, root=project_root, handled_by="platform-agent-test")
 
 
 def prepare_formal_scene_flow(project_root: Path, scene_id: str = "scene_0001") -> None:
@@ -256,6 +273,12 @@ def prepare_formal_scene_flow(project_root: Path, scene_id: str = "scene_0001") 
 """,
         encoding="utf-8",
     )
+    roleplay_task = branch_dir / "roleplay_simulation.agent_tasks.md"
+    roleplay_task.write_text(
+        f"# 平台 Agent 任务说明：fixture roleplay {scene_id}\n\n创建或覆盖 `branches/{scene_id}/roleplay_simulation.md`。\n",
+        encoding="utf-8",
+    )
+    write_agent_completion_marker(roleplay_task, root=project_root, handled_by="platform-agent-test")
     (branch_dir / "branch_manifest.json").write_text(
         json.dumps(
             {
@@ -282,6 +305,12 @@ def prepare_formal_scene_flow(project_root: Path, scene_id: str = "scene_0001") 
         + "\n",
         encoding="utf-8",
     )
+    branch_task = branch_dir / "branch_manifest.agent_tasks.md"
+    branch_task.write_text(
+        f"# 平台 Agent 任务说明：fixture branch {scene_id}\n\n创建或覆盖 `branches/{scene_id}/branch_selection.md`。\n",
+        encoding="utf-8",
+    )
+    write_agent_completion_marker(branch_task, root=project_root, handled_by="platform-agent-test")
     (branch_dir / "branch_selection.md").write_text(
         f"""# Branch Selection：{scene_id}
 
@@ -324,3 +353,9 @@ def prepare_formal_scene_flow(project_root: Path, scene_id: str = "scene_0001") 
         f"# 场景编排包：{scene_id}\n\n- selected_branch: branch_character_inevitable\n- ready_for_generation: true\n",
         encoding="utf-8",
     )
+    composition_task = composition_dir / f"{scene_id}_composition.agent_tasks.md"
+    composition_task.write_text(
+        f"# 平台 Agent 任务说明：fixture composition {scene_id}\n\n创建或覆盖 `drafts/compositions/{scene_id}_composition.md`。\n",
+        encoding="utf-8",
+    )
+    write_agent_completion_marker(composition_task, root=project_root, handled_by="platform-agent-test")

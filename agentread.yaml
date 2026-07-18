@@ -87,6 +87,7 @@ route_execution_contract:
     - run "python -m literary_engineering_workbench protocol <route>" before route-specific command chains
     - inspect command output paths instead of trusting terminal success alone
     - read and execute required .agent_tasks.md sidecars and expected route artifacts
+    - create adjacent .agent_completion.json markers after sidecar artifacts are checked
   completion_gates:
     - route selected and route references accounted for
     - reading receipt recorded or summarized
@@ -226,6 +227,7 @@ task_routes:
       - references/workflows.md
       - docs/modules/longform-word-budget.md
       - docs/implementation/phase65-longform-word-budget.md
+      - docs/implementation/phase83-sidecar-state-machine-word-budget-chain.md
     inspect_if_present:
       - project.yaml
       - plot/outline.md
@@ -288,6 +290,7 @@ task_routes:
       - docs/implementation/phase23-model-provider-prompt-pack.md
       - docs/implementation/phase24-character-state-evolution.md
       - docs/implementation/phase25-candidate-promotion-state-apply.md
+      - docs/implementation/phase83-sidecar-state-machine-word-budget-chain.md
       - templates/scene.yaml
       - templates/prompts/scene_generation_system.md
       - templates/prompts/scene_generation_user.md
@@ -304,6 +307,8 @@ task_routes:
       - CLI-generated context packet or recorded CLI-equivalent workaround completed
       - simulate-scene --agent roleplay, branch-simulate --agent branch manifest, formal branch_selection, and compose-scene --agent-tasks ready composition completed before generation
       - roleplay/branch/composition platform-agent tasks handled before generation; hand-written files are exploratory/debug-only unless command failure and workaround provenance are recorded
+      - each handled .agent_tasks.md sidecar has an adjacent .agent_completion.json marker before the next formal step
+      - for longform projects, scene chapter_id maps to word_budget and word_count_target/min/max constraints are injected into generation and review
       - prose candidate reviewed for canon, character, style, and punctuation
       - exact prose candidate passed scene_review.v1 before promote-candidate; stale or missing candidate review blocks promotion
       - mounted Style Skill reviewed through scene_review.v1 style_adherence before promotion, readiness, export, or writeback

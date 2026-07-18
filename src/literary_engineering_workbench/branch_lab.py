@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .context_packet import build_context_packet
-from .flow_gates import selected_branch_from
+from .flow_gates import ensure_agent_task_completed, selected_branch_from
 from .roleplay_lab import CharacterCard, _load_characters, _read
 
 
@@ -100,6 +100,12 @@ def build_branch_simulation(
     if rebuild_context or not context_path.exists():
         context_result = build_context_packet(root, scene=scene_path, query=query, rebuild_index=True, output=context_path)
         context_path = context_result.output_path
+    if agent_tasks:
+        ensure_agent_task_completed(
+            root,
+            root / "branches" / scene_facts.scene_id / "roleplay_simulation.agent_tasks.md",
+            label="branch-simulate --agent",
+        )
 
     all_cards = _load_characters(root)
     active_cards = _active_cards(all_cards, scene_facts.participants)

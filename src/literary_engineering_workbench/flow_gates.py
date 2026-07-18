@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .agent_tasks import agent_task_completion_status
+
 
 FORMAL_BRANCH_DECISIONS = {
     "select",
@@ -66,6 +68,31 @@ def branch_selection_status(path: Path) -> dict[str, str]:
 def selected_branch_from(path: Path) -> str:
     status = branch_selection_status(path)
     return status["selected_branch"] if status["status"] == "selected" else ""
+
+
+def ensure_agent_task_completed(root: Path, task_path: Path, *, label: str) -> dict[str, object]:
+    """Reject forward progress when a formal platform-agent sidecar is still pending."""
+
+    state = agent_task_completion_status(task_path, root=root)
+    if state.get("complete") is True:
+        return state
+    raise FlowGateError(
+        f"formal platform-agent task must be completed before {label}: {state.get('message')}. "
+        "Read the .agent_tasks.md file, perform the platform-agent work, write expected artifacts, "
+        "then create the matching .agent_completion.json marker. Do not skip it by reading only the JSON/report artifact."
+    )
+
+
+def ensure_scene_pre_generation_tasks_completed(root: Path, scene_id: str) -> None:
+    """Require completed RP/branch/composition sidecars before formal scene generation."""
+
+    tasks = [
+        (root / "branches" / scene_id / "roleplay_simulation.agent_tasks.md", "generate-scene"),
+        (root / "branches" / scene_id / "branch_manifest.agent_tasks.md", "generate-scene"),
+        (root / "drafts" / "compositions" / f"{scene_id}_composition.agent_tasks.md", "generate-scene"),
+    ]
+    for path, label in tasks:
+        ensure_agent_task_completed(root, path, label=label)
 
 
 def ensure_composition_ready_for_generation(

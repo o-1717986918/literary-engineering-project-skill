@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .agent_provider import AGENT_PROVIDERS, run_agent_task
 from .agent_schema import repair_agent_run, validate_agent_run
+from .agent_tasks import default_agent_completion_path
 from .agent_task_status import build_agent_task_status, build_route_audit
 from .approval import build_approval_summary
 from .asset_workshop import (
@@ -29,6 +30,7 @@ from .knowledge_store import KNOWLEDGE_BACKENDS, build_knowledge_store, search_k
 from .langgraph_adapter import run_literary_graph
 from .longform_audit import build_longform_audit
 from .memory_index import build_memory_index, search_memory
+from .flow_gates import ensure_scene_pre_generation_tasks_completed
 from .model_config import (
     config_path,
     default_config,
@@ -72,6 +74,7 @@ from .style_lab import (
     run_author_style_learning_platform_task,
 )
 from .workflow_runner import WORKFLOW_MODES, run_workflow
+from .workflow_state import build_workflow_state
 from .word_budget import build_word_budget
 
 
@@ -297,6 +300,12 @@ def build_parser() -> argparse.ArgumentParser:
     route_audit.add_argument("--route", default="", help="Route key such as scene-development, longform-planning, or export-and-release.")
     route_audit.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/route_audit.md.")
     route_audit.add_argument("--json-out", default="", help="Output JSON path. Defaults to workflow/route_audit.json.")
+
+    workflow_state = sub.add_parser("workflow-state", help="Write a persistent formal-route state ledger.")
+    workflow_state.add_argument("project", help="Work project directory.")
+    workflow_state.add_argument("--route", default="scene-development", help="Route key. Defaults to scene-development.")
+    workflow_state.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/route_state.md.")
+    workflow_state.add_argument("--json-out", default="", help="Output JSON path. Defaults to workflow/route_state.json.")
 
     director_chat = sub.add_parser("director-chat", help="Run the top-level creative director agent for one user direction.")
     director_chat.add_argument("project", help="Work project directory.")
@@ -774,6 +783,7 @@ def main(argv=None) -> int:
         for key, value in result.candidate_outputs.items():
             print(f"- {key}: {value}")
         print("receiver: platform-agent")
+        _print_agent_task_notice(result.task_path, project=Path(args.project).resolve())
         return 0
 
     if args.command == "style-profile":
@@ -824,6 +834,7 @@ def main(argv=None) -> int:
         print(f"expected_style_prompt: {result.expected_report_path}")
         print(f"expected_json: {result.expected_json_path}")
         print("receiver: platform-agent")
+        _print_agent_task_notice(result.task_path)
         return 0
 
     if args.command == "style-prompt-eval":
@@ -839,6 +850,7 @@ def main(argv=None) -> int:
         print(f"expected_candidate: {result.expected_report_path}")
         print(f"expected_prompt_manifest: {result.expected_json_path}")
         print("receiver: platform-agent")
+        _print_agent_task_notice(result.task_path)
         return 0
 
     if args.command == "style-lab-list":
@@ -909,6 +921,7 @@ def main(argv=None) -> int:
         print(f"expected_style_prompt: {result.expected_style_prompt_path}")
         print(f"expected_json: {result.expected_json_path}")
         print(f"sources: {result.source_count}")
+        _print_agent_task_notice(result.style_prompt_task_path)
         return 0
 
     if args.command == "style-lab-build-skill":
@@ -1018,6 +1031,7 @@ def main(argv=None) -> int:
         print(f"agent_scene_review_task: {result.task_path}")
         print(f"expected_report: {result.expected_report_path}")
         print(f"expected_json: {result.expected_json_path}")
+        _print_agent_task_notice(result.task_path, project=root)
         return 0
 
     if args.command == "agent-canon-review":
@@ -1028,6 +1042,7 @@ def main(argv=None) -> int:
         print(f"agent_canon_review_task: {result.task_path}")
         print(f"expected_report: {result.expected_report_path}")
         print(f"expected_json: {result.expected_json_path}")
+        _print_agent_task_notice(result.task_path, project=Path(args.project).resolve())
         return 0
 
     if args.command == "agent-build-json":
@@ -1046,6 +1061,7 @@ def main(argv=None) -> int:
         print(f"expected_report: {result.expected_report_path}")
         print(f"expected_json: {result.expected_json_path}")
         print("receiver: platform-agent")
+        _print_agent_task_notice(result.task_path, project=Path(args.project).resolve())
         return 0
 
     if args.command == "agent-plan-patch":
@@ -1063,6 +1079,7 @@ def main(argv=None) -> int:
         print(f"expected_report: {result.expected_report_path}")
         print(f"expected_json: {result.expected_json_path}")
         print("receiver: platform-agent")
+        _print_agent_task_notice(result.task_path, project=Path(args.project).resolve())
         return 0
 
     if args.command == "agent-style-prompt":
@@ -1078,6 +1095,7 @@ def main(argv=None) -> int:
         print(f"expected_style_prompt: {result.expected_report_path}")
         print(f"expected_json: {result.expected_json_path}")
         print("receiver: platform-agent")
+        _print_agent_task_notice(result.task_path)
         return 0
 
     if args.command == "agent-committee":
@@ -1096,6 +1114,7 @@ def main(argv=None) -> int:
         print(f"agent_committee_task: {result.task_path}")
         print(f"expected_report: {result.expected_report_path}")
         print(f"expected_json: {result.expected_json_path}")
+        _print_agent_task_notice(result.task_path, project=Path(args.project).resolve())
         return 0
 
     if args.command == "agent-task-status":
@@ -1119,15 +1138,34 @@ def main(argv=None) -> int:
         json_out = Path(args.json_out) if args.json_out else None
         try:
             result = build_route_audit(Path(args.project), route=args.route, output=out, json_output=json_out)
+            state = build_workflow_state(Path(args.project), route=args.route or "scene-development")
         except FileNotFoundError as exc:
             parser.error(str(exc))
         print(f"route_audit: {result.markdown_path}")
         print(f"json: {result.json_path}")
+        print(f"workflow_state: {state.markdown_path}")
+        print(f"workflow_state_json: {state.json_path}")
         print(f"route: {result.route}")
         print(f"gates: {result.gate_count}")
         print(f"blocking: {result.blocking_count}")
         print(f"warnings: {result.warning_count}")
         print(f"pending_tasks: {result.pending_task_count}")
+        return 0
+
+    if args.command == "workflow-state":
+        out = Path(args.out) if args.out else None
+        json_out = Path(args.json_out) if args.json_out else None
+        try:
+            result = build_workflow_state(Path(args.project), route=args.route, output=out, json_output=json_out)
+        except FileNotFoundError as exc:
+            parser.error(str(exc))
+        print(f"workflow_state: {result.markdown_path}")
+        print(f"json: {result.json_path}")
+        print(f"route: {result.route}")
+        print(f"scenes: {result.scene_count}")
+        print(f"ready: {result.ready_count}")
+        print(f"blocked: {result.blocked_count}")
+        print(f"next_actions: {result.next_action_count}")
         return 0
 
     if args.command == "director-chat":
@@ -1182,6 +1220,7 @@ def main(argv=None) -> int:
         print(f"expected_candidate: {result.expected_json_path}")
         print(f"expected_report: {result.expected_report_path}")
         print("receiver: platform-agent")
+        _print_agent_task_notice(result.task_path, project=Path(args.project).resolve())
         return 0
 
     if args.command == "asset-create":
@@ -1199,6 +1238,7 @@ def main(argv=None) -> int:
         print(f"expected_candidate: {result.expected_json_path}")
         print(f"expected_report: {result.expected_report_path}")
         print("receiver: platform-agent")
+        _print_agent_task_notice(result.task_path, project=Path(args.project).resolve())
         return 0
 
     if args.command == "list-candidate-assets":
@@ -1218,6 +1258,7 @@ def main(argv=None) -> int:
         print(f"expected_report: {result.expected_report_path}")
         print(f"expected_json: {result.expected_json_path}")
         print("receiver: platform-agent")
+        _print_agent_task_notice(result.task_path, project=Path(args.project).resolve())
         return 0
 
     if args.command == "promote-candidate-asset":
@@ -1290,6 +1331,8 @@ def main(argv=None) -> int:
                 context_path = build_context_packet(root, scene=scene_path, query=args.query, rebuild_index=True, output=context_path).output_path
             composition = _cli_path(root, args.composition) if args.composition else None
             candidate = _cli_path(root, args.out) if args.out else root / "drafts" / "candidates" / f"{scene_id}-platform-agent.md"
+            if not (args.allow_unselected_composition or args.allow_missing_composition):
+                ensure_scene_pre_generation_tasks_completed(root, scene_id)
             prompt_pack = build_scene_prompt_pack(
                 root,
                 scene_path,
@@ -1316,6 +1359,7 @@ def main(argv=None) -> int:
         print(f"prompt_manifest: {prompt_manifest}")
         print("receiver: platform-agent")
         print(f"scene: {scene_id}")
+        _print_agent_task_notice(result.task_path, project=root)
         return 0
 
     if args.command == "revise-scene":
@@ -1343,6 +1387,7 @@ def main(argv=None) -> int:
         print(f"sources: {result.source_count}")
         print("receiver: platform-agent")
         print(f"scene: {result.scene_id}")
+        _print_agent_task_notice(result.task_path, project=Path(args.project).resolve())
         return 0
 
     if args.command == "promote-candidate":
@@ -1387,6 +1432,7 @@ def main(argv=None) -> int:
         print(f"json: {result.json_path}")
         if result.agent_tasks_path:
             print(f"agent_tasks: {result.agent_tasks_path}")
+            _print_agent_task_notice(result.agent_tasks_path, project=Path(args.project).resolve())
         print(f"scene: {result.scene_id}")
         print(f"source: {result.source_path}")
         print(f"characters: {result.character_count}")
@@ -1434,6 +1480,9 @@ def main(argv=None) -> int:
         print(f"context: {result.context_path}")
         print(f"scene: {result.scene_id}")
         print(f"characters: {result.character_count}")
+        if result.agent_tasks_path:
+            print(f"agent_tasks: {result.agent_tasks_path}")
+            _print_agent_task_notice(result.agent_tasks_path, project=Path(args.project).resolve())
         return 0
 
     if args.command == "branch-simulate":
@@ -1461,6 +1510,7 @@ def main(argv=None) -> int:
         print(f"selection: {result.selection_path}")
         if result.agent_tasks_path:
             print(f"agent_tasks: {result.agent_tasks_path}")
+            _print_agent_task_notice(result.agent_tasks_path, project=Path(args.project).resolve())
         print(f"context: {result.context_path}")
         print(f"scene: {result.scene_id}")
         print(f"branches: {result.branch_count}")
@@ -1494,6 +1544,7 @@ def main(argv=None) -> int:
         print(f"json: {result.json_path}")
         if result.agent_tasks_path:
             print(f"agent_tasks: {result.agent_tasks_path}")
+            _print_agent_task_notice(result.agent_tasks_path, project=Path(args.project).resolve())
         print(f"context: {result.context_path}")
         print(f"scene: {result.scene_id}")
         print(f"branch: {result.selected_branch}")
@@ -1561,6 +1612,8 @@ def main(argv=None) -> int:
         print(f"json: {result.json_path}")
         print(f"agent_tasks: {result.agent_tasks_path}")
         print(f"scene_inventory_tasks: {result.scene_inventory_tasks_path}")
+        _print_agent_task_notice(result.agent_tasks_path, project=Path(args.project).resolve())
+        _print_agent_task_notice(result.scene_inventory_tasks_path, project=Path(args.project).resolve())
         print(f"target_words: {result.target_words}")
         print(f"volumes: {result.volume_count}")
         print(f"chapters: {result.chapter_count}")
@@ -1814,3 +1867,12 @@ def main(argv=None) -> int:
 def _cli_path(root: Path, value: str | Path) -> Path:
     path = value if isinstance(value, Path) else Path(value)
     return path if path.is_absolute() else root / path
+
+
+def _print_agent_task_notice(task_path: Path, *, project: Path | None = None) -> None:
+    marker = default_agent_completion_path(task_path)
+    print(f"agent_tasks_pending: {task_path}")
+    print(f"completion_marker_required: {marker}")
+    if project is not None:
+        print(f"next_check: python -m literary_engineering_workbench agent-task-status \"{project}\"")
+    print("next_action: read the .agent_tasks.md sidecar, write all expected artifacts, then create the .agent_completion.json marker before running the next formal step.")

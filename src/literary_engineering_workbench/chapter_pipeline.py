@@ -37,6 +37,7 @@ class SceneChapterRecord:
     agent_review_source_match: bool
     agent_review_unresolved_notes: tuple[str, ...]
     style_adherence_status: str
+    word_budget_adherence_status: str
     flow_gate_issues: tuple[str, ...]
     readiness_issues: tuple[str, ...]
     draft_chars: int
@@ -205,6 +206,7 @@ def _build_scene_record(
         agent_review_source_match=bool(agent_state.get("source_match")),
         agent_review_unresolved_notes=tuple(str(item) for item in agent_state.get("unresolved_notes", [])),
         style_adherence_status=str(agent_state.get("style_adherence_status") or ""),
+        word_budget_adherence_status=str(agent_state.get("word_budget_adherence_status") or ""),
         flow_gate_issues=flow_issues,
         readiness_issues=readiness_issues,
         draft_chars=count_delivery_chars(body),

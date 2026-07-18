@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.82.0`
+- 当前版本：`0.83.0`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -121,6 +121,8 @@ context packet
 `v0.81.0` 起，修订进入反规避协议：不能把“不是……而是……”换成“并不是……只是……”“看似……其实……”“表面上……实则……”等同功能转折。`generate-scene` 写出的 `.agent_tasks.md` 会要求主平台 Agent 先执行 prompt manifest 中的 `generation_standards.anti_evasion`；`revise-scene` 会把 Style Lint 证据和反规避负担证明表写入修订任务；`route-audit` 会显式检查静态 `review-scene` clean pass，并在修订候选参与链路时要求反规避 manifest clean。
 
 `v0.82.0` 起，正式路线 CLI 不再被描述为“可选步骤”。探索性讨论可以不用 CLI，但正式 `scene-development` 必须保留 CLI provenance：`simulate-scene --agent`、`branch-simulate --agent`、`compose-scene --agent-tasks`、`generate-scene` prompt manifest、生成 `.agent_tasks.md` 和平台 Agent candidate manifest。`promote-candidate` 与 `route-audit` 会阻塞缺少 prompt/task/manifest provenance 或把手写文件冒充正式产物的候选。
+
+`v0.83.0` 起，平台 Agent 任务侧车升级为显式完成标记和持续状态机：任何 `.agent_tasks.md` 都需要相邻 `.agent_completion.json` 才算完成，`branch-simulate --agent` 会检查 RP sidecar，`compose-scene --agent-tasks` 会检查 branch sidecar，`generate-scene` 会检查 RP、branch、composition sidecar。`run-workflow --agent-tasks` 写出 sidecar 后会停在 handoff，等待平台 Agent 读取、执行、写完成标记后再继续。长篇字数预算也进入标准写作链路：`scene.yaml` 可写 `word_count_target/min/max`，context packet、composition、prompt manifest、generation `.agent_tasks.md`、AgentReview、promotion、route-audit、chapter/export readiness 都读取清洗正文的字数预算门禁，不再只把 `word_budget.json` 当旁路文件。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 
@@ -264,7 +266,7 @@ python -m literary_engineering_workbench word-budget "<work-dir>" --target-words
 
 随后 Codex / Claude 读取任务侧车，把预算转化为 `plot/candidates/outlines/word_budget_expansion.md`、`plot/candidates/scenes/word_budget_scene_inventory.md`、`reviews/word_budget/word_budget_review.md` 和 `reviews/word_budget/scene_inventory_review.md`。通过审查和用户批准前，它们只是候选大纲和候选场景库存，不会覆盖正式 `plot/outline.md` 或 `scenes/*.yaml`。
 
-后续场景生成会自动读取预算标准，`longform-audit` 也会检查预算缺失、needs_expansion 和场景库存不足。
+后续场景生成会自动读取预算标准。正式长篇项目中，`scene.yaml` 的 `chapter_id` 必须能映射到 `word_budget.json` 的章节预算；可选 `word_count_target`、`word_count_min`、`word_count_max` 会作为本场景硬属性注入 context packet、composition、prompt manifest 和平台 Agent 写作任务。AgentReview 会用清洗后的可交付正文重新统计，低于最低值、超过最高值、未满足叙事负载或仍靠流程文本凑字数时不能 `pass`。`promote-candidate`、`route-audit`、`chapter-workspace`、`longform-audit` 和正式导出也会复查这条链路。
 
 当任务链路较长时，可以让 CLI 给平台 Agent 一张总控面板：
 
@@ -453,7 +455,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.82.0`。
+- 当前版本：`0.83.0`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -472,6 +474,7 @@ literary-engineering-project-skill/
 - Style Lint 分级硬门禁：已对机械对照句式、换皮转折和 medium+ AI 腔风险执行 promotion、route-audit、chapter/export readiness 阻塞；low 风险保留为审查 notes。
 - 反规避修订协议：已要求生成任务读取 `generation_standards.anti_evasion`，修订任务输出负担证明表，route-audit 检查静态 review 和修订反规避 manifest。
 - 正式路线 CLI 工具箱：可运行。
+- 平台 Agent sidecar 状态机与字数预算硬接入：已要求 `.agent_completion.json` 完成标记，`run-workflow --agent-tasks` 在 sidecar handoff 停止等待，场景生成与审查读取 `scene.yaml` / `word_budget.json` 的预算契约。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 
 ## 推荐下一步

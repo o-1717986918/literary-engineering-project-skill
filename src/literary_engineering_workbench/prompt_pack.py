@@ -13,7 +13,12 @@ from typing import Any
 from .anti_ai_style import ANTI_AI_STYLE_PROMPT, ANTI_EVASION_REVISION_PROTOCOL
 from .flow_gates import ensure_composition_ready_for_generation
 from .punctuation_standard import render_punctuation_standard_for_prompt
-from .word_budget import render_word_budget_generation_standard
+from .word_budget import (
+    ensure_scene_word_budget_ready,
+    render_scene_word_budget_contract,
+    render_word_budget_generation_standard,
+    scene_word_budget_contract,
+)
 
 
 DEFAULT_CONTEXT_LIMIT = 18000
@@ -85,6 +90,8 @@ class PromptPack:
     review_notes_path: Path | None
     style_generation_standard: str
     word_budget_generation_standard: str
+    scene_word_budget_contract: dict[str, Any]
+    scene_word_budget_contract_text: str
     review_notes_standard: str
     generation_constraint_brief: str
     system_prompt: str
@@ -116,6 +123,7 @@ def build_scene_prompt_pack(
         allow_unselected_composition=allow_unselected_composition,
         allow_missing_composition=allow_missing_composition,
     )
+    word_budget_contract = ensure_scene_word_budget_ready(root, scene_path)
     style_profile_path = _find_style_asset(root)
     word_budget_path = _find_word_budget(root)
     review_notes_path = _find_scene_review_notes(root, scene_id)
@@ -128,6 +136,7 @@ def build_scene_prompt_pack(
         "style_profile": _render_style_constraint(root, style_profile_path),
         "style_generation_standard": _render_style_generation_standard(root, style_profile_path),
         "word_budget_generation_standard": render_word_budget_generation_standard(root),
+        "scene_word_budget_contract": render_scene_word_budget_contract(root, scene_path),
         "review_notes_standard": _render_review_notes_standard(root, scene_id, review_notes_path),
         "generation_constraint_brief": _render_generation_constraint_brief(root, style_profile_path, word_budget_path, review_notes_path),
         "punctuation_standard": render_punctuation_standard_for_prompt(),
@@ -140,6 +149,7 @@ def build_scene_prompt_pack(
     system_prompt = _render_template(system_template, values)
     user_prompt = _ensure_style_generation_standard(_render_template(user_template, values), values["style_generation_standard"])
     user_prompt = _ensure_word_budget_generation_standard(user_prompt, values["word_budget_generation_standard"])
+    user_prompt = _ensure_scene_word_budget_contract(user_prompt, values["scene_word_budget_contract"])
     user_prompt = _ensure_review_notes_standard(user_prompt, values["review_notes_standard"])
     user_prompt = _ensure_generation_constraint_brief(user_prompt, values["generation_constraint_brief"])
     sources = _sources(root, scene_path, context_path, composition_path, style_profile_path, word_budget_path, review_notes_path)
@@ -153,6 +163,8 @@ def build_scene_prompt_pack(
         review_notes_path=review_notes_path,
         style_generation_standard=values["style_generation_standard"],
         word_budget_generation_standard=values["word_budget_generation_standard"],
+        scene_word_budget_contract=word_budget_contract,
+        scene_word_budget_contract_text=values["scene_word_budget_contract"],
         review_notes_standard=values["review_notes_standard"],
         generation_constraint_brief=values["generation_constraint_brief"],
         system_prompt=system_prompt,
@@ -181,6 +193,7 @@ def write_prompt_manifest(pack: PromptPack, output: Path, provider: str, model: 
             "word_budget": pack.word_budget_generation_standard,
             "word_budget_loaded": pack.word_budget_path is not None,
             "word_budget_path": _rel(pack.word_budget_path, pack.project_root) if pack.word_budget_path else "",
+            "scene_word_budget_contract": pack.scene_word_budget_contract,
             "review_notes": pack.review_notes_standard,
             "review_notes_loaded": pack.review_notes_path is not None,
             "review_notes_path": _rel(pack.review_notes_path, pack.project_root) if pack.review_notes_path else "",
@@ -225,6 +238,12 @@ def _ensure_word_budget_generation_standard(user_prompt: str, standard: str) -> 
     if "## 长篇字数预算标准" in user_prompt or "# 长篇字数预算标准" in user_prompt:
         return user_prompt
     return user_prompt.rstrip() + "\n\n## 长篇字数预算标准\n\n" + standard.strip() + "\n"
+
+
+def _ensure_scene_word_budget_contract(user_prompt: str, standard: str) -> str:
+    if "## 本场景字数预算硬属性" in user_prompt or "# 本场景字数预算硬属性" in user_prompt:
+        return user_prompt
+    return user_prompt.rstrip() + "\n\n## 本场景字数预算硬属性\n\n" + standard.strip() + "\n"
 
 
 def _ensure_review_notes_standard(user_prompt: str, standard: str) -> str:

@@ -42,7 +42,7 @@ class AgenticWorkflowTests(TempProjectMixin, unittest.TestCase):
         draft = make_reviewed_passing_scene(project)
         text = draft.read_text(encoding="utf-8")
         text = text.replace(
-            "林舟站在旧楼门口，听见楼道深处的电流声断断续续。",
+            "林舟站在旧楼门口，听见楼道深处的电流声断断续续。他停在门外，数了三次呼吸，确认街角的巡逻灯还没有转向。",
             "不是C营的——是那个E营的年轻人，他把袖章藏在雨衣里面。",
         )
         draft.write_text(text, encoding="utf-8")
@@ -63,7 +63,7 @@ class AgenticWorkflowTests(TempProjectMixin, unittest.TestCase):
         draft = make_reviewed_passing_scene(project)
         text = draft.read_text(encoding="utf-8")
         text = text.replace(
-            "林舟站在旧楼门口，听见楼道深处的电流声断断续续。",
+            "林舟站在旧楼门口，听见楼道深处的电流声断断续续。他停在门外，数了三次呼吸，确认街角的巡逻灯还没有转向。",
             "不是C营的——是那个E营的年轻人，他把袖章藏在雨衣里面。",
         )
         draft.write_text(text, encoding="utf-8")

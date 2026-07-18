@@ -16,7 +16,7 @@ Use this protocol whenever a tool-layer agent runs a literary engineering task t
 7. Probe documented tools before declaring them unavailable. Use `--help`, `protocol <route>`, or the smallest safe command attempt; if a command fails, record the exact command, error, and next workaround instead of guessing.
 8. Execute deterministic preparation with CLI whenever the selected formal route declares sidecars, manifests, or provenance gates: initialize, import/chunk sources, index, search, build context, lint, compose, export, or generate platform-agent task sidecars. Exploratory notes may skip CLI, but formal artifacts may not silently replace CLI outputs with hand-written files.
 9. Perform every non-deterministic creative or judgment step as the supervising platform agent. This includes prose, JSON drafting, schema repair, roleplay, branch choice, review findings, style prompts, and promotion recommendations.
-10. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, then inspect the produced artifact. Do not report the task file as completed work by itself.
+10. When a command writes `.agent_tasks.md`, read it, fill the expected Markdown/JSON/prose artifact yourself, inspect the produced artifact, then create the adjacent `.agent_completion.json` marker. Do not report the task file as completed work by itself.
 11. For scene batches, maintain per-scene coverage. Each scene needs its own context, RP, branch selection, composition, prose candidate, exact-candidate review, promotion, promoted draft, and state patch; one completed scene does not cover the rest.
 12. If sidecar completion, expected outputs, or route gates are unclear, run or emulate `agent-task-status` and route-specific `route-audit`; resolve the missing items or list them as pending.
 13. Validate produced artifacts before acceptance:
@@ -76,7 +76,7 @@ Before final response, check:
 - Required references read for that route.
 - Project state inspected.
 - Documented commands needed for the route were attempted or deliberately skipped with a concrete reason based on project state.
-- All `.agent_tasks.md` outputs handled or explicitly listed as pending.
+- All `.agent_tasks.md` outputs handled with `.agent_completion.json` markers, or explicitly listed as pending.
 - `agent-task-status` or route-specific `route-audit` used when route completion state was ambiguous.
 - Reading receipt recorded or summarized.
 - Review notes and anti-evasion risks resolved through revision and re-review before readiness/export/writeback.

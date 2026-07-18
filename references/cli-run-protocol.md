@@ -86,6 +86,8 @@ The same command also binds the budget to chapter and scene inventory. It writes
 
 Use `longform-budget` as an alias. Do not treat `word_budget.json` as final plot; it is a numerical scaffold and readiness signal.
 
+For 100000+ word or multi-volume work, formal scene generation is blocked unless the word-budget sidecar has a completion marker and the budget review exists. Each scene should declare a budgeted `chapter_id`; optional `word_count_target`, `word_count_min`, and `word_count_max` in `scene.yaml` become hard generation and review properties. `context`, `compose-scene`, `generate-scene`, `agent-review-scene`, `promote-candidate`, `route-audit`, `chapter-workspace`, and export readiness all use cleaned deliverable prose when checking the budget. Workflow/canon/status notes must not be counted as body length.
+
 Check route readiness before bulk scene generation:
 
 ```powershell
@@ -168,6 +170,8 @@ python -m literary_engineering_workbench route-audit <project> --route scene-dev
 ```
 
 `agent-task-status` scans project `.agent_tasks.md` files, checks whether their expected artifact paths exist, and writes `workflow/agent_task_status.md` / `.json`. `route-audit` writes `workflow/route_audit.md` / `.json` and adds route-specific gates such as word-budget expansion, scene sidecar completion, promotion candidate review, mounted-style adherence review, chapter readiness, and export readiness. These commands are diagnostic; the platform agent must still complete creative tasks or record why they remain pending.
+
+`workflow-state` writes `workflow/route_state.md` / `.json` as a persistent scene-development ledger. It records the current step per scene and the next action, including missing sidecar completion markers, missing word-budget contracts, missing review outputs, and missing state patches.
 
 ### Export And Release
 

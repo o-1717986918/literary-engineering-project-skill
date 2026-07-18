@@ -2,6 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
+from literary_engineering_workbench.agent_tasks import write_agent_completion_marker
 from literary_engineering_workbench.agent_task_status import build_agent_task_status, build_route_audit
 from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.candidate_promotion import promote_scene_candidate
@@ -37,10 +38,11 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(pending.pending_count, 1)
         payload = json.loads(pending.json_path.read_text(encoding="utf-8"))
         self.assertEqual(payload["tasks"][0]["route"], "scene-development")
-        self.assertEqual(len(payload["tasks"][0]["missing_expected_paths"]), 2)
+        self.assertEqual(len(payload["tasks"][0]["missing_expected_paths"]), 3)
 
         (project / "drafts" / "candidates" / "scene_0001-platform-agent.md").write_text("done", encoding="utf-8")
         (project / "drafts" / "candidates" / "scene_0001-platform-agent.json").write_text("{}", encoding="utf-8")
+        write_agent_completion_marker(task, root=project, handled_by="platform-agent-test")
         complete = build_agent_task_status(project)
 
         self.assertEqual(complete.complete_count, 1)
@@ -337,6 +339,13 @@ def _select_branch(path: Path, branch_id: str):
 """,
         encoding="utf-8",
     )
+    project = path.parent.parent.parent
+    task = path.with_name("branch_manifest.agent_tasks.md")
+    task.write_text(
+        "# 平台 Agent 任务说明：fixture branch\n\n创建或覆盖 `branches/scene_0001/branch_selection.md`。\n",
+        encoding="utf-8",
+    )
+    write_agent_completion_marker(task, root=project, handled_by="platform-agent-test")
 
 
 def _write_roleplay_receipt(project: Path):
@@ -346,6 +355,12 @@ def _write_roleplay_receipt(project: Path):
         "# 角色推演实验室：scene_0001\n\n正式 CLI 来源：`simulate-scene`\n\n### 读取回执\n\n- 已读取：scenes/scene_0001.yaml\n- 写回边界：候选。\n",
         encoding="utf-8",
     )
+    task = roleplay.with_suffix(".agent_tasks.md")
+    task.write_text(
+        "# 平台 Agent 任务说明：fixture roleplay\n\n创建或覆盖 `branches/scene_0001/roleplay_simulation.md`。\n",
+        encoding="utf-8",
+    )
+    write_agent_completion_marker(task, root=project, handled_by="platform-agent-test")
 
 
 def _mount_style(project: Path):
@@ -424,7 +439,9 @@ def _promote_candidate_and_patch_state(project: Path, scene_id: str = "scene_000
     ]
     review.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     promote_scene_candidate(project, scene=Path(f"scenes/{scene_id}.yaml"), candidate=candidate, overwrite=True)
-    build_character_state_patch(project, scene=Path(f"scenes/{scene_id}.yaml"), source=Path(f"drafts/scenes/{scene_id}.md"))
+    state = build_character_state_patch(project, scene=Path(f"scenes/{scene_id}.yaml"), source=Path(f"drafts/scenes/{scene_id}.md"), agent_tasks=True)
+    assert state.agent_tasks_path is not None
+    write_agent_completion_marker(state.agent_tasks_path, root=project, handled_by="platform-agent-test")
 
 
 if __name__ == "__main__":

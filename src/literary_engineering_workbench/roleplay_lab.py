@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import re
 
-from .agent_tasks import render_agent_task_block
+from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .context_packet import build_context_packet
 from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
 
@@ -36,6 +36,7 @@ class SimulationResult:
     context_path: Path
     scene_id: str
     character_count: int
+    agent_tasks_path: Path | None = None
 
 
 def _read(path: Path) -> str:
@@ -138,20 +139,7 @@ def _character_prompt(card: CharacterCard, root: Path, *, agent_mode: bool = Fal
     rel = card.file.relative_to(root).as_posix()
     action_task = ""
     if agent_mode:
-        action_task = (
-            render_agent_task_block(
-                f"""请读取 `{rel}`，提取该角色的 belief / desire / intention / fear / secret / moral_line / background_story，然后以该角色的第一人称逐一回答：
-1. 在当前场景中，我相信什么？（基于 belief）
-2. 我最想避免什么？（基于 fear）
-3. 我会采取什么具体行动？（基于 intention + 场景目标）
-4. 我为什么不会采取另一个更方便剧情的行动？（基于 moral_line + background_story 的行为影响）
-5. 我的行动会给下一场景留下什么代价？
-6. 我的 background_story 如何通过选择、回避、误判或语气间接影响行动，而不是被直接说明？
-7. 我的中文回答是否遵守标准中文标点约束？
-将答案以 "- " 列表形式填入下方。"""
-            )
-            + "\n\n"
-        )
+        action_task = "平台 Agent 待办见同名 `.agent_tasks.md`；补全后保留证据，不要把任务标记写回本文件。\n\n"
     return f"""## Character Agent：{card.name}
 
 来源：`{rel}`
@@ -215,7 +203,7 @@ Secret:
 def _agent_task_if(enabled: bool, instruction: str) -> str:
     if not enabled:
         return ""
-    return render_agent_task_block(instruction) + "\n\n"
+    return "平台 Agent 待办见同名 `.agent_tasks.md`；补全后删除空占位或改写为正式推演记录。\n\n"
 
 
 def _agent_mode_execution_gate(
@@ -231,14 +219,15 @@ def _agent_mode_execution_gate(
     character_files = "\n".join(f"- `{card.file.relative_to(root).as_posix()}`" for card in cards) or "- 未发现正式人物档案。"
     return f"""## 平台 Agent 执行门禁
 
-{render_agent_task_block(f"""在补全任何 RP 推演内容前，先完成读取回执：
+执行任务已写入同名 `.agent_tasks.md`。在补全任何 RP 推演内容前，平台 Agent 必须先完成读取回执：
+
 1. 读取场景文件 `{scene_rel}`。
 2. 读取上下文包 `{context_rel}`。
 3. 读取本轮参与角色或所有正式人物档案：
 {character_files}
 4. 读取存在的 canon/world_rules.yaml、canon/forbidden_changes.yaml、plot/outline.md、plot/foreshadowing.csv。
 5. 用下方“读取回执”列出已读文件、缺失文件、不可突破硬约束和写回边界。
-6. 若关键资料缺失，仍可提出候选推演，但必须标注“依据不足”，不得把候选当成 canon。""")}
+6. 若关键资料缺失，仍可提出候选推演，但必须标注“依据不足”，不得把候选当成 canon。
 
 ### 读取回执
 
@@ -254,7 +243,7 @@ def _agent_mode_usage_rule(enabled: bool) -> str:
     if not enabled:
         return ""
     return (
-        "- `[AGENT_TASK: ...]` 是给装载本 Skill 的平台 agent 执行的任务说明，不是外部 LLM prompt；补全后可删除或替换为正式推演记录。\n"
+        "- 本工作台不内嵌任务指令块；平台 Agent 必须读取同名 `.agent_tasks.md`，完成后写入 `.agent_completion.json`。\n"
         f"- 平台 agent 补全文档时必须执行标点规范：{PUNCTUATION_STANDARD_SHORT_RULE}\n"
     )
 
@@ -305,6 +294,81 @@ def _writeback_agent_task() -> str:
 4. 伏笔变化。
 5. 下一场景输入状态。
 所有写回项必须保持候选，不得直接写入 canon 或 characters/*.yaml。"""
+
+
+def _write_roleplay_agent_tasks(
+    root: Path,
+    scene_path: Path,
+    context_path: Path,
+    output_path: Path,
+    cards: list[CharacterCard],
+) -> Path:
+    scene_rel = scene_path.relative_to(root).as_posix()
+    context_rel = context_path.relative_to(root).as_posix()
+    character_sources = [card.file for card in cards]
+    source_paths = [
+        scene_path,
+        context_path,
+        *character_sources,
+        root / "canon" / "world_rules.yaml",
+        root / "canon" / "forbidden_changes.yaml",
+        root / "plot" / "outline.md",
+        root / "plot" / "foreshadowing.csv",
+        output_path,
+    ]
+    character_task = "\n".join(
+        f"- 读取 `{card.file.relative_to(root).as_posix()}`，以 {card.name or card.character_id} 第一人称回答 belief / desire / intention / fear / secret / moral_line / background_story 如何影响本场景行动。"
+        for card in cards
+    ) or "- 未发现正式人物档案时，在输出文件中标注依据不足，要求先补人物档案。"
+    return write_agent_tasks(
+        default_agent_tasks_path(output_path),
+        title=f"simulate-scene {scene_path.stem}",
+        root=root,
+        source_paths=source_paths,
+        notes=[
+            "roleplay_simulation.md 是可读工作台，不再内嵌 AGENT_TASK 标记。",
+            f"完成后更新 RP 工作台：{output_path.relative_to(root).as_posix()}",
+            "必须写入同名 agent_completion.json；否则 branch-simulate --agent 会阻塞。",
+        ],
+        tasks=[
+            (
+                "完成读取回执",
+                f"""读取 `{scene_rel}`、`{context_rel}`、参与角色文件、canon/world_rules.yaml、canon/forbidden_changes.yaml、plot/outline.md 和 plot/foreshadowing.csv。更新 `{output_path.relative_to(root).as_posix()}` 的“读取回执”：已读文件、缺失文件、不可突破硬约束、写回边界。""",
+            ),
+            (
+                "补全 Character Agent 行动提案",
+                f"""{character_task}
+每个角色必须回答：
+1. 在当前场景中我相信什么。
+2. 我最想避免什么。
+3. 我会采取什么具体行动。
+4. 我为什么不会采取另一个更方便剧情的行动。
+5. 我的行动会给下一场景留下什么代价。
+6. background_story 如何通过选择、回避、误判或语气间接影响行动，而不是被直接说明。
+将答案写回 `{output_path.relative_to(root).as_posix()}` 的对应角色“行动提案”。""",
+            ),
+            (
+                "补全 World Agent 后果推演",
+                _world_agent_task() + f"\n将结果写回 `{output_path.relative_to(root).as_posix()}` 的“后果记录”。",
+            ),
+            (
+                "补全分支候选",
+                _branch_agent_task() + f"\n将结果写回 `{output_path.relative_to(root).as_posix()}` 的 Branch A/B/C。",
+            ),
+            (
+                "补全 Director 评分",
+                _director_agent_task() + f"\n将评分写回 `{output_path.relative_to(root).as_posix()}` 的分支评分表。",
+            ),
+            (
+                "补全 Canon Auditor",
+                _canon_agent_task() + f"\n将审查结果写回 `{output_path.relative_to(root).as_posix()}`。",
+            ),
+            (
+                "补全合并建议与写回候选",
+                _merge_agent_task() + "\n\n" + _writeback_agent_task() + f"\n将推荐、确认项和写回候选写回 `{output_path.relative_to(root).as_posix()}`。",
+            ),
+        ],
+    )
 
 
 def build_roleplay_simulation(
@@ -435,10 +499,14 @@ def build_roleplay_simulation(
 - 下一场景输入状态：
 """
     output_path.write_text(content, encoding="utf-8")
+    agent_tasks_path = None
+    if agent_mode:
+        agent_tasks_path = _write_roleplay_agent_tasks(root, scene_path, context_path, output_path, cards)
     return SimulationResult(
         project_root=root,
         output_path=output_path,
         context_path=context_path,
         scene_id=sid,
         character_count=len(cards),
+        agent_tasks_path=agent_tasks_path,
     )

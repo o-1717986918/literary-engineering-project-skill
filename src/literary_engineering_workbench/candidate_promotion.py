@@ -9,8 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .agent_schema import validate_payload
+from .agent_tasks import agent_task_completion_status
 from .anti_ai_style import style_lint_gate, style_lint_gate_message
 from .flow_gates import FlowGateError
+from .word_budget import word_budget_adherence_for_body
 
 
 @dataclass(frozen=True)
@@ -151,6 +153,7 @@ def candidate_generation_gate(root: Path, scene_id: str, candidate_path: Path) -
         "manifest": _rel(manifest_path, root),
         "prompt_manifest": _rel(prompt_manifest_path, root),
         "agent_tasks": _rel(task_path, root),
+        "agent_task_completion": agent_task_completion_status(task_path, root=root),
         "status": "missing",
         "message": "candidate generation provenance is missing",
         "missing": [],
@@ -167,6 +170,9 @@ def candidate_generation_gate(root: Path, scene_id: str, candidate_path: Path) -
         missing.append(_rel(prompt_manifest_path, root))
     if not task_path.exists():
         missing.append(_rel(task_path, root))
+    completion = agent_task_completion_status(task_path, root=root)
+    if task_path.exists() and completion.get("complete") is not True:
+        invalid.append(f"generation agent task incomplete: {completion.get('message')}")
     payload = _read_json(manifest_path)
     if manifest_path.exists() and not payload:
         invalid.append("manifest is not valid JSON")
@@ -206,19 +212,27 @@ def candidate_generation_gate(root: Path, scene_id: str, candidate_path: Path) -
 
 def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> dict[str, object]:
     review_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
+    review_task = review_path.with_suffix(".agent_tasks.md")
+    scene_path = root / "scenes" / f"{scene_id}.yaml"
     rel_candidate = _rel(candidate_path, root)
     candidate_text = _read(candidate_path)
     candidate_body = _candidate_body(candidate_text) or candidate_text
     lint_gate = style_lint_gate(candidate_body)
+    word_budget = word_budget_adherence_for_body(root, scene_path, candidate_body)
+    review_completion = agent_task_completion_status(review_task, root=root)
     gate: dict[str, object] = {
         "required": True,
         "review": _rel(review_path, root),
+        "agent_tasks": _rel(review_task, root),
+        "agent_task_completion": review_completion,
         "candidate": rel_candidate,
         "style_lint": lint_gate,
+        "word_budget_adherence": word_budget,
         "mounted_style_required": _mounted_style_exists(root),
         "status": "missing",
         "conclusion": "",
         "style_adherence": "",
+        "word_budget_status": str(word_budget.get("status") or ""),
         "schema_errors": [],
         "unresolved_notes": [],
         "source_match": False,
@@ -236,13 +250,32 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
     style_required = _mounted_style_exists(root)
     style_passed = not style_required or style_status in {"pass", "pass_with_notes"}
     style_lint_passed = lint_gate.get("status") != "blocking"
-    passed = not errors and source_match and conclusion == "pass" and style_passed and not unresolved and style_lint_passed
+    review_budget = payload.get("word_budget_adherence") if isinstance(payload.get("word_budget_adherence"), dict) else {}
+    review_budget_status = str(review_budget.get("status") or "").strip().lower()
+    budget_status = str(word_budget.get("status") or "").strip().lower()
+    budget_passed = budget_status in {"pass", "not_required"}
+    review_budget_passed = review_budget_status in {"pass", "not_required"} and review_budget.get("narrative_load_satisfied") is not False
+    task_completed = review_completion.get("complete") is True
+    passed = (
+        not errors
+        and task_completed
+        and source_match
+        and conclusion == "pass"
+        and style_passed
+        and not unresolved
+        and style_lint_passed
+        and budget_passed
+        and review_budget_passed
+    )
     if passed:
         status = "pass"
         message = "candidate review passed"
     elif errors:
         status = "schema_failed"
         message = "candidate review JSON does not satisfy scene_review.v1"
+    elif not task_completed:
+        status = "task_incomplete"
+        message = f"scene review agent task is incomplete: {review_completion.get('message')}"
     elif not source_match:
         status = "stale_or_wrong_source"
         message = "scene review does not cite this candidate in source_paths/candidate"
@@ -255,6 +288,12 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
     elif not style_lint_passed:
         status = "style_lint_failed"
         message = f"candidate failed Style Lint Gate: {style_lint_gate_message(lint_gate)}"
+    elif not budget_passed:
+        status = "word_budget_failed"
+        message = f"candidate failed scene word-budget gate: {word_budget.get('message')}"
+    elif not review_budget_passed:
+        status = "word_budget_review_failed"
+        message = f"AgentReview did not pass word_budget_adherence: {review_budget_status or 'missing'}"
     elif unresolved:
         status = "notes_unresolved"
         message = "candidate review has pass_with_notes/warnings/revision/style notes that must be revised or explicitly waived"
@@ -266,6 +305,7 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
             "status": status,
             "conclusion": conclusion,
             "style_adherence": style_status,
+            "word_budget_status": budget_status,
             "schema_errors": errors,
             "unresolved_notes": unresolved,
             "source_match": source_match,
@@ -352,6 +392,13 @@ def _unresolved_review_notes(payload: dict[str, object]) -> list[str]:
             value = style.get(key)
             if isinstance(value, list) and value:
                 notes.append(f"style_adherence.{key}")
+    budget = payload.get("word_budget_adherence")
+    if isinstance(budget, dict):
+        budget_status = str(budget.get("status") or "").strip().lower()
+        if budget_status not in {"", "pass", "not_required"}:
+            notes.append(f"word_budget_adherence.status={budget_status}")
+        if budget_status in {"pass", "not_required"} and budget.get("narrative_load_satisfied") is False:
+            notes.append("word_budget_adherence.narrative_load_satisfied=false")
     return notes
 
 

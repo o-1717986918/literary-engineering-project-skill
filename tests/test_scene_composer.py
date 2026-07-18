@@ -2,6 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
+from literary_engineering_workbench.agent_tasks import write_agent_completion_marker
 from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.cli import build_parser, main
 from literary_engineering_workbench.flow_gates import FlowGateError
@@ -110,6 +111,12 @@ class SceneComposerTests(TempProjectMixin, unittest.TestCase):
         _write_scene(project)
         branch = build_branch_simulation(project, scene=Path("scenes/scene_0001.yaml"), branch_count=3)
         _select_branch(branch.selection_path, branch.recommended_branch)
+        branch_task = project / "branches" / "scene_0001" / "branch_manifest.agent_tasks.md"
+        branch_task.write_text(
+            "# 平台 Agent 任务说明：fixture branch\n\n创建或覆盖 `branches/scene_0001/branch_selection.md`。\n",
+            encoding="utf-8",
+        )
+        write_agent_completion_marker(branch_task, root=project, handled_by="platform-agent-test")
 
         result = build_scene_composition(project, scene=Path("scenes/scene_0001.yaml"), agent_tasks=True)
 

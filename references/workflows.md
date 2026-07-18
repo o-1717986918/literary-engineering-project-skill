@@ -173,7 +173,7 @@ Then audit:
 python -m literary_engineering_workbench longform-audit "<work-dir>" --target-length 500000
 ```
 
-If the budget status is `needs_expansion`, resolve the outline and scene inventory before bulk scene generation. Later `generate-scene` prompt manifests automatically include the word-budget standard when `plot/word_budget/word_budget.json` exists.
+If the budget status is `needs_expansion`, resolve the outline and scene inventory before bulk scene generation. Later `generate-scene` prompt manifests automatically include the word-budget standard when `plot/word_budget/word_budget.json` exists. For formal longform work, each `scenes/*.yaml` should carry a real `chapter_id` that maps to the budget row, and may carry `word_count_target`, `word_count_min`, and `word_count_max` overrides. The scene word-budget contract is injected into context packets, `compose-scene` output, prompt manifests, and generation sidecars; AgentReview, `promote-candidate`, `route-audit`, `chapter-workspace`, and export readiness recompute cleaned-body length before passing the scene.
 
 Before bulk scene generation, check:
 
@@ -389,6 +389,8 @@ Use `branch-simulate --agent` / `--agent-tasks` to write `branch_manifest.agent_
 
 Use `compose-scene --agent-tasks` to write `drafts/compositions/{scene_id}_composition.agent_tasks.md`. Keep `[AGENT_TASK: ...]` out of the composition Markdown because it may be read into `generate-scene` prompt packs.
 
+Each sidecar in this chain must be completed with the adjacent `.agent_completion.json` marker before the next formal step. `branch-simulate --agent` checks the RP marker, `compose-scene --agent-tasks` checks the branch marker, and `generate-scene` checks RP, branch, and composition markers. `workflow-state` and `agent-task-status` expose any missing marker.
+
 When character `background_story` is present, scene and branch work should convert it into choices, hesitation, avoidance, misreadings, tone, and relationship pressure. Do not turn it into an explanatory background paragraph unless the selected scene explicitly reveals the past.
 
 `generate-scene` writes a prompt manifest and `drafts/candidates/{scene_id}-platform-agent.agent_tasks.md`. It does not call a local provider, does not overwrite `drafts/scenes/`, and does not write canon. Formal generation requires a `compose-scene` composition packet with `selection_source: selection`, `ready_for_generation=true`, and `formal_cli_provenance.created_by=compose-scene`; missing, hand-written, unselected, fallback, or recommended-only composition packets are blocked. Formal Skill hosts must not use `--allow-missing-composition` or `--allow-unselected-composition`. The main platform agent reads the prompt manifest, writes the expected candidate Markdown and manifest JSON, then reviews the exact candidate before promotion.
@@ -554,7 +556,7 @@ Generate platform-agent task sidecars throughout the scene loop:
 python -m literary_engineering_workbench run-workflow "<work-dir>" --mode scene-loop --agent-tasks --generate-candidate
 ```
 
-This records `simulation_agent_tasks`, `branch_agent_tasks`, `scene_composition_agent_tasks`, `candidate_task`, and `state_patch_agent_tasks` in `workflow_state.json` when the corresponding artifacts exist.
+This records `simulation_agent_tasks`, `branch_agent_tasks`, `scene_composition_agent_tasks`, `candidate_task`, and `state_patch_agent_tasks` in `workflow_state.json` when the corresponding artifacts exist. In formal `agent_tasks` mode, the workflow runner behaves as a handoff state machine: after it writes a sidecar, it blocks at that handoff until the platform agent reads the sidecar, writes the expected artifacts, and creates the adjacent `.agent_completion.json` marker. It should not continue to branch, compose, generate, review, promote, or state-evolve merely because the preceding CLI command wrote a Markdown/JSON artifact.
 
 Promote the generated or latest candidate into the review lane:
 

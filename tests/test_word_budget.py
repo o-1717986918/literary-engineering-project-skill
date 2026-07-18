@@ -4,6 +4,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
+from literary_engineering_workbench.agent_tasks import write_agent_completion_marker
 from literary_engineering_workbench.branch_lab import build_branch_simulation
 from literary_engineering_workbench.cli import main
 from literary_engineering_workbench.generation_provider import generate_scene_candidate
@@ -79,9 +80,19 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
 
     def test_prompt_manifest_includes_word_budget_standard(self):
         project = self.make_project()
+        scene_path = project / "scenes" / "scene_0001.yaml"
+        scene_path.write_text(scene_path.read_text(encoding="utf-8").replace('chapter_id: ""', "chapter_id: chapter_0001"), encoding="utf-8")
         make_reviewed_passing_scene(project)
         _prepare_generation_ready(project)
-        build_word_budget(project, target_words=120000, volumes=2, genre="general")
+        budget = build_word_budget(project, target_words=120000, volumes=2, genre="general")
+        payload = json.loads(budget.json_path.read_text(encoding="utf-8"))
+        payload["status"] = "pass"
+        payload["issues"] = []
+        budget.json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        review = project / "reviews" / "word_budget" / "word_budget_review.md"
+        review.parent.mkdir(parents=True, exist_ok=True)
+        review.write_text("# Word Budget Review\n\n- 结论：`pass`\n", encoding="utf-8")
+        write_agent_completion_marker(budget.agent_tasks_path, root=project, handled_by="platform-agent-test")
 
         result = generate_scene_candidate(
             project,

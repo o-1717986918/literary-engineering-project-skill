@@ -15,8 +15,9 @@ from typing import Any
 
 from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .context_packet import build_context_packet
-from .flow_gates import FlowGateError, branch_selection_status, selected_branch_from
+from .flow_gates import FlowGateError, branch_selection_status, ensure_agent_task_completed, selected_branch_from
 from .roleplay_lab import CharacterCard, _load_characters, _read
+from .word_budget import scene_word_budget_contract
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,12 @@ def build_scene_composition(
 
     all_cards = _load_characters(root)
     active_cards = _active_cards(all_cards, facts.participants)
+    if agent_tasks and not allow_missing_branch:
+        ensure_agent_task_completed(
+            root,
+            root / "branches" / facts.scene_id / "branch_manifest.agent_tasks.md",
+            label="compose-scene --agent-tasks",
+        )
     branch = _load_branch_choice(root, facts.scene_id, branch_manifest, branch_selection, allow_recommended_branch, allow_missing_branch)
     beats = _build_beats(facts, active_cards, branch)
     subtext_map = _build_subtext_map(facts, active_cards or all_cards)
@@ -92,6 +99,7 @@ def build_scene_composition(
     prose_seed = _build_prose_seed(facts, active_cards or all_cards, branch, sensory_palette)
     revision_targets = _revision_targets(facts, active_cards, branch)
     guardrails = _guardrails()
+    word_budget_contract = scene_word_budget_contract(root, scene_path)
 
     default_dir = root / "drafts" / "compositions"
     output_path = _resolve(root, output, default_dir / f"{facts.scene_id}_composition.md")
@@ -131,6 +139,7 @@ def build_scene_composition(
         "dialogue_intents": dialogue_intents,
         "sensory_palette": sensory_palette,
         "prose_seed": prose_seed,
+        "word_budget_contract": word_budget_contract,
         "revision_targets": revision_targets,
         "writeback_candidates": branch.get("writeback_candidates", _fallback_writeback(facts)),
         "guardrails": guardrails,
@@ -597,15 +606,23 @@ def _render_markdown(root: Path, scene_path: Path, context_path: Path, payload: 
     sensory = payload["sensory_palette"]
     lines.extend(
         [
-            "",
-            "## 感官与意象",
-            "",
+        "",
+        "## 感官与意象",
+        "",
             f"- 地点锚点：{sensory['location_anchor']}",
             f"- 意象：{', '.join(sensory['motifs'])}",
             f"- 声音：{', '.join(sensory['sound'])}",
             f"- 触感：{', '.join(sensory['texture'])}",
             f"- 光线：{', '.join(sensory['light'])}",
             f"- 风格过滤：{', '.join(sensory['style_filters'])}",
+            "",
+            "## 字数预算硬属性",
+            "",
+            f"- 状态：`{payload.get('word_budget_contract', {}).get('status', 'missing')}`",
+            f"- 目标字数：{payload.get('word_budget_contract', {}).get('target_words', 0)}",
+            f"- 最低字数：{payload.get('word_budget_contract', {}).get('min_words', 0)}",
+            f"- 最高字数：{payload.get('word_budget_contract', {}).get('max_words', 0)}",
+            f"- 叙事负载：{', '.join(str(item) for item in payload.get('word_budget_contract', {}).get('narrative_load', [])) or '未要求'}",
             "",
             "## 正文种子",
             "",

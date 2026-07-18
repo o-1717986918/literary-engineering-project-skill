@@ -8,9 +8,11 @@ import json
 from pathlib import Path
 import re
 
+from .agent_tasks import agent_task_completion_status, default_agent_completion_path
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .flow_gates import branch_selection_status
 from .anti_ai_style import style_lint_gate_message
+from .word_budget import scene_word_budget_contract
 
 
 BACKTICK_RE = re.compile(r"`([^`]+)`")
@@ -163,11 +165,15 @@ def _scan_agent_tasks(root: Path) -> list[AgentTaskRecord]:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         expected = _unique(_extract_expected_paths(root, text))
+        completion = _normalize_path(root, default_agent_completion_path(path))
+        if completion not in expected:
+            expected.append(completion)
         sources = _unique(_extract_source_paths(root, text))
         existing = tuple(item for item in expected if _path_exists(root, item))
         missing = tuple(item for item in expected if not _path_exists(root, item))
         missing_sources = tuple(item for item in sources if not _path_exists(root, item))
-        if expected and not missing:
+        completion_state = agent_task_completion_status(path, root=root)
+        if expected and not missing and completion_state.get("complete") is True:
             status = "complete"
         elif expected and existing:
             status = "partial"
@@ -228,8 +234,11 @@ def _looks_like_project_path(value: str) -> bool:
     return "/" in text or "\\" in text or text.lower().endswith(suffixes)
 
 
-def _normalize_path(root: Path, value: str) -> str:
-    path = Path(value.strip())
+def _normalize_path(root: Path, value: str | Path) -> str:
+    if isinstance(value, Path):
+        path = value
+    else:
+        path = Path(value.strip())
     if path.is_absolute():
         return _rel(path, root)
     return path.as_posix()
@@ -321,6 +330,8 @@ def _add_longform_budget_gates(gates: list[dict[str, str]], root: Path, *, force
     if not force and target_words < 100000:
         return
     budget_json = root / "plot" / "word_budget" / "word_budget.json"
+    budget_task = root / "plot" / "word_budget" / "word_budget.agent_tasks.md"
+    scene_task = root / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md"
     review = root / "reviews" / "word_budget" / "word_budget_review.md"
     candidate = root / "plot" / "candidates" / "outlines" / "word_budget_expansion.md"
     scene_plan = root / "plot" / "candidates" / "scenes" / "word_budget_scene_inventory.md"
@@ -348,10 +359,28 @@ def _add_longform_budget_gates(gates: list[dict[str, str]], root: Path, *, force
         "word-budget platform review exists",
         "平台 Agent 必须写 reviews/word_budget/word_budget_review.md，确认字数-剧情库存映射后才能进入批量场景开发。",
     )
+    budget_completion = agent_task_completion_status(budget_task, root=root)
+    _add_gate(
+        gates,
+        f"{prefix}:word-budget-task-complete",
+        budget_completion.get("complete") is True,
+        "blocking",
+        "word-budget platform-agent task completed",
+        f"word_budget.agent_tasks.md 未完成：{budget_completion.get('message')}",
+    )
     if status == "needs_expansion":
         _add_gate(gates, f"{prefix}:budgeted-outline-candidate", candidate.exists(), "blocking", "budgeted outline candidate exists", "预算显示剧情库存不足；平台 Agent 需处理 word_budget.agent_tasks.md。")
         _add_gate(gates, f"{prefix}:scene-inventory-expansion", scene_plan.exists(), "blocking", "scene inventory expansion candidate exists", "预算显示场景库存不足；平台 Agent 需处理 scene_inventory_expansion.agent_tasks.md。")
         _add_gate(gates, f"{prefix}:scene-inventory-review", scene_review.exists(), "blocking", "scene inventory review exists", "扩展场景库存后，平台 Agent 需写 reviews/word_budget/scene_inventory_review.md。")
+        scene_completion = agent_task_completion_status(scene_task, root=root)
+        _add_gate(
+            gates,
+            f"{prefix}:scene-inventory-task-complete",
+            scene_completion.get("complete") is True,
+            "blocking",
+            "scene inventory platform-agent task completed",
+            f"scene_inventory_expansion.agent_tasks.md 未完成：{scene_completion.get('message')}",
+        )
 
 
 def _project_target_words(root: Path) -> int:
@@ -426,13 +455,16 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
     scene_id = _scene_id(scene_path)
     context = root / "memory" / "context_packets" / f"{scene_id}.md"
     roleplay = root / "branches" / scene_id / "roleplay_simulation.md"
+    roleplay_task = root / "branches" / scene_id / "roleplay_simulation.agent_tasks.md"
     roleplay_text = _read_text(roleplay)
     branch_manifest = root / "branches" / scene_id / "branch_manifest.json"
+    branch_task = root / "branches" / scene_id / "branch_manifest.agent_tasks.md"
     branch_payload = _read_json(branch_manifest)
     branches = branch_payload.get("branches")
     selection = root / "branches" / scene_id / "branch_selection.md"
     selection_gate = branch_selection_status(selection)
     composition_json = root / "drafts" / "compositions" / f"{scene_id}_composition.json"
+    composition_task = root / "drafts" / "compositions" / f"{scene_id}_composition.agent_tasks.md"
     composition_payload = _read_json(composition_json)
     composition_provenance = composition_payload.get("formal_cli_provenance", {}) if isinstance(composition_payload.get("formal_cli_provenance"), dict) else {}
     flow_gate = composition_payload.get("flow_gate", {}) if isinstance(composition_payload.get("flow_gate"), dict) else {}
@@ -442,7 +474,9 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         and flow_gate.get("ready_for_generation") is True
     )
     candidate_path = _promotion_candidate_path(root, scene_id) or _latest_scene_candidate(root, scene_id)
+    generation_task = candidate_path.with_suffix(".agent_tasks.md") if candidate_path is not None else None
     review_json = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
+    review_task = review_json.with_suffix(".agent_tasks.md")
     candidate_gate = (
         candidate_review_gate(root, scene_id, candidate_path)
         if candidate_path is not None
@@ -460,6 +494,8 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
     static_review_conclusion = _static_review_conclusion(static_review)
     state_patch_json = root / "characters" / "state_patches" / f"{scene_id}_state_patch.json"
     state_patch_report = root / "characters" / "state_patches" / f"{scene_id}_state_patch.md"
+    state_task = state_patch_json.with_suffix(".agent_tasks.md")
+    budget_contract = scene_word_budget_contract(root, scene_path)
 
     _add_gate(
         gates,
@@ -501,6 +537,15 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         f"{scene_id} roleplay AGENT_TASK directives resolved",
         f"{scene_id} 的 roleplay_simulation.md 仍含 [AGENT_TASK: ...]；平台 Agent 需补全/替换后再继续。",
     )
+    roleplay_completion = agent_task_completion_status(roleplay_task, root=root)
+    _add_gate(
+        gates,
+        f"{scene_id}:roleplay-agent-task-complete",
+        roleplay_completion.get("complete") is True,
+        "blocking",
+        f"{scene_id} roleplay platform-agent task completed",
+        f"{scene_id} 的 RP sidecar 未完成：{roleplay_completion.get('message')}",
+    )
     _add_gate(
         gates,
         f"{scene_id}:branch-manifest",
@@ -516,6 +561,15 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         "blocking",
         f"{scene_id} branch manifest has branch-simulate CLI provenance",
         f"{scene_id} 的 branch_manifest.json 缺少 formal_cli_provenance.created_by=branch-simulate；手写 manifest 只能作为 exploratory/debug。",
+    )
+    branch_completion = agent_task_completion_status(branch_task, root=root)
+    _add_gate(
+        gates,
+        f"{scene_id}:branch-agent-task-complete",
+        branch_completion.get("complete") is True,
+        "blocking",
+        f"{scene_id} branch platform-agent task completed",
+        f"{scene_id} 的 branch sidecar 未完成：{branch_completion.get('message')}",
     )
     _add_gate(
         gates,
@@ -549,6 +603,32 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         f"{scene_id} composition has compose-scene CLI provenance",
         f"{scene_id} 的 composition 缺少 formal_cli_provenance.created_by=compose-scene；手写 composition 不能满足正式 generate-scene 门禁。",
     )
+    composition_completion = agent_task_completion_status(composition_task, root=root)
+    _add_gate(
+        gates,
+        f"{scene_id}:composition-agent-task-complete",
+        composition_completion.get("complete") is True,
+        "blocking",
+        f"{scene_id} composition platform-agent task completed",
+        f"{scene_id} 的 composition sidecar 未完成：{composition_completion.get('message')}",
+    )
+    budget_status = str(budget_contract.get("status") or "").strip().lower()
+    _add_gate(
+        gates,
+        f"{scene_id}:scene-word-budget-contract",
+        budget_status in {"pass", "not_required"},
+        "blocking",
+        f"{scene_id} scene word-budget contract is ready",
+        f"{scene_id} 缺少可用场景字数预算硬属性：{budget_contract.get('message')}",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:scene-word-budget-alignment",
+        budget_contract.get("alignment_status") != "manual_override_needs_review",
+        "warning",
+        f"{scene_id} scene word-count target aligns with budget source",
+        f"{scene_id} 的 scene.yaml 字数目标与 word_budget 推导值差异过大：{'; '.join(str(item) for item in budget_contract.get('warnings', []))}",
+    )
     _add_gate(
         gates,
         f"{scene_id}:prose-candidate",
@@ -565,6 +645,16 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         f"{scene_id} candidate has formal CLI/platform-agent generation provenance",
         f"{scene_id} 候选稿缺少正式 generate-scene provenance：{generation_gate.get('message') or generation_gate.get('status') or 'missing'}。正式候选必须有 prompt manifest、.agent_tasks.md 和平台 Agent manifest 约束字段。",
     )
+    if generation_task is not None:
+        generation_completion = agent_task_completion_status(generation_task, root=root)
+        _add_gate(
+            gates,
+            f"{scene_id}:generation-agent-task-complete",
+            generation_completion.get("complete") is True,
+            "blocking",
+            f"{scene_id} generation platform-agent task completed",
+            f"{scene_id} 的 generation sidecar 未完成：{generation_completion.get('message')}",
+        )
     lint_gate = candidate_gate.get("style_lint") if isinstance(candidate_gate, dict) else {}
     if candidate_path is not None:
         _add_gate(
@@ -575,6 +665,16 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
             f"{scene_id} Style Lint Gate clean or notes-only",
             f"{scene_id} 候选稿未通过 Style Lint Gate：{style_lint_gate_message(lint_gate if isinstance(lint_gate, dict) else {})}。机械对照句式和 medium+ AI 腔风险必须先修订。",
         )
+        budget_gate = candidate_gate.get("word_budget_adherence") if isinstance(candidate_gate, dict) else {}
+        budget_status = str(budget_gate.get("status") or "").strip().lower() if isinstance(budget_gate, dict) else ""
+        _add_gate(
+            gates,
+            f"{scene_id}:candidate-word-budget",
+            budget_status in {"pass", "not_required"},
+            "blocking",
+            f"{scene_id} candidate cleaned body satisfies scene word budget",
+            f"{scene_id} 候选稿未通过场景字数预算门禁：{budget_gate.get('message') if isinstance(budget_gate, dict) else 'missing'}。不要用非正文信息或灌水内容补字数。",
+        )
     _add_gate(
         gates,
         f"{scene_id}:agent-review-json",
@@ -583,6 +683,15 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         f"{scene_id} platform Agent review JSON exists",
         f"{scene_id} 缺少 reviews/agent/{scene_id}_scene_review.json；运行 agent-review-scene --draft <candidate> 并由平台 Agent 填写 scene_review.v1。",
     )
+    review_completion = agent_task_completion_status(review_task, root=root)
+    _add_gate(
+        gates,
+        f"{scene_id}:agent-review-task-complete",
+        review_completion.get("complete") is True,
+        "blocking",
+        f"{scene_id} platform Agent review task completed",
+        f"{scene_id} 的 AgentReview sidecar 未完成：{review_completion.get('message')}",
+    )
     _add_gate(
         gates,
         f"{scene_id}:candidate-review-pass",
@@ -590,6 +699,16 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         "blocking",
         f"{scene_id} exact prose candidate review passed",
         f"{scene_id} 候选稿未通过 exact-candidate AgentReview：{candidate_gate.get('message') or candidate_gate.get('status') or 'missing'}。",
+    )
+    review_payload = _read_json(review_json)
+    review_budget_status = _word_budget_adherence_status(review_payload)
+    _add_gate(
+        gates,
+        f"{scene_id}:agent-review-word-budget",
+        review_budget_status in {"pass", "not_required"},
+        "blocking",
+        f"{scene_id} AgentReview word budget gate passed",
+        f"{scene_id} 的 AgentReview 缺少 clean pass 的 word_budget_adherence；当前状态：{review_budget_status or 'missing'}。",
     )
     revision_manifest = _revision_manifest_path(root, scene_id, candidate_path)
     if candidate_path is not None and _is_revision_candidate(root, candidate_path):
@@ -653,8 +772,16 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         f"{scene_id} state evolution report exists",
         f"{scene_id} 缺少 characters/state_patches/{scene_id}_state_patch.md；平台 Agent 需审查人物状态演化候选。",
     )
+    state_completion = agent_task_completion_status(state_task, root=root)
+    _add_gate(
+        gates,
+        f"{scene_id}:state-agent-task-complete",
+        state_completion.get("complete") is True,
+        "blocking",
+        f"{scene_id} state-evolve platform-agent task completed",
+        f"{scene_id} 的 state-evolve sidecar 未完成：{state_completion.get('message')}",
+    )
     if _mounted_style_exists(root):
-        review_payload = _read_json(review_json)
         style_status = _style_adherence_status(review_payload)
         _add_gate(
             gates,
@@ -755,6 +882,7 @@ def _stale_or_weak_chapter_gate_count(chapter_jsons: list[Path]) -> int:
         "agent_review_source_match",
         "agent_review_unresolved_notes",
         "style_adherence_status",
+        "word_budget_adherence_status",
         "flow_gate_issues",
         "readiness_issues",
     }
@@ -772,6 +900,7 @@ def _stale_or_weak_chapter_gate_count(chapter_jsons: list[Path]) -> int:
                 or scene.get("agent_review_schema_status") != "pass"
                 or scene.get("agent_review_source_match") is not True
                 or bool(scene.get("agent_review_unresolved_notes"))
+                or scene.get("word_budget_adherence_status") not in {"pass", "not_required"}
                 or bool(scene.get("flow_gate_issues"))
                 or bool(scene.get("readiness_issues"))
             )
@@ -819,6 +948,12 @@ def _review_needs_revision(payload: dict) -> bool:
         value = payload.get(key)
         if isinstance(value, list) and value:
             return True
+    budget_status = _word_budget_adherence_status(payload)
+    if budget_status not in {"", "pass", "not_required"}:
+        return True
+    budget = payload.get("word_budget_adherence")
+    if isinstance(budget, dict) and budget_status in {"pass", "not_required"} and budget.get("narrative_load_satisfied") is False:
+        return True
     return False
 
 
@@ -831,6 +966,13 @@ def _mounted_style_exists(root: Path) -> bool:
 
 def _style_adherence_status(payload: dict) -> str:
     adherence = payload.get("style_adherence")
+    if not isinstance(adherence, dict):
+        return ""
+    return str(adherence.get("status") or "").strip().lower()
+
+
+def _word_budget_adherence_status(payload: dict) -> str:
+    adherence = payload.get("word_budget_adherence")
     if not isinstance(adherence, dict):
         return ""
     return str(adherence.get("status") or "").strip().lower()

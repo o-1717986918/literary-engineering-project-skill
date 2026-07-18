@@ -1,6 +1,9 @@
 scene_id: ""
 chapter_id: ""
 status: planned
+word_count_target: 0
+word_count_min: 0
+word_count_max: 0
 
 time:
   story_time: ""
