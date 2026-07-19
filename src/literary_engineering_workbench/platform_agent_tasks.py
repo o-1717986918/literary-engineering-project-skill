@@ -18,6 +18,7 @@ from .anti_ai_style import ANTI_EVASION_REVISION_PROTOCOL, ANTI_EVASION_SHORT_RU
 from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, ASSET_TYPES
 from .context_broker import default_context_trace_path
 from .draft_text import count_delivery_chars, final_body_from_workbench_text
+from .new_character_register import render_new_character_register_contract
 from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
 from .style_prompt import STYLE_PROMPT_LENGTH_RULE, STYLE_PROMPT_QUALITY_RULE
 from .word_budget import scene_word_budget_contract, word_budget_adherence_for_body
@@ -53,6 +54,7 @@ def write_platform_scene_review_task(
     body = final_body_from_workbench_text(draft_text)
     style_lint_block = render_ai_style_lint_block(body or draft_text)
     word_budget_adherence = word_budget_adherence_for_body(root, scene_path, body)
+    new_character_contract = render_new_character_register_contract()
     task_path = json_output.with_suffix(".agent_tasks.md")
     write_agent_tasks(
         task_path,
@@ -72,7 +74,13 @@ def write_platform_scene_review_task(
             ),
             (
                 "进行语义审查",
-                f"""以平台 agent 的文学判断审查人物行为逻辑、背景故事隐性因果、canon 风险、剧情推进、文风执行、套路化/同质化风险、标点规范和需要修订的动作。标点审查规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+                f"""以平台 agent 的文学判断审查人物行为逻辑、背景故事隐性因果、canon 风险、剧情推进、新角色登记、文风执行、套路化/同质化风险、标点规范和需要修订的动作。若正文出现 scene.yaml 与正式 characters 中没有的人物，不得默认放过；先按新角色登记契约分类。标点审查规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+            ),
+            (
+                "执行新角色登记门禁",
+                f"""{new_character_contract}
+
+审查时必须填写 JSON 的 `new_character_register`。若只有一次性路人，`status=ephemeral_only` 且写 `waiver_reason`；若有命名、复用、掌握线索、改变关系或推动主线的新角色，必须有 candidate asset、review、用户 approval 或 promotion。`needs_candidate` / `needs_review` / `needs_approval` 不得 clean pass。""",
             ),
             (
                 "处理确定性 Style Lint 证据",
@@ -132,9 +140,16 @@ def write_platform_scene_review_task(
     "narrative_load_satisfied": true,
     "message": "{str(word_budget_adherence.get("message") or "").replace('"', "'")}"
   }},
+  "new_character_register": {{
+    "schema": "literary-engineering-workbench/new-character-register/v0.1",
+    "status": "none | existing_only | ephemeral_only | resolved | needs_candidate | needs_review | needs_approval",
+    "introduced": [],
+    "ephemeral_waivers": [],
+    "blocking_issues": []
+  }},
   "source_paths": []
 }}
-`conclusion=pass` 且 warnings / revision_actions / style_notes / style_adherence 偏差为空，且 word_budget_adherence.status 为 pass 或 not_required、narrative_load_satisfied=true，才可进入 clean ready。`pass_with_notes` 必须先进入 revise-scene 或记录明确 waiver，不能直接章节装配或导出；新增事实仍保持候选。""",
+`conclusion=pass` 且 warnings / revision_actions / style_notes / style_adherence 偏差为空，且 word_budget_adherence.status 为 pass 或 not_required、narrative_load_satisfied=true，且 new_character_register.status 为 none / existing_only / ephemeral_only / resolved，才可进入 clean ready。`pass_with_notes` 必须先进入 revise-scene 或记录明确 waiver，不能直接章节装配或导出；新增事实仍保持候选。""",
             ),
             (
                 "处理 pass_with_notes 语义",
@@ -142,7 +157,7 @@ def write_platform_scene_review_task(
             ),
             (
                 "写入正式 Markdown 报告",
-                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。必须新增“字数预算门禁”段落：写明目标/最低/最高/清洗后正文字符数、叙事负载是否满足、是否存在灌水或摘要化。必须新增“反规避负担证明”段落：列出是否存在换皮转折、保留显式转折的理由、批判性反驳和最终判断。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
+                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“新角色登记门禁”段落：列出正文是否出现新角色、哪些是一次性路人、哪些需要候选资产/审查/approval/promotion。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。必须新增“字数预算门禁”段落：写明目标/最低/最高/清洗后正文字符数、叙事负载是否满足、是否存在灌水或摘要化。必须新增“反规避负担证明”段落：列出是否存在换皮转折、保留显式转折的理由、批判性反驳和最终判断。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
             ),
         ],
     )
@@ -172,6 +187,7 @@ def write_platform_scene_generation_task(
         source_paths.append(prompt_manifest_path)
     _extend_unique(source_paths, _style_source_paths(root))
     word_budget_contract = scene_word_budget_contract(root, scene_path)
+    new_character_contract = render_new_character_register_contract()
     task_path = candidate.with_suffix(".agent_tasks.md")
     write_agent_tasks(
         task_path,
@@ -218,11 +234,15 @@ def write_platform_scene_generation_task(
             ),
             (
                 "生成候选正文",
-                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选` 和 `## 状态变化候选`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。正文必须先执行文风生成标准、字数预算标准和反规避协议，再通过标准标点和降低 AI 腔自检。""",
+                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选`、`## 状态变化候选` 和 `## 新角色候选登记`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。正文必须先执行文风生成标准、字数预算标准、反规避协议和新角色登记契约，再通过标准标点和降低 AI 腔自检。""",
             ),
             (
                 "生成候选 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false、word_budget_contract、clean_body_words、word_budget_adherence.status 和待审查事项。""",
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false、word_budget_contract、clean_body_words、word_budget_adherence.status、new_character_register 和待审查事项。
+
+{new_character_contract}
+
+若正文没有新角色，写 status=none。若只有一次性路人，写 status=ephemeral_only 并列明 waiver_reason。若引入会复用、掌握线索、推动关系或改变世界状态的新角色，先用 `agent-create-character` / `asset-create --asset-type character` 生成候选资产，再把 candidate_path 写入 register；未完成时 status 必须是 needs_candidate/needs_review/needs_approval，不能伪装为 clean。""",
             ),
             (
                 "后续门禁",

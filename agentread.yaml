@@ -23,6 +23,7 @@ core_references:
   punctuation_standard: references/punctuation-standard.md
   prompt_registry: docs/modules/prompt-registry.md
   context_broker: docs/modules/context-broker.md
+  new_character_register: docs/modules/new-character-register.md
   project_type_skill_architecture: docs/architecture/project-type-skill.md
 
 core_project_files:

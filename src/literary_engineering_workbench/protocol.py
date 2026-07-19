@@ -348,6 +348,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "compose-scene --agent-tasks composition exists with selection_source=selection, ready_for_generation=true, and formal_cli_provenance.created_by=compose-scene before generate-scene or state writeback.",
             "Prose candidate exists for each target scene, has generate-scene prompt/task/manifest provenance, and was written by the main platform agent, not a subagent.",
             "Prose candidate reviewed for canon, character, style, and punctuation.",
+            "Any new character introduced by the scene is classified in new_character_register; persistent new characters have candidate asset review and approval/promotion before clean pass.",
             "agent-review-scene was run or an equivalent exact-candidate platform review was written with a concrete reason for any CLI skip.",
             "Exact candidate path is cited in a passing scene_review.v1 JSON before promote-candidate.",
             "promote-candidate wrote the promotion manifest and promoted draft for each formal scene.",

@@ -23,7 +23,7 @@ from .draft_text import final_body_from_workbench_text
 DOCX_KINDS = {"novel", "screenplay", "video_prompt_pack", "report"}
 DELIVERY_TRACE_RE = re.compile(
     r"(scene[_-]?\d{1,6}|chapter[_-]?\d{1,6}|AGENT_TASK|prompt manifest|"
-    r"状态变化候选|世界状态变化|人物状态变化|新增事实候选|写回候选|需要人工确认|"
+    r"状态变化候选|世界状态变化|人物状态变化|新增事实候选|新角色候选|新角色候选登记|写回候选|需要人工确认|"
     r"上下文包|场景文件|审查状态)",
     re.IGNORECASE,
 )

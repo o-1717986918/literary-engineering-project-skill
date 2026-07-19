@@ -6,7 +6,7 @@
 目标读者：维护本 Skill 的平台 Agent、项目开发者、后续代码实现者  
 生成背景：基于当前 Skill 架构复盘，以及对 ProseForge、ai-novel-writer、AI-Novel-Writing-Assistant 三个外部项目的互补性分析。
 
-执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`；`v0.86.0` 已完成 Context Broker / Context Trace，详见 `docs/implementation/phase86-context-broker.md`。Phase 87-90 仍按本计划继续推进。
+执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`；`v0.86.0` 已完成 Context Broker / Context Trace，详见 `docs/implementation/phase86-context-broker.md`；`v0.86.1` 已完成 New Character Register，详见 `docs/implementation/phase86-1-new-character-register.md`。Phase 87-90 仍按本计划继续推进。
 
 ## 1. 背景与判断
 
@@ -314,7 +314,7 @@ Phase 84 后续横向接入顺序：
 2. `prompt-registry-validate` 能检查缺字段、非法上下文槽位、无输出契约等问题。
 3. 不再依赖“读者自己知道该怎么写”的隐式约束。
 
-执行记录：`v0.85.0` 已完成最小文件型 Prompt Registry。七个 route-level wildcard asset 覆盖当前 56 个 task registry prompt id；`task-open` 会把解析后的 Prompt Asset 写入任务包。后续增强重点是给正文生成、AgentReview、revision、style prompt execute 等高风险任务补 exact prompt asset。
+执行记录：`v0.85.0` 已完成最小文件型 Prompt Registry。七个 route-level wildcard asset 覆盖当前全部 task registry prompt id；`task-open` 会把解析后的 Prompt Asset 写入任务包。后续增强重点是给正文生成、AgentReview、revision、style prompt execute 等高风险任务补 exact prompt asset。
 
 ## 8. Phase 86：Context Broker 与 Context Trace
 

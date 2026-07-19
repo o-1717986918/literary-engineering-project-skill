@@ -12,6 +12,7 @@ from .agent_schema import validate_payload
 from .agent_tasks import agent_task_completion_status
 from .anti_ai_style import style_lint_gate, style_lint_gate_message
 from .flow_gates import FlowGateError
+from .new_character_register import new_character_register_issues
 from .word_budget import word_budget_adherence_for_body
 
 
@@ -201,6 +202,7 @@ def candidate_generation_gate(root: Path, scene_id: str, candidate_path: Path) -
                     invalid.append(f"{key} must be a boolean")
             if not str(payload.get("prompt_manifest") or "").strip() and not prompt_manifest_path.exists():
                 invalid.append("prompt_manifest is missing")
+        invalid.extend(new_character_register_issues(payload, root, mode="generation"))
     if missing:
         gate.update({"status": "missing", "missing": missing, "invalid": invalid, "message": "formal candidate generation files are missing"})
     elif invalid:
@@ -247,6 +249,7 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
     style_status = str(style.get("status") or "").strip().lower() if isinstance(style, dict) else ""
     source_match = _review_mentions_candidate(payload, rel_candidate, candidate_path)
     unresolved = _unresolved_review_notes(payload)
+    new_character_issues = new_character_register_issues(payload, root, mode="review") if payload else ["new_character_register is missing"]
     style_required = _mounted_style_exists(root)
     style_passed = not style_required or style_status in {"pass", "pass_with_notes"}
     style_lint_passed = lint_gate.get("status") != "blocking"
@@ -266,6 +269,7 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
         and style_lint_passed
         and budget_passed
         and review_budget_passed
+        and not new_character_issues
     )
     if passed:
         status = "pass"
@@ -294,6 +298,9 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
     elif not review_budget_passed:
         status = "word_budget_review_failed"
         message = f"AgentReview did not pass word_budget_adherence: {review_budget_status or 'missing'}"
+    elif new_character_issues:
+        status = "new_character_unresolved"
+        message = "AgentReview did not resolve new_character_register: " + "; ".join(new_character_issues)
     elif unresolved:
         status = "notes_unresolved"
         message = "candidate review has pass_with_notes/warnings/revision/style notes that must be revised or explicitly waived"
@@ -308,6 +315,7 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
             "word_budget_status": budget_status,
             "schema_errors": errors,
             "unresolved_notes": unresolved,
+            "new_character_register_issues": new_character_issues,
             "source_match": source_match,
             "message": message,
         }

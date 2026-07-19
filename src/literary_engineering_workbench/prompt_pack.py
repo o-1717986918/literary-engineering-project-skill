@@ -13,6 +13,7 @@ from typing import Any
 from .anti_ai_style import ANTI_AI_STYLE_PROMPT, ANTI_EVASION_REVISION_PROTOCOL
 from .context_broker import default_context_trace_path
 from .flow_gates import ensure_composition_ready_for_generation
+from .new_character_register import render_new_character_register_contract
 from .punctuation_standard import render_punctuation_standard_for_prompt
 from .word_budget import (
     ensure_scene_word_budget_ready,
@@ -49,7 +50,7 @@ OUTPUT_CONTRACT = """模型输出必须使用以下 Markdown 结构：
 
 ## 正文候选
 
-写入场景正文候选。正文必须先执行“文风生成标准”，再遵守 canon、人物 BDI、背景故事隐性动因、场景编排包和文风 profile。
+写入场景正文候选。正文必须先执行“文风生成标准”和“新角色登记契约”，再遵守 canon、人物 BDI、背景故事隐性动因、场景编排包和文风 profile。
 正文还必须遵守标准中文标点约束：中文句子使用全角标点，省略号用“……”，避免英文标点混入中文正文和连续感叹/疑问符。
 标点必须服务朴素叙述：一句话尽量少用逗号，超过三个逗号通常要拆句；正式正文原则上不用破折号，不靠“但是、然而、于是、然后、突然”机械制造转折。
 正文必须降低 AI 腔：禁用机械“不是……而是……”“并非……而是……”“与其说……不如说……”以及“不是……——是……”“不是……。是……”等变体；不要把这类结构判断为合理修辞。也禁止“并不是……只是……”“倒不是……只是……”“看似……其实……”“表面上……实则……”“没有……只是……”等换皮转折。器官轮岗、万能占位、比喻依赖、抽象总结、解释性心理标签、模板化转折、对称排比、全知说教、景物强制同步和结尾金句化按密度控制：约 2% 叙事单元以内的孤立风险点可进入低级复核，密集出现必须修订。
@@ -73,6 +74,12 @@ OUTPUT_CONTRACT = """模型输出必须使用以下 Markdown 结构：
 ### 伏笔变化
 
 - 只列候选，等待人工确认。
+
+## 新角色候选登记
+
+- 若没有新角色，写：`status: none`。
+- 若只有一次性路人，写：`status: ephemeral_only` 并说明豁免理由。
+- 若有命名、会复用、掌握线索、影响关系或推动主线的新角色，写明候选角色资产路径、审查/approval/promotion 状态；未完成时不得伪装为已解决。
 
 ### 需要人工确认
 
@@ -150,6 +157,7 @@ def build_scene_prompt_pack(
         "generation_constraint_brief": _render_generation_constraint_brief(root, style_profile_path, word_budget_path, review_notes_path),
         "punctuation_standard": render_punctuation_standard_for_prompt(),
         "anti_ai_style": ANTI_AI_STYLE_PROMPT,
+        "new_character_register_contract": render_new_character_register_contract(),
         "output_contract": OUTPUT_CONTRACT.strip(),
         "generated_at": _now(),
     }
@@ -161,6 +169,7 @@ def build_scene_prompt_pack(
     user_prompt = _ensure_scene_word_budget_contract(user_prompt, values["scene_word_budget_contract"])
     user_prompt = _ensure_review_notes_standard(user_prompt, values["review_notes_standard"])
     user_prompt = _ensure_generation_constraint_brief(user_prompt, values["generation_constraint_brief"])
+    user_prompt = _ensure_new_character_register_contract(user_prompt, values["new_character_register_contract"])
     user_prompt = _ensure_context_trace(user_prompt, values["context_trace_text"])
     sources = _sources(root, scene_path, context_path, context_trace_path, composition_path, style_profile_path, word_budget_path, review_notes_path)
     return PromptPack(
@@ -210,6 +219,7 @@ def write_prompt_manifest(pack: PromptPack, output: Path, provider: str, model: 
             "review_notes_loaded": pack.review_notes_path is not None,
             "review_notes_path": _rel(pack.review_notes_path, pack.project_root) if pack.review_notes_path else "",
             "anti_evasion": ANTI_EVASION_REVISION_PROTOCOL,
+            "new_character_register": render_new_character_register_contract(),
             "hard_constraints": pack.generation_constraint_brief,
             "context_trace_loaded": pack.context_trace_path.exists(),
         },
@@ -269,6 +279,12 @@ def _ensure_generation_constraint_brief(user_prompt: str, brief: str) -> str:
     if "## 生成前最终硬约束摘要" in user_prompt or "# 生成前最终硬约束摘要" in user_prompt:
         return user_prompt
     return user_prompt.rstrip() + "\n\n## 生成前最终硬约束摘要\n\n" + brief.strip() + "\n"
+
+
+def _ensure_new_character_register_contract(user_prompt: str, contract: str) -> str:
+    if "## 新角色登记契约" in user_prompt or "new_character_register" in user_prompt:
+        return user_prompt
+    return user_prompt.rstrip() + "\n\n## 新角色登记契约\n\n" + contract.strip() + "\n"
 
 
 def _ensure_context_trace(user_prompt: str, trace_text: str) -> str:

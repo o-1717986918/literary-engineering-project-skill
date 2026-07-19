@@ -358,11 +358,11 @@ workflow/route_state.json
 
 These files are persistent route state snapshots. For `scene-development`, they list each scene's current completed step, next action, sidecar completion marker status, word-budget contract status, review readiness, and state patch status.
 
-When auditing `scene-development`, `route-audit` checks every `scenes/*.yaml` independently. Each formal scene needs context, roleplay reading receipt, resolved RP tasks, branch manifest, formal `branch_selection.md`, ready composition, prose candidate, exact-candidate `scene_review.v1`, Style Lint clean/notes-only, promotion manifest, promoted draft, static `review-scene` clean pass, and `state-evolve` patch. A batch with one complete scene and many direct-written drafts is incomplete. If a revision candidate is used, `route-audit` also requires a clean anti-evasion revision manifest. For 100000+ word or multi-volume targets, `scene-development` and `export-and-release` audits also require the longform word-budget gate before bulk scene work.
+When auditing `scene-development`, `route-audit` checks every `scenes/*.yaml` independently. Each formal scene needs context, context trace, roleplay reading receipt, resolved RP tasks, branch manifest, formal `branch_selection.md`, ready composition, prose candidate, exact-candidate `scene_review.v1`, resolved `new_character_register`, Style Lint clean/notes-only, promotion manifest, promoted draft, static `review-scene` clean pass, and `state-evolve` patch. A batch with one complete scene and many direct-written drafts is incomplete. If a revision candidate is used, `route-audit` also requires a clean anti-evasion revision manifest. For 100000+ word or multi-volume targets, `scene-development` and `export-and-release` audits also require the longform word-budget gate before bulk scene work.
 
 When auditing `scene-development`, `route-audit` also checks mounted Style Skills. If `style/active_style_skill.json` exists, each scene requires a formal scene review JSON with `style_adherence.status` equal to clean `pass`; `pass_with_notes`, a missing review, `not_applicable`, or `revise_required` is a blocking gate until revised or explicitly waived in an internal manifest.
 
-When a promotion manifest exists, `route-audit` also checks whether the promoted candidate had a candidate-specific platform Agent scene review. The review must cite the exact candidate path in `source_paths`, `candidate`, or `reviewed_candidate`, pass `scene_review.v1`, and have no unresolved notes. Manifests that use debug waiver fields such as `allow_unreviewed`, `allow_review_notes`, `allow_unapproved`, or `include_blocked` are blocked for formal Skill-host routes.
+When a promotion manifest exists, `route-audit` also checks whether the promoted candidate had a candidate-specific platform Agent scene review. The review must cite the exact candidate path in `source_paths`, `candidate`, or `reviewed_candidate`, pass `scene_review.v1`, resolve `new_character_register`, and have no unresolved notes. Manifests that use debug waiver fields such as `allow_unreviewed`, `allow_review_notes`, `allow_unapproved`, or `include_blocked` are blocked for formal Skill-host routes.
 
 ## Local Creative Director Runs
 
@@ -593,7 +593,7 @@ drafts/candidates/{scene_id}-platform-agent.prompt.json
 drafts/candidates/{scene_id}-platform-agent.agent_tasks.md
 ```
 
-The prompt manifest records rendered messages, source files, and generation standards for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. The adjacent `.agent_tasks.md` is the execution program: the CLI writes the task, and the main platform agent reads it, applies the prompt manifest, and writes the expected candidate Markdown/JSON. Formal prompt manifests require a ready `compose-scene` composition with `selection_source=selection`, `ready_for_generation=true`, and `formal_cli_provenance.created_by=compose-scene`; missing, hand-written, or unselected composition blocks formal generation. Generated prose candidates require a platform-agent candidate manifest with prompt/task provenance before promotion. Generated prose candidates also require platform-agent review before promotion; run `agent-review-scene --draft <candidate>` or write an equivalent exact-candidate review, then read the generated sidecar and fill the expected `scene_review.v1` JSON/Markdown. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
+The prompt manifest records rendered messages, source files, and generation standards for the platform agent. It must not contain API keys, `[AGENT_TASK: ...]`, or overwrite canon. The adjacent `.agent_tasks.md` is the execution program: the CLI writes the task, and the main platform agent reads it, applies the prompt manifest, and writes the expected candidate Markdown/JSON. Formal prompt manifests require a ready `compose-scene` composition with `selection_source=selection`, `ready_for_generation=true`, and `formal_cli_provenance.created_by=compose-scene`; missing, hand-written, or unselected composition blocks formal generation. Generated prose candidates require a platform-agent candidate manifest with prompt/task provenance and `new_character_register` before promotion. Generated prose candidates also require platform-agent review before promotion; run `agent-review-scene --draft <candidate>` or write an equivalent exact-candidate review, then read the generated sidecar and fill the expected `scene_review.v1` JSON/Markdown, including `new_character_register`. Candidate prose must also follow `references/punctuation-standard.md` unless a deliberate exception is recorded.
 
 Generation standards include:
 
@@ -601,6 +601,7 @@ Generation standards include:
 - `word_budget`
 - `review_notes`
 - `anti_evasion`
+- `new_character_register`
 - `hard_constraints`
 
 Candidate manifests written by the platform agent must record `generated_by=platform-agent`, `prompt_manifest`, `source_paths`, `style_generation_standard_applied`, `word_budget_standard_applied`, `hard_constraints_applied`, `anti_evasion_protocol_applied`, and `pass_with_notes_actions_applied`. If these fields are missing, `promote-candidate` and `route-audit` treat the candidate as informal/debug material rather than formal prose.
@@ -751,7 +752,7 @@ Scene readiness values:
 - `needs_revision`
 - `blocked`
 
-`ready` requires a cleaned draft body, context packet, valid context trace, roleplay simulation with platform-agent reading receipt, resolved roleplay directives, valid branch manifest, formal `branch_selection.md`, ready scene composition, static review `pass`, formal platform Agent scene review JSON that cites the current draft path, `scene_review.v1` schema validation, clean AgentReview `conclusion=pass`, no unresolved `warnings` / `revision_actions` / `style_notes`, and, when a Style Skill is mounted, `style_adherence.status=pass`.
+`ready` requires a cleaned draft body, context packet, valid context trace, roleplay simulation with platform-agent reading receipt, resolved roleplay directives, valid branch manifest, formal `branch_selection.md`, ready scene composition, static review `pass`, formal platform Agent scene review JSON that cites the current draft path, `scene_review.v1` schema validation, clean AgentReview `conclusion=pass`, resolved `new_character_register`, no unresolved `warnings` / `revision_actions` / `style_notes`, and, when a Style Skill is mounted, `style_adherence.status=pass`.
 
 ## Longform Audit
 

@@ -975,7 +975,7 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "expected_outputs": [f"{review}.json", f"{review}.md", f"{review}.agent_tasks.md", f"{review}.agent_completion.json"],
             "hard_constraints": ["Review the exact candidate path; pass_with_notes, warnings, or revision actions block promotion."],
             "style_constraints": ["Handle deterministic Style Lint evidence and anti-evasion risks explicitly."],
-            "validation_gates": ["scene_review.v1 JSON exists", "review cites exact candidate", "review conclusion is clean pass"],
+            "validation_gates": ["scene_review.v1 JSON exists", "review cites exact candidate", "review conclusion is clean pass", "new_character_register is resolved"],
             "next_allowed_states": ["agent-review-task", "promotion-manifest"],
         },
         "agent-review-task": {

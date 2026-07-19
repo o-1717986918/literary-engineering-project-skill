@@ -11,6 +11,7 @@ from .agent_schema import validate_payload
 from .anti_ai_style import style_lint_gate, style_lint_gate_message
 from .context_broker import context_trace_status
 from .flow_gates import branch_selection_status
+from .new_character_register import new_character_register_issues
 from .word_budget import word_budget_adherence_for_body
 
 
@@ -74,6 +75,7 @@ def agent_review_gate_state(root: Path, json_path: Path, reviewed_path: Path) ->
         "style_adherence_status": "",
         "word_budget_adherence_status": "",
         "word_budget_narrative_load_satisfied": False,
+        "new_character_register_issues": [],
         "schema_errors": [],
     }
     if not json_path.exists():
@@ -95,6 +97,7 @@ def agent_review_gate_state(root: Path, json_path: Path, reviewed_path: Path) ->
     style_status = str(style.get("status") or "").strip().lower() if isinstance(style, dict) else ""
     budget = payload.get("word_budget_adherence") if isinstance(payload.get("word_budget_adherence"), dict) else {}
     budget_status = str(budget.get("status") or "").strip().lower() if isinstance(budget, dict) else ""
+    new_character_issues = new_character_register_issues(payload, root, mode="review")
     validation_status = "pass" if not errors else "failed"
     validation_rel = str(payload.get("schema_validation") or "").strip()
     if validation_rel:
@@ -118,6 +121,7 @@ def agent_review_gate_state(root: Path, json_path: Path, reviewed_path: Path) ->
             "style_adherence_status": style_status,
             "word_budget_adherence_status": budget_status,
             "word_budget_narrative_load_satisfied": budget.get("narrative_load_satisfied") is not False if isinstance(budget, dict) and budget_status else False,
+            "new_character_register_issues": new_character_issues,
             "schema_errors": errors,
         }
     )
@@ -145,6 +149,7 @@ def scene_readiness_status(
     agent_budget_status = str(agent_review_state.get("word_budget_adherence_status") or "").strip().lower()
     agent_budget_load = bool(agent_review_state.get("word_budget_narrative_load_satisfied"))
     unresolved = [str(item) for item in agent_review_state.get("unresolved_notes", [])]
+    new_character_issues = [str(item) for item in agent_review_state.get("new_character_register_issues", [])]
     source_match = bool(agent_review_state.get("source_match"))
     lint_gate = style_lint_gate(body)
     scene_id = _scene_id_from_draft(draft_path)
@@ -193,6 +198,7 @@ def scene_readiness_status(
         issues.append(f"word_budget_adherence.status is {agent_budget_status or 'missing'}")
     elif not agent_budget_load:
         issues.append("word_budget_adherence.narrative_load_satisfied is false or missing")
+    issues.extend(f"new_character_register: {item}" for item in new_character_issues)
 
     if issues:
         return "needs_revision", tuple(issues)

@@ -13,7 +13,8 @@ This repository is now a project-type skill for tool-layer agents such as Codex 
 7. `references/punctuation-standard.md` when generating, reviewing, revising, or exporting Chinese prose
 8. `docs/modules/prompt-registry.md` when adding, renaming, validating, or auditing prompt assets
 9. `docs/modules/context-broker.md` when changing context packets, trace gates, retrieval/context provenance, or scene-generation source inputs
-10. `references/orchestration.md` only for LangGraph, Dify, subagents, or external workflow design
+10. `docs/modules/new-character-register.md` when changing scene generation, AgentReview, character assets, state evolution, or route gates that may introduce new characters
+11. `references/orchestration.md` only for LangGraph, Dify, subagents, or external workflow design
 
 Do not read the entire repository by default. Follow the route map in `agentread.yaml`.
 
@@ -55,6 +56,7 @@ Every task must run through the protocol loop before it is considered complete:
 - `task-next`, `task-open`, `task-submit`, and `task-complete` are the Phase 84 CLI-mediated task loop for registered formal routes. The loop does not write creative content; it tells the platform agent what to do next, records submitted artifacts, validates expected outputs, and refreshes derived workflow state.
 - Prompt Registry is the Phase 85 prompt layer. `task-open` resolves the task `prompt_asset_id` through `templates/prompt_assets/*.md` and writes the matched Prompt Asset into the task package. Run `prompt-registry-validate` after adding routes or prompt ids; missing prompt assets are formal route defects.
 - Context Broker is the Phase 86 context proof layer. `context` writes both `memory/context_packets/{scene_id}.md` and `memory/context_packets/{scene_id}.trace.json`; downstream tasks, `workflow-state`, `route-audit`, chapter readiness, generation, and AgentReview must treat missing/invalid trace as blocking.
+- New Character Register is the v0.86.1 character-drift gate. Formal scene generation, revision, AgentReview, promotion, route-audit, state-evolve, chapter readiness, and export readiness must classify any newly introduced character. Ephemeral walk-ons require a waiver reason; persistent new characters require candidate asset review and user approval or promotion before clean pass.
 - Style engineering is platform-agent work: metrics and profiles are evidence, but the platform agent must write the LLM-facing `style_prompt.md`, satisfy the 500-2500 character quality contract, complete the style prompt sidecar, and obtain at least one accepted style evaluation before formal build/mount.
 - Formal non-deterministic commands write platform-agent task sidecars plus expected output paths. The platform agent reads those tasks, performs the creative/review judgment, writes the expected artifacts, applies schema/canon/style checks, and decides the next step.
 - `agent-review-scene` is a sidecar generator, not proof that an external model is required. Run it, read the generated task and its deterministic `Style Lint (auto-detected)` evidence, review the exact candidate yourself as platform agent, and write the expected scene review JSON/Markdown before promotion.

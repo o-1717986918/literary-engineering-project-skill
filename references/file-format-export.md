@@ -9,7 +9,7 @@ Use this reference when the user asks for final work delivery in `.docx` or anot
 - Keep Markdown exports as auditable source artifacts. DOCX files are delivery artifacts, not canon.
 - Do not write API keys, prompt manifests, `[AGENT_TASK: ...]`, draft review notes, or unapproved candidate metadata into final DOCX files unless the user explicitly requests an internal working copy.
 - Before exporting final Chinese prose, check `references/punctuation-standard.md`; DOCX output should not preserve accidental English punctuation in Chinese sentences, wrong ellipses, wrong dashes, or repeated exclamation/question marks.
-- Final delivery exports should not expose engineering identifiers or draft workbench sections such as `scene_0001`, `chapter_0001`, scene file paths, context packet paths, canon notes, workflow traces, review state, `## 状态变化`, `## 世界状态变化`, `### 人物状态变化`, or writeback candidates. Keep those in manifests and workbench files only.
+- Final delivery exports should not expose engineering identifiers or draft workbench sections such as `scene_0001`, `chapter_0001`, scene file paths, context packet paths, canon notes, workflow traces, review state, `## 状态变化`, `## 世界状态变化`, `## 新角色候选登记`, `### 人物状态变化`, or writeback candidates. Keep those in manifests and workbench files only.
 
 ## Migrated Office DOCX Rules
 

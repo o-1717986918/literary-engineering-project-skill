@@ -272,4 +272,6 @@
 
 `v0.86.0` 已实现 Context Broker / Context Trace。`context` 会同时生成 `memory/context_packets/{scene_id}.md` 与相邻 `*.trace.json`，trace 记录 scene、canon、character、style mount、word budget、检索摘要、排除文件和 missing required context。`task-next`、`workflow-state`、`route-audit`、`compose-scene`、`generate-scene`、`agent-review-scene`、`revise-scene`、chapter readiness 与 export readiness 均把缺失或无效 trace 作为 blocking gate，防止平台 Agent 只凭一份手写 context packet 继续正式写作。
 
+`v0.86.1` 已实现 New Character Register。正式正文候选和修订候选必须在 manifest 中声明是否引入新角色；AgentReview 必须审查 `new_character_register`。一次性路人需要 waiver reason；持久新角色必须进入 `characters/candidates/`，并完成候选审查、用户 approval 或 promotion 后才能 clean pass。`candidate_generation_gate`、`candidate_review_gate`、`scene_readiness`、`route-audit`、`state-evolve` 和正文清洗均已接入，防止新角色从正文旁路进入长篇人物库。
+
 下一步规划：Phase 87-90 将继续推进持续状态机增强、Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。

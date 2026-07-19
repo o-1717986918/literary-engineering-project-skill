@@ -797,10 +797,18 @@ def _write_candidate_review(project: Path, candidate: Path, *, conclusion: str) 
             "narrative_load_satisfied": True,
             "message": "test project does not require longform budget",
         },
+        "new_character_register": {
+            "schema": "literary-engineering-workbench/new-character-register/v0.1",
+            "status": "none",
+            "introduced": [],
+            "ephemeral_waivers": [],
+            "blocking_issues": [],
+        },
         "source_paths": [
             "scenes/scene_0001.yaml",
             rel_candidate,
             "memory/context_packets/scene_0001.md",
+            "memory/context_packets/scene_0001.trace.json",
         ],
         "agent_confidence": "platform-test",
         "next_gate": "promote_candidate",

@@ -119,6 +119,8 @@ Every formal CLI-backed route must follow `references/cli-run-protocol.md`. The 
 
 Context packets are formal only with their adjacent Context Trace. `context` must create both `memory/context_packets/{scene_id}.md` and `memory/context_packets/{scene_id}.trace.json`; the trace proves which project, scene, canon, character, plot, style, word-budget, and retrieval files were loaded. If the trace is missing, invalid, or reports missing required context, rerun/fix `context` before roleplay, branch, composition, generation, review, chapter readiness, or export.
 
+New characters are formal only through the New Character Register. If a scene introduces a person who is not already in `characters/*.yaml` or the scene participants/reference lists, the main platform agent must classify that figure in `new_character_register`. Ephemeral walk-ons need a waiver reason; named, recurring, plot-facing, clue-bearing, relationship-changing, or state-changing characters must enter `characters/candidates/`, pass candidate asset review, and obtain user approval or promotion before AgentReview can clean pass. Do not let prose silently create persistent characters.
+
 Before final response, explicitly account for the relevant completion gates: route selected, references read, reading receipt, project state inspected, task sidecars handled or listed as pending, schema/canon/character/style/punctuation/release checks applied when relevant, and approval boundaries recorded.
 
 ## Operating Rules

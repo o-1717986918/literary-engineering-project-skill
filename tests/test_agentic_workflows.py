@@ -36,6 +36,7 @@ class AgenticWorkflowTests(TempProjectMixin, unittest.TestCase):
         scene_payload = json.loads(scene_review.json_path.read_text(encoding="utf-8"))
         self.assertEqual(scene_payload["schema"], "literary-engineering-workbench/scene-review-agent/v1")
         self.assertIn(scene_payload["conclusion"], {"pass", "pass_with_notes", "revise_required", "reject"})
+        self.assertEqual(scene_payload["new_character_register"]["status"], "none")
 
     def test_agent_scene_review_injects_deterministic_ai_style_lint(self):
         project = self.make_project()
@@ -54,6 +55,7 @@ class AgenticWorkflowTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("Style Lint (auto-detected)", user_prompt)
         self.assertIn("mechanical-contrast-frame", user_prompt)
         self.assertIn("不判断为合理修辞", user_prompt)
+        self.assertIn("新角色登记契约", user_prompt)
         scene_payload = json.loads(scene_review.json_path.read_text(encoding="utf-8"))
         self.assertEqual(scene_payload["conclusion"], "revise_required")
         self.assertIn("Style lint: mechanical-contrast-frame", "\n".join(scene_payload["warnings"]))
@@ -78,6 +80,7 @@ class AgenticWorkflowTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("Style Lint (auto-detected)", task_text)
         self.assertIn("mechanical-contrast-frame", task_text)
         self.assertIn("不得仅用“整体可读”“属于合理修辞”带过", task_text)
+        self.assertIn("新角色登记门禁", task_text)
 
     def test_agent_patch_plan_and_committee(self):
         project = self.make_project()

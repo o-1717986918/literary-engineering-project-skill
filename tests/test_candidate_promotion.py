@@ -98,6 +98,35 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("Style Lint Gate", str(ctx.exception))
         self.assertIn("mechanical-contrast-frame", str(ctx.exception))
 
+    def test_promote_candidate_blocks_unresolved_new_character_register(self):
+        project = self.make_project()
+        _prepare_generation_ready(project)
+        candidate = generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, provider="dry-run")
+        write_formal_candidate_artifacts(project, candidate.candidate_path)
+        _write_candidate_review(
+            project,
+            candidate.candidate_path,
+            new_character_register={
+                "schema": "literary-engineering-workbench/new-character-register/v0.1",
+                "status": "needs_candidate",
+                "introduced": [
+                    {
+                        "name": "沈迟",
+                        "character_id": "shenchi",
+                        "scene_function": "掌握关键线索并将在后续复用",
+                        "persistence": "recurring",
+                    }
+                ],
+                "ephemeral_waivers": [],
+                "blocking_issues": ["persistent character has no candidate asset"],
+            },
+        )
+
+        with self.assertRaises(FlowGateError) as ctx:
+            promote_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), candidate=candidate.candidate_path)
+
+        self.assertIn("new_character_register", str(ctx.exception))
+
     def test_promotes_revision_candidate_body(self):
         project = self.make_project()
         _prepare_generation_ready(project)
@@ -167,7 +196,7 @@ def _select_branch(path: Path, branch_id: str):
     )
 
 
-def _write_candidate_review(project: Path, candidate: Path):
+def _write_candidate_review(project: Path, candidate: Path, *, new_character_register: dict | None = None):
     review_dir = project / "reviews" / "agent"
     review_dir.mkdir(parents=True, exist_ok=True)
     rel_candidate = candidate.resolve().relative_to(project.resolve()).as_posix()
@@ -198,10 +227,18 @@ def _write_candidate_review(project: Path, candidate: Path):
             "narrative_load_satisfied": True,
             "message": "test project does not require longform budget",
         },
+        "new_character_register": new_character_register or {
+            "schema": "literary-engineering-workbench/new-character-register/v0.1",
+            "status": "none",
+            "introduced": [],
+            "ephemeral_waivers": [],
+            "blocking_issues": [],
+        },
         "source_paths": [
             "scenes/scene_0001.yaml",
             rel_candidate,
             "memory/context_packets/scene_0001.md",
+            "memory/context_packets/scene_0001.trace.json",
         ],
         "agent_confidence": "platform-test",
         "next_gate": "promote_candidate",

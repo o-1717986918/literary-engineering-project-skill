@@ -74,6 +74,10 @@ def build_character_state_patch(
         "characters": patches,
         "unresolved_changes": unresolved,
         "source_changes": source_changes,
+        "new_character_policy": {
+            "status": "requires_platform_agent_check",
+            "rule": "持久新角色必须进入 characters/candidates/，不得通过 state patch 直接写入正式角色库。",
+        },
         "approval_required": [
             "确认每条人物状态变化是否由正文实际支撑。",
             "确认状态变化是否会影响 canon、人物弧光或后续场景输入。",
@@ -83,6 +87,7 @@ def build_character_state_patch(
             "本文件是候选 patch，不会自动修改 characters/*.yaml。",
             "人物重大转折必须人工确认后才能写回。",
             "关系变化、已知事实和弧光阶段不得绕过 canon-lint 与 review-scene。",
+            "正文中新出现的持久角色不得写入既有人物状态；必须进入 characters/candidates/ 并走资产审查、用户批准和晋升。",
         ],
     }
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -127,6 +132,10 @@ def _write_state_patch_agent_tasks(
             (
                 "审查人物一致性",
                 """对照人物 belief / desire / intention / fear / moral_line / background_story，判断状态变化、弧光变化和关系变化是否自然。特别检查 background_story 是否被误当作明示事实写入。""",
+            ),
+            (
+                "审查新角色边界",
+                """检查 source_artifact 是否引入 scene.yaml participants 和正式 characters/*.yaml 中没有的人物。一次性路人可在报告中说明豁免理由；有名字、会复用、推动线索/关系/主线的新角色，必须列入 unresolved_changes，并建议运行 agent-create-character 或 asset-create 生成候选角色资产。不得把新角色状态硬塞进现有人物 patch。""",
             ),
             (
                 "审查写回边界",

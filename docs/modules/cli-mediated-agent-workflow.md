@@ -128,6 +128,8 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 
 从 `v0.86.0` 起，`context` 会同时写出 Markdown context packet 和相邻的 `*.trace.json`。`task-next`、`workflow-state`、`route-audit`、`compose-scene`、`generate-scene`、`agent-review-scene`、`revise-scene`、chapter readiness 和 export readiness 都把缺失或无效 context trace 视为 blocking。平台 Agent 不能只凭一份看似完整的 context packet 继续写作；必须先确认 trace 证明本场景实际加载了 scene、canon、character、style、word-budget 和检索来源。
 
+从 `v0.86.1` 起，场景生成和审查任务会携带 New Character Register。平台 Agent 写候选正文或修订候选时，必须在 candidate manifest 中声明是否引入新角色；AgentReview 必须审查该 register。一次性路人可通过 waiver 保持本场景局部存在；持久新角色必须走 `characters/candidates/`、asset review、用户 approval 或 promotion。`route-audit` 会输出单独的新角色登记 gate。
+
 ## 4. Scene-development 样板状态
 
 第一版按 `workflow_state.py` 已有推导状态发任务。典型顺序：
@@ -395,6 +397,8 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
    - `v0.85.0` 已完成文件型 registry、CLI list/validate/preview、task-open 注入；后续可以为高风险任务补 exact prompt asset。
 2. Context Broker：让 `task-open` 输出稳定的 context trace。
    - `v0.86.0` 已完成 context packet / context trace 双产物、下游读取、route gate、workflow state 和生成/审查/revision 链路接入。
-3. Reader Experience Contract：让字数和章节义务进入 `task-open` 与 `task-complete`。
-4. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
-5. 扩展跨路线 dashboard：把七条正式路线的缺口压缩成用户可读的下一步队列。
+3. New Character Register：阻止持久新角色从正文旁路进入角色库。
+   - `v0.86.1` 已完成生成 manifest、AgentReview、promotion、readiness、route-audit 和 state-evolve 接入。
+4. Reader Experience Contract：让字数和章节义务进入 `task-open` 与 `task-complete`。
+5. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
+6. 扩展跨路线 dashboard：把七条正式路线的缺口压缩成用户可读的下一步队列。

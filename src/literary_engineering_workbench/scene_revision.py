@@ -14,6 +14,7 @@ from .anti_ai_style import ANTI_EVASION_REVISION_PROTOCOL, ANTI_EVASION_SHORT_RU
 from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 from .draft_text import count_delivery_chars, final_body_from_draft_text
+from .new_character_register import render_new_character_register_contract
 from .punctuation_standard import render_punctuation_standard_for_prompt
 from .word_budget import render_word_budget_generation_standard
 
@@ -191,7 +192,7 @@ def _write_revision_task(
             ),
             (
                 "生成修订候选",
-                f"""创建或覆盖 `{_rel(candidate, root)}`。必须包含 `## 修订正文候选`、`## 状态变化候选`、`## 需要人工确认`。正文必须执行 mounted style / style prompt、长篇字数预算、标准中文标点、降低 AI 腔约束、反规避协议和 review notes。不得输出工作流、自检表、prompt manifest、AGENT_TASK、canon 解释或 scene 编号。""",
+                f"""创建或覆盖 `{_rel(candidate, root)}`。必须包含 `## 修订正文候选`、`## 状态变化候选`、`## 新角色候选登记`、`## 需要人工确认`。正文必须执行 mounted style / style prompt、长篇字数预算、标准中文标点、降低 AI 腔约束、反规避协议、新角色登记契约和 review notes。不得输出工作流、自检表、prompt manifest、AGENT_TASK、canon 解释或 scene 编号。""",
             ),
             (
                 "写入修订报告",
@@ -199,7 +200,9 @@ def _write_revision_task(
             ),
             (
                 "写入修订 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema=`literary-engineering-workbench/scene-revision/v0.1`、scene_id、candidate、report、source_paths、revision_actions_applied、warnings_addressed、style_notes_addressed、style_adherence_addressed、anti_evasion_protocol_applied=true、anti_evasion_rows、retained_transition_proofs、evasion_risks_unresolved、waivers、ready_for_review=false、generated_by=`platform-agent`。""",
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema=`literary-engineering-workbench/scene-revision/v0.1`、scene_id、candidate、report、source_paths、revision_actions_applied、warnings_addressed、style_notes_addressed、style_adherence_addressed、anti_evasion_protocol_applied=true、anti_evasion_rows、retained_transition_proofs、evasion_risks_unresolved、new_character_register、waivers、ready_for_review=false、generated_by=`platform-agent`。
+
+{render_new_character_register_contract()}""",
             ),
         ],
     )

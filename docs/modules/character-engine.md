@@ -12,6 +12,16 @@
 
 角色推演时，Agent 只能根据人物处境和认知行动，不能为了剧情方便强行 OOC。
 
+## 新角色登记
+
+场景开发中出现的新人物不能直接写入正式人物库。先分类：
+
+- 已登记角色：存在于 `characters/*.yaml` 或当前 scene 的 participants/reference 列表。
+- 一次性路人：只服务本场景气氛、动作或空间调度，不复用、不掌握线索、不改变关系网。
+- 持久新角色：有名字、会复用、掌握线索、推动关系、改变世界状态或承担主线功能。
+
+一次性路人必须在 `new_character_register` 中写明 waiver reason。持久新角色必须先进入 `characters/candidates/`，完成 candidate asset review、用户 approval 或 promotion 后，AgentReview 才能 clean pass。不要把持久新角色混进 state patch 或直接追加到正式 `characters/*.yaml`。
+
 ## 背景故事使用规则
 
 `background_story` 维护角色过去经历如何塑造现在行为。它影响：

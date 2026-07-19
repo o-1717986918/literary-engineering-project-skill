@@ -79,3 +79,7 @@
 - `phase81-anti-evasion-agent-task-protocol.md`：反规避修订协议与生成任务程序强化
 - `phase82-formal-cli-provenance.md`：正式路线 CLI provenance 门禁
 - `phase83-sidecar-state-machine-word-budget-chain.md`：显式 sidecar 完成标记、workflow 状态机与字数预算写作链路
+- `phase84-cli-mediated-agent-workflow.md`：CLI 中介 Agent 工作流内核
+- `phase85-prompt-registry.md`：文件型 Prompt Registry
+- `phase86-context-broker.md`：Context Broker 与 Context Trace
+- `phase86-1-new-character-register.md`：新角色登记门禁

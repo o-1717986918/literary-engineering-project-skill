@@ -153,6 +153,8 @@ If formal CLI commands produce roleplay, branch, composition, generation, or sta
 
 When using `simulate-scene --agent`, fill the platform-agent execution gate first: list read scene/context packet/context trace/character/canon files, missing files, hard constraints, and writeback boundaries before treating RP notes as usable evidence.
 
+When a scene introduces a new person, classify it before promotion. Ephemeral walk-ons need a waiver reason in `new_character_register`; persistent new characters need a character candidate, asset review, user approval or promotion. Do not let prose silently create long-term cast members.
+
 ## Review Checklist
 
 Before treating any prose as ready:

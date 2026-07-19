@@ -136,10 +136,18 @@ def write_platform_scene_review(project_root: Path, scene_id: str = "scene_0001"
             "narrative_load_satisfied": True,
             "message": "test project does not require longform budget",
         },
+        "new_character_register": {
+            "schema": "literary-engineering-workbench/new-character-register/v0.1",
+            "status": "none",
+            "introduced": [],
+            "ephemeral_waivers": [],
+            "blocking_issues": [],
+        },
         "source_paths": [
             f"scenes/{scene_id}.yaml",
             f"drafts/scenes/{scene_id}.md",
             f"memory/context_packets/{scene_id}.md",
+            f"memory/context_packets/{scene_id}.trace.json",
         ],
         "agent_confidence": "platform-test",
         "next_gate": "chapter_workspace",
@@ -171,6 +179,7 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
                 "model": "tool-layer-agent",
                 "scene": f"scenes/{scene_id}.yaml",
                 "context": f"memory/context_packets/{scene_id}.md",
+                "context_trace": f"memory/context_packets/{scene_id}.trace.json",
                 "composition": f"drafts/compositions/{scene_id}_composition.md",
                 "generation_standards": {
                     "style": "test style standard",
@@ -196,6 +205,7 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
             "source_paths": [
                 f"scenes/{scene_id}.yaml",
                 f"memory/context_packets/{scene_id}.md",
+                f"memory/context_packets/{scene_id}.trace.json",
                 f"reviews/agent/{scene_id}_scene_review.json",
             ],
             "generated_by": "platform-agent",
@@ -203,6 +213,13 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
             "anti_evasion_rows": [],
             "retained_transition_proofs": [],
             "evasion_risks_unresolved": [],
+            "new_character_register": {
+                "schema": "literary-engineering-workbench/new-character-register/v0.1",
+                "status": "none",
+                "introduced": [],
+                "ephemeral_waivers": [],
+                "blocking_issues": [],
+            },
         }
     else:
         payload = {
@@ -213,6 +230,7 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
             "source_paths": [
                 f"scenes/{scene_id}.yaml",
                 f"memory/context_packets/{scene_id}.md",
+                f"memory/context_packets/{scene_id}.trace.json",
                 f"drafts/compositions/{scene_id}_composition.md",
                 prompt_manifest.resolve().relative_to(project_root.resolve()).as_posix(),
             ],
@@ -226,6 +244,13 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
             "hard_constraints_applied": True,
             "anti_evasion_protocol_applied": True,
             "pass_with_notes_actions_applied": False,
+            "new_character_register": {
+                "schema": "literary-engineering-workbench/new-character-register/v0.1",
+                "status": "none",
+                "introduced": [],
+                "ephemeral_waivers": [],
+                "blocking_issues": [],
+            },
         }
     manifest.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     task.write_text(
@@ -235,6 +260,7 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
 
 - `scenes/{scene_id}.yaml`
 - `memory/context_packets/{scene_id}.md`
+- `memory/context_packets/{scene_id}.trace.json`
 
 ## Tasks
 

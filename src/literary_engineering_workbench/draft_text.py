@@ -8,7 +8,8 @@ from pathlib import Path
 INTERNAL_HEADING_RE = re.compile(
     r"(?im)^\s{0,3}#{1,6}\s*(状态变化|状态变化候选|世界状态变化|角色状态变化|场景状态变化|世界线变化|"
     r"写回|写回清单|写回候选|写回候选汇总|状态写回|自检|创作说明|工作流程|"
-    r"审查|审查状态|canon|Canon|上下文|提示词|Prompt|需要人工确认|新增事实候选|人物状态变化|关系变化|伏笔变化)\b.*$"
+    r"审查|审查状态|canon|Canon|上下文|提示词|Prompt|需要人工确认|新增事实候选|人物状态变化|关系变化|伏笔变化|"
+    r"新角色|新角色候选|新角色候选登记)\b.*$"
 )
 PROSE_SECTION_RE = re.compile(r"(?ms)^##\s*(正文草稿|正文候选|修订正文候选)\s*\n(.*?)(?=^##\s+|\Z)")
 INTERNAL_SCENE_ID_RE = re.compile(r"\bscene[_-]?\d{1,6}\b", re.IGNORECASE)
@@ -26,7 +27,7 @@ INTERNAL_SCENE_META_RE = re.compile(
 INTERNAL_STATE_META_RE = re.compile(
     r"^\s{0,3}(?:#{1,6}\s*)?(?:[-*]\s*)?"
     r"(?:状态变化|状态变化候选|世界状态变化|角色状态变化|场景状态变化|世界线变化|"
-    r"新增事实候选|人物状态变化|关系变化|伏笔变化|写回候选|需要人工确认)\s*[:：]",
+    r"新增事实候选|人物状态变化|关系变化|伏笔变化|新角色候选|新角色候选登记|写回候选|需要人工确认)\s*[:：]",
     re.IGNORECASE,
 )
 
@@ -69,7 +70,7 @@ def clean_final_body(text: str) -> str:
             continue
         if re.search(
             r"(canon|Canon|workflow|prompt manifest|AGENT_TASK|上下文包|写回候选|新增事实候选|人物状态变化|"
-            r"世界状态变化|角色状态变化|场景状态变化|世界线变化|需要人工确认)",
+            r"世界状态变化|角色状态变化|场景状态变化|世界线变化|新角色候选|新角色候选登记|需要人工确认)",
             line,
         ):
             continue

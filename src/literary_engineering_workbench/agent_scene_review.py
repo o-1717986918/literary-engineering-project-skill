@@ -12,6 +12,7 @@ from .agent_provider import run_agent_task
 from .agent_schema import validate_agent_run
 from .context_broker import default_context_trace_path
 from .draft_text import final_body_from_workbench_text
+from .new_character_register import empty_new_character_register, render_new_character_register_contract
 from .word_budget import word_budget_adherence_for_body
 
 
@@ -97,7 +98,7 @@ def review_scene_with_agent(
 def _system_prompt() -> str:
     return """You are a literary engineering scene review agent.
 
-Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, mounted style adherence, punctuation rhythm, deterministic Style Lint evidence, anti-evasion revision integrity, cleaned-body word-budget adherence, and revision actions. Output JSON only using schema scene_review.v1, including structured style_adherence, word_budget_adherence, and revision_integrity objects."""
+Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, mounted style adherence, punctuation rhythm, deterministic Style Lint evidence, anti-evasion revision integrity, cleaned-body word-budget adherence, new character registration, and revision actions. Output JSON only using schema scene_review.v1, including structured style_adherence, word_budget_adherence, new_character_register, and revision_integrity objects."""
 
 
 def _user_prompt(
@@ -157,6 +158,10 @@ def _user_prompt(
 ```markdown
 {style_text[:5000] or "Style prompt/profile missing."}
 ```
+
+## New Character Register Contract
+
+{render_new_character_register_contract()}
 """
 
 
@@ -212,6 +217,7 @@ def _dry_scene_review(scene_id: str, draft_text: str, source_paths: list[str], w
             **word_budget_adherence,
             "narrative_load_satisfied": budget_status in {"pass", "not_required"},
         },
+        "new_character_register": empty_new_character_register(),
         "revision_integrity": {
             "anti_evasion_checked": True,
             "evasion_risks": [f"{issue.rule}: {issue.sample}" for issue in blocking_lint if issue.rule in {"mechanical-contrast-frame", "contrast-evasion-frame"}],

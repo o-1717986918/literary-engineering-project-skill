@@ -14,6 +14,7 @@ from .anti_ai_style import ANTI_EVASION_SHORT_RULE
 from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 from .model_config import MODEL_PROVIDER_CHOICES, get_model_settings, resolve_model_provider
+from .new_character_register import empty_new_character_register, render_new_character_register_contract
 from .prompt_pack import build_scene_prompt_pack, write_prompt_manifest
 
 
@@ -90,6 +91,12 @@ class DryRunProvider:
 ### 需要人工确认
 
 - dry-run 未产生可确认为 canon 的新事实。
+
+## 新角色候选登记
+
+- status: none
+- introduced: []
+- note: dry-run 未引入新角色；真实生成时必须写入 new_character_register。
 """
 
 
@@ -208,6 +215,7 @@ def generate_scene_candidate(
         "generated_at": _now(),
         "generated_chars": len(rendered),
         "prompt_sources": prompt_pack.sources,
+        "new_character_register": empty_new_character_register(),
         "request": {
             key: str(value) if isinstance(value, Path) else value
             for key, value in asdict(request).items()
@@ -257,6 +265,7 @@ def _write_generation_agent_tasks(
         sources.append(composition_path)
     if style_profile_path:
         sources.append(style_profile_path)
+    new_character_contract = render_new_character_register_contract()
     return write_agent_tasks(
         default_agent_tasks_path(candidate_path),
         title=f"generate-scene {scene_path.stem}",
@@ -269,7 +278,7 @@ def _write_generation_agent_tasks(
         tasks=[
             (
                 "审查 prompt manifest",
-                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、generation_standards.style、generation_standards.word_budget、generation_standards.review_notes、generation_standards.anti_evasion、generation_standards.hard_constraints、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill、文风生成标准、长篇字数预算标准、AgentReview 小修约束、反规避协议、生成前最终硬约束摘要或用户约束。""",
+                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、generation_standards.style、generation_standards.word_budget、generation_standards.review_notes、generation_standards.anti_evasion、generation_standards.hard_constraints、generation_standards.new_character_register、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill、文风生成标准、长篇字数预算标准、新角色登记契约、AgentReview 小修约束、反规避协议、生成前最终硬约束摘要或用户约束。""",
             ),
             (
                 "审查反规避执行",
@@ -293,7 +302,13 @@ def _write_generation_agent_tasks(
             ),
             (
                 "审查候选正文",
-                """读取候选正文，判断它是否服从 prompt manifest、scene.yaml、context packet、context trace、composition 和 style prompt。标出人物 OOC、canon 冲突、background_story 直白化、风格偏离和不确定新增事实。若 trace 缺失或显示必需上下文未加载，不得建议进入 promote。""",
+                """读取候选正文，判断它是否服从 prompt manifest、scene.yaml、context packet、context trace、composition 和 style prompt。标出人物 OOC、canon 冲突、background_story 直白化、风格偏离、不确定新增事实，以及正文中新出现但未在 scene.yaml 或正式 characters 中登记的人物。若 trace 缺失或显示必需上下文未加载，不得建议进入 promote。""",
+            ),
+            (
+                "执行新角色登记门禁",
+                f"""{new_character_contract}
+
+检查候选 Markdown 的 `## 新角色候选登记` 和候选 manifest 的 `new_character_register`。若正文没有新角色，manifest 写 `status=none`；若只有一次性路人，写 `status=ephemeral_only` 并给出 waiver_reason；若出现命名、可复用、掌握线索、推动关系或改变世界状态的新角色，必须进入 candidate asset、review、approval/promotion 链路。未解决时不得建议 promote。""",
             ),
             (
                 "决定下一步",
@@ -301,7 +316,7 @@ def _write_generation_agent_tasks(
             ),
             (
                 "整理写回风险",
-                """从候选中的状态变化候选区域提取新增事实、人物状态、关系和伏笔变化，标记哪些需要后续 state-evolve、canon-lint 或用户批准。""",
+                """从候选中的状态变化候选区域和 new_character_register 提取新增事实、人物状态、关系、伏笔变化和新角色候选，标记哪些需要后续 state-evolve、asset-create、review-candidate-asset、canon-lint 或用户批准。""",
             ),
         ],
     )

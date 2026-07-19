@@ -15,6 +15,7 @@ from .context_broker import context_trace_status
 from .flow_gates import branch_selection_status
 from .anti_ai_style import style_lint_gate_message
 from .agent_schema import validate_payload
+from .new_character_register import new_character_register_issues
 from .word_budget import scene_word_budget_contract
 
 
@@ -949,6 +950,7 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
     )
     review_payload = _read_json(review_json)
     review_budget_status = _word_budget_adherence_status(review_payload)
+    new_character_issues = new_character_register_issues(review_payload, root, mode="review") if review_payload else ["new_character_register is missing"]
     _add_gate(
         gates,
         f"{scene_id}:agent-review-word-budget",
@@ -956,6 +958,14 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         "blocking",
         f"{scene_id} AgentReview word budget gate passed",
         f"{scene_id} 的 AgentReview 缺少 clean pass 的 word_budget_adherence；当前状态：{review_budget_status or 'missing'}。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:agent-review-new-character-register",
+        not new_character_issues,
+        "blocking",
+        f"{scene_id} AgentReview new-character register is resolved",
+        f"{scene_id} 的 AgentReview 新角色登记未解决：{'; '.join(new_character_issues)}。",
     )
     revision_manifest = _revision_manifest_path(root, scene_id, candidate_path)
     if candidate_path is not None and _is_revision_candidate(root, candidate_path):

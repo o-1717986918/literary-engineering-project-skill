@@ -100,6 +100,8 @@ Character files include `background_story`. Use it as an internal cause of behav
 
 For long projects, keep each character in a separate `characters/{character_id}.yaml` file and set `importance`. Major characters are loaded into most scene context packets; secondary/cameo characters are loaded only when the scene includes them in `participants`, `referenced_characters`, or `character_refs`. Scene files should therefore list every on-page participant and any off-page character whose memory, threat, relationship, or background pressure materially affects the scene.
 
+When a scene introduces a person who is not in `characters/*.yaml` or the scene participant/reference lists, treat it as a New Character Register event. Ephemeral walk-ons may remain local to the scene only if AgentReview records `new_character_register.status=ephemeral_only` with a waiver reason. Named, recurring, clue-bearing, relationship-changing, plot-facing, or state-changing figures are persistent new characters: create a candidate with `agent-create-character` or `asset-create --asset-type character`, review it with `review-candidate-asset`, obtain user approval, and promote it before AgentReview can clean pass. Do not add persistent new characters directly to `characters/*.yaml`, and do not hide them as vague extras if they carry future story function.
+
 ## Import Existing Works For Continuation Or Rewrite
 
 Use this when the user provides an existing text, old draft, complete work, script, or pseudo-record source and wants the project to continue, rewrite, adapt, or analyze it.

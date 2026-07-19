@@ -78,11 +78,15 @@ class GenerationProviderTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("生成前文风标准", tasks)
         self.assertIn("generation_standards.style", tasks)
         self.assertIn("generation_standards.hard_constraints", tasks)
+        self.assertIn("new_character_register", tasks)
         self.assertIn("reading receipt", tasks)
         self.assertIn("punctuation-standard.md", tasks)
         self.assertIn("标准中文标点", tasks)
         self.assertNotIn("[AGENT_TASK:", result.prompt_manifest_path.read_text(encoding="utf-8"))
         self.assertNotIn("[AGENT_TASK:", result.manifest_path.read_text(encoding="utf-8"))
+        prompt_manifest = json.loads(result.prompt_manifest_path.read_text(encoding="utf-8"))
+        self.assertIn("new_character_register", prompt_manifest["generation_standards"])
+        self.assertIn("新角色登记契约", prompt_manifest["messages"][1]["content"])
 
     def test_prompt_pack_injects_pass_with_notes_revision_constraints(self):
         project = self.make_project()

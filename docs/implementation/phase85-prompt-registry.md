@@ -61,7 +61,7 @@ python -m literary_engineering_workbench prompt-preview route.scene-development.
 6. `route.review-audit.*.v1`
 7. `route.export-release.*.v1`
 
-验证时覆盖 `task_registry.py` 中 56 个 prompt id。后续可以为高风险任务增加 exact asset，例如正文生成、AgentReview、revision、style prompt execute。
+验证时覆盖 `task_registry.py` 中的全部 prompt id。后续可以为高风险任务增加 exact asset，例如正文生成、AgentReview、revision、style prompt execute。
 
 ## 测试
 
