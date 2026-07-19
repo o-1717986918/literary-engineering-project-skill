@@ -75,7 +75,7 @@ def prose_body_for_display(text: str, *, limit: int = 5000) -> str:
     body = final_body_from_workbench_text(text)
     if not body:
         body = markdown_to_display_text(text, limit=limit)
-    return truncate_text(body, limit)
+    return markdown_to_display_text(body, limit=limit)
 
 
 def summarize_text(text: str, *, limit: int = 180) -> str:
@@ -139,4 +139,3 @@ def display_counts(text: str, *, target: int = 0) -> dict[str, object]:
         "machine_nonspace_chars": count_nonspace_chars(text),
         "target_chinese_content_chars": max(0, int(target or 0)),
     }
-

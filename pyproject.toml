@@ -1,6 +1,6 @@
 [project]
 name = "literary-engineering-project-skill"
-version = "0.91.0"
+version = "0.92.0"
 description = "Project-type skill and optional toolkit for tool-layer agents managing long-form fictional literature projects."
 requires-python = ">=3.10"
 dependencies = []

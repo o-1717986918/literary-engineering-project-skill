@@ -91,3 +91,4 @@
 - `phase90-1-frontend-humanized-console.md`：中文化、人性化总控前端与冗余模块收束
 - `phase90-2-packaged-json-evidence.md`：JSON 证据包装展示与模型配置降级为连接设置
 - `phase91-93-frontend-cli-structured-interaction.md`：作品档案、前端安全标注与人类选择证据层
+- `phase94-dashboard-completed-prose.md`：项目总控已完成正文主模块

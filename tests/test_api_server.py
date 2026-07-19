@@ -110,6 +110,12 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         prepare_formal_scene_flow(project)
         selection = project / "branches" / "scene_0001" / "branch_selection.md"
         selection.unlink()
+        export_dir = project / "exports" / "chapter_0001"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        (export_dir / "chapter_0001_novel.md").write_text(
+            "# 第一章\n\n林舟把已经完成的章节正文放在桌上。\n\n## 工作流程\n\n- scene_0001 已处理。",
+            encoding="utf-8",
+        )
         app = create_app(allowed_roots=[project.parent])
         client = TestClient(app)
 
@@ -124,6 +130,14 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         self.assertNotIn("scene_id", draft_body)
         self.assertNotIn("状态变化候选", draft_body)
         self.assertIn("林舟", draft_body)
+        completed = payload["completed_prose"]
+        self.assertEqual(completed["status"], "available")
+        self.assertGreaterEqual(completed["count"], 1)
+        self.assertGreater(completed["total_chinese_content_chars"], 0)
+        self.assertEqual(completed["items"][0]["status"], "exported")
+        self.assertIn("林舟", completed["items"][0]["body"])
+        self.assertNotIn("#", completed["items"][0]["body"])
+        self.assertNotIn("scene_0001", completed["items"][0]["body"])
 
         item = client.get(
             "/project/library/item",
@@ -238,6 +252,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertIn("作品档案", ui.text)
                 self.assertIn("文风挂载", ui.text)
                 self.assertIn("连接设置", ui.text)
+                self.assertIn("已完成正文", ui.text)
                 self.assertIn("这里不会裸露原始 JSON", ui.text)
                 self.assertIn("项目证据柜", ui.text)
                 self.assertIn("需要你决定的节点", ui.text)
@@ -259,6 +274,8 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertIn("/workflow/human-choice", script.text)
                 self.assertIn("/project/display-field", script.text)
                 self.assertIn("/project/ui-note", script.text)
+                self.assertIn("renderDashboardProse", script.text)
+                self.assertIn("openLibraryDrafts", script.text)
                 self.assertIn("/style-lab/mounts", script.text)
                 self.assertIn("/style-lab/library", script.text)
                 self.assertIn("/style-lab/mount", script.text)

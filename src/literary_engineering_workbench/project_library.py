@@ -33,8 +33,9 @@ def build_project_library(project_root: Path) -> dict[str, object]:
     if not root.exists():
         raise FileNotFoundError(f"project root not found: {root}")
     overrides = _load_overrides(root)
+    drafts = _draft_items(root, overrides)
     sections = {
-        "drafts": _draft_items(root, overrides),
+        "drafts": drafts,
         "characters": _character_items(root, overrides),
         "world": _world_items(root, overrides),
         "scenes": _scene_items(root, overrides),
@@ -52,6 +53,7 @@ def build_project_library(project_root: Path) -> dict[str, object]:
         "project": project,
         "counts": counts,
         "sections": sections,
+        "completed_prose": _completed_prose_summary(drafts),
         "recent_human_choices": read_jsonl_tail(root / "workflow" / "human_choices" / "index.jsonl", 8),
         "recent_user_notes": read_jsonl_tail(root / "workflow" / "user_notes" / "index.jsonl", 8),
         "rules": [
@@ -109,31 +111,78 @@ def _draft_items(root: Path, overrides: dict[str, object]) -> list[dict[str, obj
         if not folder.exists():
             continue
         for path in sorted(folder.glob("*.md"))[:200]:
-            text = _read_text(path)
-            body = prose_body_for_display(text, limit=7000)
-            scene_id = _scene_id_from_draft(path)
-            target = _scene_target(root, scene_id)
-            title = _first_heading(text) or _display_scene_name(scene_id)
-            counts = display_counts(body, target=target)
-            item = {
-                "kind": "drafts",
-                "id": f"{status}__{path.stem}",
-                "title": title,
-                "subtitle": label,
-                "path": _rel(path, root),
-                "status": status,
-                "badges": [label, f"{counts['chinese_content_chars']} 字"],
-                "excerpt": summarize_text(body, limit=220) or "正文为空或只有工程说明。",
-                "body": body,
-                "metrics": counts,
-                "facts": [
-                    {"label": "正文口径", "value": "已过滤工程痕迹"},
-                    {"label": "目标字数", "value": target or "未设置"},
-                    {"label": "机器字符", "value": counts["machine_nonspace_chars"]},
-                ],
-            }
-            items.append(_apply_overrides(item, overrides))
+            items.append(_draft_item_from_path(root, overrides, path, status=status, label=label))
+    for folder, status, label in [
+        (root / "exports", "exported", "正式导出正文"),
+        (root / "releases", "published", "正式发布正文"),
+    ]:
+        if not folder.exists():
+            continue
+        paths = sorted(folder.glob("**/*_novel.md"), key=lambda path: path.stat().st_mtime, reverse=True)
+        for path in paths[:80]:
+            item_id = f"{status}__{_safe_item_id(path, root)}"
+            items.append(_draft_item_from_path(root, overrides, path, status=status, label=label, item_id=item_id))
     return items
+
+
+def _draft_item_from_path(
+    root: Path,
+    overrides: dict[str, object],
+    path: Path,
+    *,
+    status: str,
+    label: str,
+    item_id: str = "",
+) -> dict[str, object]:
+    text = _read_text(path)
+    body = prose_body_for_display(text, limit=9000)
+    scene_id = _scene_id_from_draft(path)
+    target = _scene_target(root, scene_id)
+    title = _first_heading(text) or _display_scene_name(scene_id)
+    counts = display_counts(body, target=target)
+    item = {
+        "kind": "drafts",
+        "id": item_id or f"{status}__{path.stem}",
+        "title": title,
+        "subtitle": label,
+        "path": _rel(path, root),
+        "status": status,
+        "badges": [label, f"{counts['chinese_content_chars']} 字"],
+        "excerpt": summarize_text(body, limit=220) or "正文为空或只有工程说明。",
+        "body": body,
+        "metrics": counts,
+        "facts": [
+            {"label": "正文口径", "value": "已过滤工程痕迹"},
+            {"label": "完成类型", "value": label},
+            {"label": "目标字数", "value": target or "未设置"},
+            {"label": "机器字符", "value": counts["machine_nonspace_chars"]},
+        ],
+    }
+    return _apply_overrides(item, overrides)
+
+
+def _completed_prose_summary(draft_items: list[dict[str, object]]) -> dict[str, object]:
+    completed_statuses = {"promoted", "chapter", "exported", "published"}
+    priority = {"published": 0, "exported": 1, "chapter": 2, "promoted": 3}
+    items = [
+        item
+        for item in draft_items
+        if str(item.get("status") or "") in completed_statuses and (item.get("body") or item.get("excerpt"))
+    ]
+    items.sort(key=lambda item: (priority.get(str(item.get("status") or ""), 9), str(item.get("path") or "")))
+    promoted_items = [item for item in items if item.get("status") == "promoted"]
+    total_source = promoted_items or items
+    total_chinese = sum(_metric_int(item, "chinese_content_chars") for item in total_source)
+    total_machine = sum(_metric_int(item, "machine_nonspace_chars") for item in total_source)
+    return {
+        "status": "available" if items else "empty",
+        "title": "已完成正文",
+        "count": len(items),
+        "total_chinese_content_chars": total_chinese,
+        "total_machine_nonspace_chars": total_machine,
+        "items": items[:12],
+        "source_note": "优先展示已发布/已导出正文；没有发布包时展示已晋升场景正文。",
+    }
 
 
 def _character_items(root: Path, overrides: dict[str, object]) -> list[dict[str, object]]:
@@ -525,6 +574,15 @@ def _review_status(path: Path, text: str) -> str:
     if "revise" in lowered or "修订" in text:
         return "revise"
     return "review"
+
+
+def _metric_int(item: dict[str, object], key: str) -> int:
+    metrics = item.get("metrics") if isinstance(item.get("metrics"), dict) else {}
+    value = metrics.get(key) if isinstance(metrics, dict) else 0
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _safe_item_id(path: Path, root: Path) -> str:

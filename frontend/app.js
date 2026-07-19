@@ -163,12 +163,16 @@ async function loadDashboard() {
   if (!root) throw new Error("请先填写当前项目目录。");
   setSharedProjectRoot(root);
   $("#dashboardStatus").textContent = "正在刷新";
-  const result = await api(`/workflow/dashboard?project_root=${encodeURIComponent(root)}`);
-  renderDashboard(result);
+  const [result, library] = await Promise.all([
+    api(`/workflow/dashboard?project_root=${encodeURIComponent(root)}`),
+    api(`/project/library?project_root=${encodeURIComponent(root)}`).catch((error) => ({ ok: false, error: error.message || String(error) })),
+  ]);
+  if (library.ok !== false) librarySnapshot = library;
+  renderDashboard(result, library);
   return result;
 }
 
-function renderDashboard(result) {
+function renderDashboard(result, library = null) {
   const dashboard = result.dashboard || {};
   const summary = result.summary || dashboard.summary || {};
   const actions = result.next_actions || [];
@@ -211,7 +215,69 @@ function renderDashboard(result) {
   $("#dashboardEvents").classList.toggle("empty", !events.length);
   $("#dashboardEvents").innerHTML = events.length ? events.slice(-10).reverse().map(renderEvent).join("") : "暂无事件记录。";
 
+  renderDashboardProse(library);
   renderDashboardEvidence(result, { dashboard, summary, actions, routes, events });
+}
+
+function renderDashboardProse(library) {
+  const target = $("#dashboardProse");
+  if (!target) return;
+  if (!library) {
+    target.className = "completed-prose empty";
+    target.innerHTML = "正在等待作品档案数据。";
+    return;
+  }
+  if (library.ok === false) {
+    target.className = "completed-prose empty";
+    target.innerHTML = `作品正文暂时没有读到：${escapeHtml(library.error || "未知错误")}`;
+    return;
+  }
+  const completed = library.completed_prose || {};
+  const items = Array.isArray(completed.items) ? completed.items : [];
+  if (!items.length) {
+    target.className = "completed-prose empty";
+    target.innerHTML = `
+      <article class="completed-empty">
+        <b>还没有已完成正文</b>
+        <p>等候选稿通过正式审查并晋升，或章节导出/发布后，这里会自动出现正文预览。</p>
+      </article>
+    `;
+    return;
+  }
+  const primary = items[0];
+  const others = items.slice(1, 4);
+  const metrics = primary.metrics || {};
+  target.className = "completed-prose";
+  target.innerHTML = `
+    <article class="completed-main">
+      <div class="completed-cover">
+        <span>正文</span>
+        <b>${escapeHtml(metrics.chinese_content_chars || 0)}</b>
+        <small>中文内容字数</small>
+      </div>
+      <div class="completed-reader">
+        <div class="completed-kicker">${escapeHtml(primary.subtitle || "已完成正文")}</div>
+        <h3>${escapeHtml(primary.title || "未命名正文")}</h3>
+        <div class="completed-meta">
+          ${renderBadges(primary.badges || [])}
+          <span>${escapeHtml(shortPath(primary.path || ""))}</span>
+        </div>
+        <div class="completed-preview">${renderBodyPreview(primary.body || primary.excerpt || "")}</div>
+        <button type="button" class="open-library-drafts">查看全部正文</button>
+      </div>
+    </article>
+    ${others.length ? `
+      <div class="completed-strip">
+        ${others.map((item) => `
+          <button type="button" class="completed-mini" data-prose-id="${escapeHtml(item.id)}">
+            <span>${escapeHtml(item.subtitle || "正文")}</span>
+            <b>${escapeHtml(item.title || item.id)}</b>
+            <small>${escapeHtml((item.metrics || {}).chinese_content_chars || 0)} 字</small>
+          </button>
+        `).join("")}
+      </div>
+    ` : ""}
+  `;
 }
 
 function renderDashboardEvidence(result, { dashboard, summary, actions, routes, events }) {
@@ -485,6 +551,15 @@ function renderBody(text) {
     .slice(0, 30)
     .map((part) => `<p>${escapeHtml(part.trim()).replace(/\n/g, "<br />")}</p>`)
     .join("");
+}
+
+function renderBodyPreview(text) {
+  return String(text || "")
+    .split(/\n{2,}/)
+    .filter((part) => part.trim())
+    .slice(0, 5)
+    .map((part) => `<p>${escapeHtml(part.trim()).replace(/\n/g, "<br />")}</p>`)
+    .join("") || "<p>正文为空或只有工程说明。</p>";
 }
 
 async function loadChoices(root = "") {
@@ -779,13 +854,22 @@ function toast(message) {
   $("#dashboardStatus").textContent = message;
 }
 
+function activateView(view) {
+  $$(".nav button").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
+  $$(".view").forEach((item) => item.classList.toggle("active", item.id === `view-${view}`));
+}
+
+async function openLibraryDrafts() {
+  activeLibraryKind = "drafts";
+  if ($("#libraryForm")) $("#libraryForm").section.value = "drafts";
+  activateView("library");
+  await loadLibrary();
+}
+
 function bind() {
   $$(".nav button").forEach((button) => {
     button.addEventListener("click", () => {
-      $$(".nav button").forEach((item) => item.classList.remove("active"));
-      $$(".view").forEach((item) => item.classList.remove("active"));
-      button.classList.add("active");
-      $(`#view-${button.dataset.view}`).classList.add("active");
+      activateView(button.dataset.view);
       if (button.dataset.view === "dashboard" && sharedProjectRoot()) guarded(loadDashboard);
       if (button.dataset.view === "library" && sharedProjectRoot()) guarded(loadLibrary);
       if (button.dataset.view === "style" && sharedProjectRoot()) guarded(loadStyleStatus);
@@ -793,6 +877,11 @@ function bind() {
   });
   $("#refreshDashboard").addEventListener("click", () => guarded(loadDashboard));
   $("#toggleDashboardPoll").addEventListener("click", () => toggleDashboardPoll());
+  $("#dashboardProse").addEventListener("click", (event) => {
+    if (event.target.closest(".open-library-drafts") || event.target.closest(".completed-mini")) {
+      guarded(openLibraryDrafts);
+    }
+  });
   $("#refreshLibrary").addEventListener("click", () => guarded(loadLibrary));
   $("#toggleLibraryPoll").addEventListener("click", () => toggleLibraryPoll());
   $("#libraryForm").section.addEventListener("change", (event) => {
