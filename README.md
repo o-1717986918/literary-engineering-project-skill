@@ -152,6 +152,8 @@ context packet
 
 `v0.89.1` 起，计数口径进一步硬化：文风提示词 500-2500 门禁按中文内容字符计算，正式长篇预算也只用清洗后中文内容字符 pass/fail；机器非空白字符进入 `machine_count_mapping`、`draft_machine_chars`、`baseline_machine_chars_1_to_1_range` 和 `rough_expected_machine_chars_range`，用于前端显示、诊断工程痕迹和解释“为什么机器数比中文正文数大”，不能替代正式字数判断。
 
+`v0.90.0` 起，前端控制台接入只读“项目总控”页。它调用 `/workflow/dashboard`，刷新并展示 `workflow-dashboard` 聚合结果：route gate 阻塞、pending sidecar、缺失预期产物、最近 task events 和下一步修复动作。这个页面不替代 CLI 状态机，不直接推进创作；它把平台 Agent 和用户都容易漏看的流程证据放到一个可轮询的 cockpit 里。
+
 ### 4. 文风是可挂载能力，不是临时修饰
 
 文风学习模块以“作家为项目、作品为子项目”组织语料，最终输出可挂载 Style Skill。一个合格的文风提示词必须足够具体、可执行，覆盖叙述距离、句法节奏、意象系统、心理呈现、对白语气、标点节奏、禁用倾向和自检规则。

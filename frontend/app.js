@@ -1,5 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+let dashboardTimer = null;
 
 function pretty(value) {
   return JSON.stringify(value, null, 2);
@@ -37,6 +38,10 @@ function setSharedProjectRoot(value) {
 function setSharedStyleLibraryRoot(value) {
   if (!value) return;
   $$("input[name=style_library_root]").forEach((item) => { item.value = value; });
+}
+
+function sharedProjectRoot() {
+  return $("#dashboardForm")?.project_root.value || $("#chatForm")?.project_root.value || $("#configForm")?.project_root.value || "";
 }
 
 async function loadHealth() {
@@ -225,6 +230,69 @@ async function mountStyleSkill() {
   setSharedProjectRoot(result.project_root);
 }
 
+async function loadDashboard() {
+  const form = $("#dashboardForm");
+  const root = form.project_root.value || $("#configForm").project_root.value || $("#chatForm").project_root.value;
+  if (!root) throw new Error("请先填写当前项目路径");
+  setSharedProjectRoot(root);
+  $("#dashboardStatus").textContent = "刷新中";
+  const result = await api(`/workflow/dashboard?project_root=${encodeURIComponent(root)}`);
+  renderDashboard(result);
+  return result;
+}
+
+function renderDashboard(result) {
+  const dashboard = result.dashboard || {};
+  const summary = result.summary || dashboard.summary || {};
+  const metrics = [
+    ["Ready", summary.ready_count ?? 0],
+    ["State blocked", summary.state_blocked_count ?? 0],
+    ["Route blocking", summary.blocking_count ?? 0],
+    ["Pending sidecars", summary.pending_task_count ?? 0],
+    ["Missing expected", summary.missing_expected_count ?? 0],
+    ["Next actions", summary.next_action_count ?? (result.next_actions || []).length],
+  ];
+  $("#dashboardSummary").innerHTML = metrics.map(([label, value]) => (
+    `<div class="metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`
+  )).join("");
+
+  const routes = result.route_audits || [];
+  $("#dashboardRoutes").innerHTML = routes.length ? routes.map((route) => (
+    `<tr><td>${escapeHtml(route.route || "")}</td><td>${escapeHtml(route.blocking_count ?? 0)}</td><td>${escapeHtml(route.warning_count ?? 0)}</td><td>${escapeHtml(route.pending_task_count ?? 0)}</td></tr>`
+  )).join("") : '<tr><td colspan="4">暂无阻塞数据</td></tr>';
+
+  const actions = result.next_actions || [];
+  $("#dashboardNextActions").classList.toggle("empty", !actions.length);
+  $("#dashboardNextActions").innerHTML = actions.length ? actions.slice(0, 20).map((action) => (
+    `<article class="action-item"><b>${escapeHtml(action.route || "")}</b><span>${escapeHtml(action.target || "")}</span><p>${escapeHtml(action.next_action || "")}</p></article>`
+  )).join("") : "暂无下一步";
+
+  const events = result.recent_events || [];
+  $("#dashboardEvents").classList.toggle("empty", !events.length);
+  $("#dashboardEvents").innerHTML = events.length ? events.slice(-12).reverse().map((event) => (
+    `<article class="event-item"><b>${escapeHtml(event.event_type || event.type || "event")}</b><span>${escapeHtml(event.created_at || event.timestamp || "")}</span><p>${escapeHtml(event.task_id || event.route || "")}</p></article>`
+  )).join("") : "暂无事件";
+
+  $("#dashboardPreview").textContent = pretty(dashboard);
+  const generatedAt = dashboard.generated_at || "";
+  $("#dashboardStatus").textContent = generatedAt ? `已刷新 ${generatedAt}` : "已刷新";
+}
+
+function toggleDashboardPoll() {
+  const button = $("#toggleDashboardPoll");
+  if (dashboardTimer) {
+    clearInterval(dashboardTimer);
+    dashboardTimer = null;
+    button.textContent = "开始轮询";
+    $("#dashboardStatus").textContent = "已停止轮询";
+    return;
+  }
+  const seconds = Math.max(3, Math.min(60, Number($("#dashboardForm").refresh_seconds.value) || 8));
+  guarded(loadDashboard);
+  dashboardTimer = setInterval(() => guarded(loadDashboard), seconds * 1000);
+  button.textContent = "停止轮询";
+}
+
 function addMessage(who, text, options = {}) {
   const node = document.createElement("div");
   node.className = `msg ${options.kind || ""}`.trim();
@@ -338,6 +406,14 @@ async function sendChat(event) {
   $("#chatForm").message.value = "";
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function bind() {
   $$(".nav button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -345,8 +421,13 @@ function bind() {
       $$(".view").forEach((item) => item.classList.remove("active"));
       button.classList.add("active");
       $(`#view-${button.dataset.view}`).classList.add("active");
+      if (button.dataset.view === "dashboard" && sharedProjectRoot()) {
+        guarded(loadDashboard);
+      }
     });
   });
+  $("#refreshDashboard").addEventListener("click", () => guarded(loadDashboard));
+  $("#toggleDashboardPoll").addEventListener("click", () => toggleDashboardPoll());
   $("#loadConfig").addEventListener("click", () => guarded(loadConfig));
   $("#saveConfig").addEventListener("click", () => guarded(saveConfig));
   $("#loadStyleLibrary").addEventListener("click", () => guarded(loadStyleLibrary));

@@ -87,3 +87,4 @@
 - `phase88-reader-experience-contract.md`：章节义务与读者体验生成前门禁
 - `phase89-workflow-dashboard.md`：跨路线只读总控面板
 - `phase89-1-count-unit-bridge-hardening.md`：中文内容字符门禁与机器字符诊断映射硬化
+- `phase90-dashboard-api-frontend.md`：总控面板 API 与前端实时轮询

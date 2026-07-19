@@ -33,6 +33,7 @@ from .style_lab import (
     run_author_style_learning_platform_task,
 )
 from .platform_agent_tasks import write_platform_style_prompt_eval_task
+from .workflow_dashboard import build_workflow_dashboard
 from .workflow_runner import run_workflow
 
 try:
@@ -531,6 +532,33 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return _run_response(result, root)
+
+    @app.get("/workflow/dashboard")
+    def workflow_dashboard(project_root: str, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+        try:
+            result = build_workflow_dashboard(root)
+            payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "project_root": str(root),
+            "dashboard": payload,
+            "summary": payload.get("summary", {}),
+            "route_audits": payload.get("route_audits", []),
+            "next_actions": payload.get("next_actions", []),
+            "recent_events": payload.get("recent_events", []),
+            "paths": {
+                "markdown": _rel_str(result.markdown_path, root),
+                "json": _rel_str(result.json_path, root),
+                "html": _rel_str(result.html_path, root),
+            },
+            "rules": payload.get("rules", []),
+        }
 
     @app.post("/agent/run")
     def agent_run(payload: RunAgentRequest, http_request: Request):

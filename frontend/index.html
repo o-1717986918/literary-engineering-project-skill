@@ -13,11 +13,12 @@
           <div class="mark">LEW</div>
           <div>
             <h1>文学工程控制台</h1>
-            <p>创作总监、文风学习、全局配置</p>
+            <p>创作总监、项目总控、文风学习、全局配置</p>
           </div>
         </div>
         <nav class="nav">
           <button data-view="chat" class="active">创作总监</button>
+          <button data-view="dashboard">项目总控</button>
           <button data-view="style">文风学习</button>
           <button data-view="config">全局配置</button>
         </nav>
@@ -52,6 +53,54 @@
                 </div>
               </details>
             </form>
+          </div>
+        </section>
+
+        <section id="view-dashboard" class="view">
+          <header class="view-header">
+            <div>
+              <h2>项目总控</h2>
+              <p class="muted">只读查看状态机、sidecar、route gate、字数预算和发布链路。</p>
+            </div>
+            <div class="toolbar">
+              <button id="refreshDashboard">刷新</button>
+              <button id="toggleDashboardPoll" class="primary">开始轮询</button>
+            </div>
+          </header>
+
+          <form id="dashboardForm" class="panel dashboard-controls">
+            <label>当前项目<input name="project_root" placeholder="C:\path\to\work" /></label>
+            <label>轮询间隔<input name="refresh_seconds" type="number" min="3" max="60" value="8" /></label>
+            <div class="dashboard-status" id="dashboardStatus">未加载</div>
+          </form>
+
+          <div class="metric-grid" id="dashboardSummary"></div>
+
+          <div class="grid two dashboard-grid">
+            <div class="panel">
+              <h3>Route Gates</h3>
+              <div class="table-wrap">
+                <table class="route-table">
+                  <thead><tr><th>Route</th><th>Blocking</th><th>Warning</th><th>Pending</th></tr></thead>
+                  <tbody id="dashboardRoutes"><tr><td colspan="4">暂无数据</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel">
+              <h3>Next Actions</h3>
+              <div id="dashboardNextActions" class="action-list empty">暂无数据</div>
+            </div>
+          </div>
+
+          <div class="grid two dashboard-grid">
+            <div class="panel">
+              <h3>Recent Events</h3>
+              <div id="dashboardEvents" class="event-list empty">暂无数据</div>
+            </div>
+            <div class="panel">
+              <h3>Dashboard JSON</h3>
+              <pre id="dashboardPreview"></pre>
+            </div>
           </div>
         </section>
 

@@ -73,6 +73,31 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue((project / approval.json()["approval_path"]).exists())
         self.assertTrue((project / approval.json()["task_path"]).exists())
 
+    def test_fastapi_workflow_dashboard_endpoint(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi test client is not installed")
+
+        project = self.make_project()
+        make_reviewed_passing_scene(project, prepare_flow=False)
+        app = create_app(allowed_roots=[project.parent])
+        client = TestClient(app)
+
+        response = client.get("/workflow/dashboard", params={"project_root": str(project)})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["dashboard"]["schema"], "literary-engineering-workbench/workflow-dashboard/v0.1")
+        self.assertIn("summary", payload)
+        self.assertIn("route_audits", payload)
+        self.assertIn("next_actions", payload)
+        self.assertEqual(payload["paths"]["json"], "workflow/dashboard/workflow_dashboard.json")
+        self.assertTrue((project / payload["paths"]["json"]).exists())
+        self.assertTrue((project / payload["paths"]["markdown"]).exists())
+        self.assertTrue((project / payload["paths"]["html"]).exists())
+
     def test_fastapi_agent_run_endpoint(self):
         try:
             from fastapi.testclient import TestClient
@@ -122,6 +147,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertIn('value="auto"', ui.text)
                 self.assertIn("创作总监", ui.text)
                 self.assertIn("文风学习", ui.text)
+                self.assertIn("项目总控", ui.text)
                 self.assertIn("全局配置", ui.text)
                 self.assertIn("高级设置", ui.text)
                 self.assertIn("留空可从一句话新建项目", ui.text)
@@ -132,6 +158,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertIn("localStorage", script.text)
                 self.assertIn("/director/chat", script.text)
                 self.assertIn("/style-lab/compile", script.text)
+                self.assertIn("/workflow/dashboard", script.text)
                 self.assertNotIn("/asset/create", script.text)
                 self.assertIn("api_key", script.text)
                 self.assertIn("addDirectorMessage", script.text)
@@ -598,6 +625,16 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
             params={"project_root": str(project)},
         )
         self.assertEqual(state.status_code, 200)
+
+        unauthorized_dashboard = client.get("/workflow/dashboard", params={"project_root": str(project)})
+        self.assertEqual(unauthorized_dashboard.status_code, 401)
+
+        authorized_dashboard = client.get(
+            "/workflow/dashboard",
+            headers={"X-LEW-API-Token": "secret-token"},
+            params={"project_root": str(project)},
+        )
+        self.assertEqual(authorized_dashboard.status_code, 200)
 
 
 def _valid_style_prompt_text() -> str:

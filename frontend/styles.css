@@ -132,6 +132,29 @@ button {
   grid-template-columns: minmax(340px, 520px) minmax(340px, 1fr);
   gap: 16px;
 }
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.metric {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 14px;
+}
+.metric span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.metric strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 26px;
+}
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -142,6 +165,72 @@ button {
 form.panel, .chat-box {
   display: grid;
   gap: 12px;
+}
+.dashboard-controls {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 150px auto;
+  align-items: end;
+}
+.dashboard-status {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  word-break: break-word;
+}
+.dashboard-grid {
+  margin-top: 14px;
+}
+.table-wrap {
+  overflow-x: auto;
+}
+.route-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.route-table th,
+.route-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.action-list,
+.event-list {
+  display: grid;
+  gap: 10px;
+  max-height: 420px;
+  overflow: auto;
+}
+.action-list.empty,
+.event-list.empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+.action-item,
+.event-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfe;
+}
+.action-item b,
+.event-item b {
+  display: block;
+  margin-bottom: 4px;
+}
+.action-item span,
+.event-item span {
+  color: var(--muted);
+  font-size: 12px;
+  word-break: break-word;
+}
+.action-item p,
+.event-item p {
+  margin-top: 6px;
+  line-height: 1.45;
 }
 form.panel hr {
   width: 100%;
@@ -297,4 +386,5 @@ pre {
   .grid.two { grid-template-columns: 1fr; }
   .view-header { align-items: flex-start; flex-direction: column; gap: 10px; }
   .advanced-grid { grid-template-columns: 1fr; }
+  .dashboard-controls { grid-template-columns: 1fr; }
 }
