@@ -92,3 +92,6 @@
 - `phase90-2-packaged-json-evidence.md`：JSON 证据包装展示与模型配置降级为连接设置
 - `phase91-93-frontend-cli-structured-interaction.md`：作品档案、前端安全标注与人类选择证据层
 - `phase94-dashboard-completed-prose.md`：项目总控已完成正文主模块
+- `phase95-frontend-trust-stream-usability.md`：前端可信度、真实流式观察与亲用户展示优化
+- `phase96-swiss-editorial-frontend.md`：Swiss 编辑部视觉锚点与前端惊艳化
+- `phase97-editorial-icons-palette.md`：墨蓝纸白朱砂配色与 imagegen 编辑部图标

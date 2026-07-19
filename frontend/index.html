@@ -11,7 +11,7 @@
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="mark">文</div>
+          <div class="mark"><img src="/ui/assets/editorial-icons/dashboard-board.png" alt="" /></div>
           <div>
             <h1>文学工程控制台</h1>
             <p>把长篇创作当作可审查、可推进、可交付的项目。</p>
@@ -36,12 +36,12 @@
           <header class="view-header hero-panel">
             <div>
               <span class="eyebrow">项目驾驶舱</span>
-              <h2>今天项目卡在哪里，一眼看懂。</h2>
-              <p class="muted">这里不会裸露原始 JSON。系统会把状态机、审查门禁、待办任务、产物路径和导出链路翻译成可行动的中文说明。</p>
+              <h2>下一步该做什么，打开就知道。</h2>
+              <p class="muted">这里不会把机器记录原样摊开。系统会把状态机、审查门禁、待办任务、正文进度和导出链路翻译成可行动的中文说明。</p>
             </div>
             <div class="hero-actions">
               <button id="refreshDashboard" class="primary">刷新状态</button>
-              <button id="toggleDashboardPoll">开始实时观察</button>
+              <button id="toggleDashboardPoll">观察项目变化</button>
             </div>
           </header>
 
@@ -100,8 +100,8 @@
 
             <section class="panel">
               <div class="panel-title">
-                <span>项目证据柜</span>
-                <small>JSON 信息经过包装后展示</small>
+                <span>流程证据柜</span>
+                <small>机器记录已包装成证据卡</small>
               </div>
               <div id="dashboardEvidence" class="evidence-grid">
                 <article class="evidence-card empty">等待刷新。刷新后会把路线状态、平台任务、报告路径和使用边界整理成可读证据。</article>
@@ -152,12 +152,12 @@
           <header class="view-header hero-panel library-hero">
             <div>
               <span class="eyebrow">作品档案</span>
-              <h2>把工程文件翻译成能读、能选、能改备注的作品面板。</h2>
-              <p class="muted">这里展示草稿、人物、世界观、场景、推演分支、文风与审查证据。正文会过滤工作流痕迹；JSON 和 YAML 会被包装成卡片、标签和摘要。</p>
+              <h2>像翻资料夹一样查看作品。</h2>
+              <p class="muted">这里展示草稿、人物、世界观、场景、推演分支、文风与审查证据。正文会过滤工作流痕迹；机器记录会被包装成卡片、标签和摘要。</p>
             </div>
             <div class="hero-actions">
               <button id="refreshLibrary" class="primary">刷新档案</button>
-              <button id="toggleLibraryPoll">开始流式观察</button>
+              <button id="toggleLibraryPoll">观察档案变化</button>
             </div>
           </header>
 
@@ -214,7 +214,7 @@
 
             <section class="panel edit-panel">
               <div class="panel-title">
-                <span>安全标注</span>
+                <span>我的备注</span>
                 <small>只写入前端备注层</small>
               </div>
               <form id="editForm" class="inline-edit-form">
