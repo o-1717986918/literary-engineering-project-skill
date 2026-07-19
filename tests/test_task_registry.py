@@ -329,6 +329,7 @@ class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("word-budget", payload["command"])
         self.assertIn("plot/word_budget/word_budget.json", payload["expected_outputs"])
         self.assertIn("plot/word_budget/scene_inventory_expansion.agent_tasks.md", payload["expected_outputs"])
+        self.assertIn("plot/chapter_obligations/chapter_obligations.agent_tasks.md", payload["expected_outputs"])
 
         task_text = result.task_markdown_path.read_text(encoding="utf-8")
         self.assertIn("docs/modules/longform-word-budget.md", task_text)
@@ -390,6 +391,15 @@ class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
         inventory.write_text("# 分场景库存候选\n\n- 测试场景库存。\n", encoding="utf-8")
         _write_longform_review(project, "scene_inventory_review", "pass")
         write_agent_completion_marker(result.scene_inventory_tasks_path, root=project, handled_by="platform-agent-test")
+
+        chapter_task = issue_next_task(project, route="longform-planning")
+        self.assertEqual(chapter_task.status, "issued")
+        self.assertEqual(chapter_task.current_state, "chapter-obligation-agent-task")
+        payload = json.loads(chapter_task.task_json_path.read_text(encoding="utf-8"))
+        self.assertIn("plot/chapter_obligations/chapter_obligations.agent_completion.json", payload["expected_outputs"])
+
+        _write_longform_review(project, "chapter_obligation_review", "pass")
+        write_agent_completion_marker(result.chapter_obligation_tasks_path, root=project, handled_by="platform-agent-test")
 
         ready = issue_next_task(project, route="longform-planning")
         self.assertEqual(ready.status, "ready")
@@ -796,6 +806,12 @@ def _write_candidate_review(project: Path, candidate: Path, *, conclusion: str) 
             "clean_body_words": 80,
             "narrative_load_satisfied": True,
             "message": "test project does not require longform budget",
+        },
+        "reader_experience_adherence": {
+            "status": "not_required",
+            "message": "test project does not require reader-experience contract",
+            "reader_promise_satisfied": True,
+            "requires_platform_agent_semantic_review": False,
         },
         "new_character_register": {
             "schema": "literary-engineering-workbench/new-character-register/v0.1",

@@ -12,6 +12,7 @@ from .anti_ai_style import style_lint_gate, style_lint_gate_message
 from .context_broker import context_trace_status
 from .flow_gates import branch_selection_status
 from .new_character_register import new_character_register_issues
+from .reader_experience import reader_experience_adherence_for_body
 from .word_budget import word_budget_adherence_for_body
 
 
@@ -75,6 +76,8 @@ def agent_review_gate_state(root: Path, json_path: Path, reviewed_path: Path) ->
         "style_adherence_status": "",
         "word_budget_adherence_status": "",
         "word_budget_narrative_load_satisfied": False,
+        "reader_experience_adherence_status": "",
+        "reader_promise_satisfied": False,
         "new_character_register_issues": [],
         "schema_errors": [],
     }
@@ -97,6 +100,8 @@ def agent_review_gate_state(root: Path, json_path: Path, reviewed_path: Path) ->
     style_status = str(style.get("status") or "").strip().lower() if isinstance(style, dict) else ""
     budget = payload.get("word_budget_adherence") if isinstance(payload.get("word_budget_adherence"), dict) else {}
     budget_status = str(budget.get("status") or "").strip().lower() if isinstance(budget, dict) else ""
+    reader = payload.get("reader_experience_adherence") if isinstance(payload.get("reader_experience_adherence"), dict) else {}
+    reader_status = str(reader.get("status") or "").strip().lower() if isinstance(reader, dict) else ""
     new_character_issues = new_character_register_issues(payload, root, mode="review")
     validation_status = "pass" if not errors else "failed"
     validation_rel = str(payload.get("schema_validation") or "").strip()
@@ -121,6 +126,8 @@ def agent_review_gate_state(root: Path, json_path: Path, reviewed_path: Path) ->
             "style_adherence_status": style_status,
             "word_budget_adherence_status": budget_status,
             "word_budget_narrative_load_satisfied": budget.get("narrative_load_satisfied") is not False if isinstance(budget, dict) and budget_status else False,
+            "reader_experience_adherence_status": reader_status,
+            "reader_promise_satisfied": reader.get("reader_promise_satisfied") is not False if isinstance(reader, dict) and reader_status else False,
             "new_character_register_issues": new_character_issues,
             "schema_errors": errors,
         }
@@ -148,6 +155,8 @@ def scene_readiness_status(
     style_status = str(agent_review_state.get("style_adherence_status") or "").strip().lower()
     agent_budget_status = str(agent_review_state.get("word_budget_adherence_status") or "").strip().lower()
     agent_budget_load = bool(agent_review_state.get("word_budget_narrative_load_satisfied"))
+    agent_reader_status = str(agent_review_state.get("reader_experience_adherence_status") or "").strip().lower()
+    agent_reader_promise = bool(agent_review_state.get("reader_promise_satisfied"))
     unresolved = [str(item) for item in agent_review_state.get("unresolved_notes", [])]
     new_character_issues = [str(item) for item in agent_review_state.get("new_character_register_issues", [])]
     source_match = bool(agent_review_state.get("source_match"))
@@ -155,6 +164,8 @@ def scene_readiness_status(
     scene_id = _scene_id_from_draft(draft_path)
     scene_path = root / "scenes" / f"{scene_id}.yaml"
     word_budget = word_budget_adherence_for_body(root, scene_path, body)
+    reader_experience = reader_experience_adherence_for_body(root, scene_path, body)
+    reader_required = str(reader_experience.get("status") or "").strip().lower() != "not_required"
 
     if not draft_path.exists() or not body:
         return "needs_draft", ("missing cleaned draft body",)
@@ -174,6 +185,8 @@ def scene_readiness_status(
         return "needs_revision", (f"Style Lint Gate failed: {style_lint_gate_message(lint_gate)}",)
     if str(word_budget.get("status") or "").strip().lower() not in {"pass", "not_required"}:
         return "needs_revision", (f"word budget gate failed: {word_budget.get('message')}",)
+    if str(reader_experience.get("status") or "").strip().lower() not in {"pass", "not_required"}:
+        return "needs_revision", (f"reader experience gate failed: {reader_experience.get('message')}",)
 
     if not agent_review_json_path.exists() or not agent_conclusion or not schema_status:
         return "needs_agent_review", ("missing platform Agent scene_review.v1 JSON",)
@@ -198,6 +211,11 @@ def scene_readiness_status(
         issues.append(f"word_budget_adherence.status is {agent_budget_status or 'missing'}")
     elif not agent_budget_load:
         issues.append("word_budget_adherence.narrative_load_satisfied is false or missing")
+    if reader_required:
+        if agent_reader_status not in {"pass", "not_required"}:
+            issues.append(f"reader_experience_adherence.status is {agent_reader_status or 'missing'}")
+        elif not agent_reader_promise:
+            issues.append("reader_experience_adherence.reader_promise_satisfied is false or missing")
     issues.extend(f"new_character_register: {item}" for item in new_character_issues)
 
     if issues:
@@ -249,6 +267,13 @@ def _unresolved_review_notes(payload: dict[str, Any]) -> list[str]:
             notes.append(f"word_budget_adherence.status={budget_status}")
         if budget_status in {"pass", "not_required"} and budget.get("narrative_load_satisfied") is False:
             notes.append("word_budget_adherence.narrative_load_satisfied=false")
+    reader = payload.get("reader_experience_adherence")
+    if isinstance(reader, dict):
+        reader_status = str(reader.get("status") or "").strip().lower()
+        if reader_status not in {"", "pass", "not_required"}:
+            notes.append(f"reader_experience_adherence.status={reader_status}")
+        if reader_status in {"pass", "not_required"} and reader.get("reader_promise_satisfied") is False:
+            notes.append("reader_experience_adherence.reader_promise_satisfied=false")
     return notes
 
 

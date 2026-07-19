@@ -20,7 +20,7 @@ context_groups:
   - dialogue tone
 hard_constraints:
   - The final style_prompt.md is for an LLM to use during generation, not a literary essay.
-  - The prompt must be detailed but executable, 500-2500 non-whitespace characters.
+  - The prompt must be detailed but executable, 500-2500 Chinese-content characters after stripping Markdown scaffolding.
   - Exact imitation is allowed only for public-domain or authorized corpora; otherwise abstract higher-level craft.
 output_contract:
   - Write style_prompt.md and style_prompt.agent.json when requested.

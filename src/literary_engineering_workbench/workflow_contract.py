@@ -16,7 +16,7 @@ EVENT_SCHEMA = "literary-engineering-workbench/workflow-event/v1"
 TASK_SCHEMA = "literary-engineering-workbench/agent-task/v1"
 SUBMISSION_SCHEMA = "literary-engineering-workbench/agent-submission/v1"
 COMPLETION_SCHEMA = "literary-engineering-workbench/agent-task-completion/v1"
-ORDER_NEUTRAL_PASS_STEPS = {"scene-word-budget-contract"}
+ORDER_NEUTRAL_PASS_STEPS = {"scene-word-budget-contract", "reader-experience-contract"}
 
 
 @dataclass(frozen=True)

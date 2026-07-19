@@ -15,6 +15,12 @@ from .context_broker import default_context_trace_path
 from .flow_gates import ensure_composition_ready_for_generation
 from .new_character_register import render_new_character_register_contract
 from .punctuation_standard import render_punctuation_standard_for_prompt
+from .reader_experience import (
+    chapter_obligation_path,
+    ensure_reader_experience_ready,
+    render_reader_experience_contract,
+    scene_chapter_obligation_id,
+)
 from .word_budget import (
     ensure_scene_word_budget_ready,
     render_scene_word_budget_contract,
@@ -101,6 +107,8 @@ class PromptPack:
     word_budget_generation_standard: str
     scene_word_budget_contract: dict[str, Any]
     scene_word_budget_contract_text: str
+    reader_experience_contract: dict[str, Any]
+    reader_experience_contract_text: str
     review_notes_standard: str
     generation_constraint_brief: str
     system_prompt: str
@@ -139,6 +147,7 @@ def build_scene_prompt_pack(
         allow_missing_composition=allow_missing_composition,
     )
     word_budget_contract = ensure_scene_word_budget_ready(root, scene_path)
+    reader_contract = ensure_reader_experience_ready(root, scene_path)
     style_profile_path = _find_style_asset(root)
     word_budget_path = _find_word_budget(root)
     review_notes_path = _find_scene_review_notes(root, scene_id)
@@ -153,6 +162,7 @@ def build_scene_prompt_pack(
         "style_generation_standard": _render_style_generation_standard(root, style_profile_path),
         "word_budget_generation_standard": render_word_budget_generation_standard(root),
         "scene_word_budget_contract": render_scene_word_budget_contract(root, scene_path),
+        "reader_experience_contract": render_reader_experience_contract(root, scene_path),
         "review_notes_standard": _render_review_notes_standard(root, scene_id, review_notes_path),
         "generation_constraint_brief": _render_generation_constraint_brief(root, style_profile_path, word_budget_path, review_notes_path),
         "punctuation_standard": render_punctuation_standard_for_prompt(),
@@ -167,6 +177,7 @@ def build_scene_prompt_pack(
     user_prompt = _ensure_style_generation_standard(_render_template(user_template, values), values["style_generation_standard"])
     user_prompt = _ensure_word_budget_generation_standard(user_prompt, values["word_budget_generation_standard"])
     user_prompt = _ensure_scene_word_budget_contract(user_prompt, values["scene_word_budget_contract"])
+    user_prompt = _ensure_reader_experience_contract(user_prompt, values["reader_experience_contract"])
     user_prompt = _ensure_review_notes_standard(user_prompt, values["review_notes_standard"])
     user_prompt = _ensure_generation_constraint_brief(user_prompt, values["generation_constraint_brief"])
     user_prompt = _ensure_new_character_register_contract(user_prompt, values["new_character_register_contract"])
@@ -185,6 +196,8 @@ def build_scene_prompt_pack(
         word_budget_generation_standard=values["word_budget_generation_standard"],
         scene_word_budget_contract=word_budget_contract,
         scene_word_budget_contract_text=values["scene_word_budget_contract"],
+        reader_experience_contract=reader_contract,
+        reader_experience_contract_text=values["reader_experience_contract"],
         review_notes_standard=values["review_notes_standard"],
         generation_constraint_brief=values["generation_constraint_brief"],
         system_prompt=system_prompt,
@@ -215,6 +228,8 @@ def write_prompt_manifest(pack: PromptPack, output: Path, provider: str, model: 
             "word_budget_loaded": pack.word_budget_path is not None,
             "word_budget_path": _rel(pack.word_budget_path, pack.project_root) if pack.word_budget_path else "",
             "scene_word_budget_contract": pack.scene_word_budget_contract,
+            "reader_experience_contract": pack.reader_experience_contract,
+            "reader_experience_loaded": pack.reader_experience_contract.get("status") in {"pass", "not_required"},
             "review_notes": pack.review_notes_standard,
             "review_notes_loaded": pack.review_notes_path is not None,
             "review_notes_path": _rel(pack.review_notes_path, pack.project_root) if pack.review_notes_path else "",
@@ -269,6 +284,12 @@ def _ensure_scene_word_budget_contract(user_prompt: str, standard: str) -> str:
     return user_prompt.rstrip() + "\n\n## 本场景字数预算硬属性\n\n" + standard.strip() + "\n"
 
 
+def _ensure_reader_experience_contract(user_prompt: str, standard: str) -> str:
+    if "## 本场景读者体验硬属性" in user_prompt or "# 本场景读者体验硬属性" in user_prompt:
+        return user_prompt
+    return user_prompt.rstrip() + "\n\n## 本场景读者体验硬属性\n\n" + standard.strip() + "\n"
+
+
 def _ensure_review_notes_standard(user_prompt: str, standard: str) -> str:
     if "## AgentReview 小修约束" in user_prompt or "# AgentReview 小修约束" in user_prompt:
         return user_prompt
@@ -318,6 +339,9 @@ def _sources(
         paths.append(style_profile_path)
     if word_budget_path:
         paths.append(word_budget_path)
+    obligation = _reader_obligation_source_path(root, scene_path)
+    if obligation and obligation.exists():
+        paths.append(obligation)
     if review_notes_path:
         paths.append(review_notes_path)
     punctuation_ref = _bundle_root() / "references" / "punctuation-standard.md"
@@ -330,6 +354,14 @@ def _sources(
         }
         for path in paths
     ]
+
+
+def _reader_obligation_source_path(root: Path, scene_path: Path) -> Path | None:
+    chapter_id = scene_chapter_obligation_id(root, scene_path)
+    if not chapter_id or chapter_id == "unassigned":
+        return None
+    path = chapter_obligation_path(root, chapter_id)
+    return path if path.exists() else None
 
 
 def _find_style_asset(root: Path) -> Path | None:
@@ -524,10 +556,11 @@ def _render_generation_constraint_brief(
 2. 场景目标与编排包优先：正式生成必须存在 composition，并先执行 selected branch、beats、subtext、dialogue intents 和 prose seed；偏离必须写入“需要人工确认”。仅内部实验可显式缺省 composition。
 3. 人物逻辑优先：行动来自 BDI、当前信息差、关系压力、道德边界和 hidden background_story 的隐性影响，不为方便剧情强行转向。
 4. 文风优先级：{_loaded_label(style_path, root, "已加载", "未加载")}。文风改变表达机制，不覆盖事实。
-5. 长篇预算：{_loaded_label(word_budget_path, root, "已加载", "未加载")}。场景必须承担明确叙事功能，不用空泛描写灌字数，也不把剧情量压缩成摘要。
-6. AgentReview 小修：{_loaded_label(review_notes_path, root, "已加载", "未加载")}。若上一轮为 pass_with_notes，必须执行小修或逐条说明豁免。
-7. 标点与 AI 腔：遵守标准中文标点，禁用机械“不是……而是……”和“不是……——是”等生硬对照，不判断为合理修辞；禁用“并不是……只是……”“看似……其实……”“表面上……实则……”等换皮转折。正式正文原则上不用破折号，孤立破折号需逐句复核，超过约 2% 叙事单元密度或替代转折时必须修订；一句话超过三个逗号通常要拆句。转折由动作、信息差、因果和人物选择产生，器官轮岗、万能占位、比喻依赖、抽象总结、解释性心理标签、模板转折、景物强制同步、对称排比和金句化收束按约 2% 密度门禁控制。若保留显式转折，必须在后续修订/审查中能通过反规避负担证明。
-8. 输出边界：只输出候选正文和状态变化候选；不输出工作流、分析、自检表、AGENT_TASK、prompt manifest、canon 解释或审查过程。
+5. 读者体验与章节义务：长篇正式生成必须有 ready 的 reader_experience_contract。每场要推进读者问题、承诺回报、暂扣信息、兑现/延迟、张力来源和读后余味，不能只把剧情写成摘要。
+6. 长篇预算：{_loaded_label(word_budget_path, root, "已加载", "未加载")}。场景必须承担明确叙事功能，不用空泛描写灌字数，也不把剧情量压缩成摘要；目标单位是中文内容字符，机器非空白字符只作诊断。
+7. AgentReview 小修：{_loaded_label(review_notes_path, root, "已加载", "未加载")}。若上一轮为 pass_with_notes，必须执行小修或逐条说明豁免。
+8. 标点与 AI 腔：遵守标准中文标点，禁用机械“不是……而是……”和“不是……——是”等生硬对照，不判断为合理修辞；禁用“并不是……只是……”“看似……其实……”“表面上……实则……”等换皮转折。正式正文原则上不用破折号，孤立破折号需逐句复核，超过约 2% 叙事单元密度或替代转折时必须修订；一句话超过三个逗号通常要拆句。转折由动作、信息差、因果和人物选择产生，器官轮岗、万能占位、比喻依赖、抽象总结、解释性心理标签、模板转折、景物强制同步、对称排比和金句化收束按约 2% 密度门禁控制。若保留显式转折，必须在后续修订/审查中能通过反规避负担证明。
+9. 输出边界：只输出候选正文和状态变化候选；不输出工作流、分析、自检表、AGENT_TASK、prompt manifest、canon 解释或审查过程。
 """
 
 

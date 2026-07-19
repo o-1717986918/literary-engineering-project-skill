@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .context_broker import default_context_trace_path
-from .draft_text import count_delivery_chars, final_body_from_draft_text
+from .draft_text import count_delivery_chars, count_delivery_chinese_content_chars, final_body_from_draft_text
 from .platform_agent_tasks import write_platform_scene_review_task
 from .review_ci import review_scene_draft
 from .scene_draft import build_scene_draft
@@ -40,9 +40,12 @@ class SceneChapterRecord:
     agent_review_unresolved_notes: tuple[str, ...]
     style_adherence_status: str
     word_budget_adherence_status: str
+    reader_experience_adherence_status: str
+    reader_promise_satisfied: bool
     flow_gate_issues: tuple[str, ...]
     readiness_issues: tuple[str, ...]
     draft_chars: int
+    draft_machine_chars: int
     status: str
     writeback_candidates: tuple[str, ...]
 
@@ -211,9 +214,12 @@ def _build_scene_record(
         agent_review_unresolved_notes=tuple(str(item) for item in agent_state.get("unresolved_notes", [])),
         style_adherence_status=str(agent_state.get("style_adherence_status") or ""),
         word_budget_adherence_status=str(agent_state.get("word_budget_adherence_status") or ""),
+        reader_experience_adherence_status=str(agent_state.get("reader_experience_adherence_status") or ""),
+        reader_promise_satisfied=bool(agent_state.get("reader_promise_satisfied")),
         flow_gate_issues=flow_issues,
         readiness_issues=readiness_issues,
-        draft_chars=count_delivery_chars(body),
+        draft_chars=count_delivery_chinese_content_chars(body),
+        draft_machine_chars=count_delivery_chars(body),
         status=status,
         writeback_candidates=tuple(_writeback_candidates(draft_text)),
     )
@@ -241,11 +247,12 @@ def _render_chapter_markdown(root: Path, chapter_id: str, records: list[SceneCha
         f"- 场景数：{summary['scene_count']}",
         f"- 可装配：{summary['ready_count']}",
         f"- 阻塞/待处理：{summary['blocked_count']}",
-        f"- 总正文字符数：{summary['draft_chars']}",
+        f"- 总正文中文内容字符：{summary['draft_chars']}",
+        f"- 机器非空白字符诊断：{summary.get('draft_machine_chars', 0)}",
         "",
         "## 场景清单",
         "",
-        "| 场景 | 地点 | 参与者 | 目标 | 正文字符 | 静态审查 | Agent审查 | 状态 |",
+        "| 场景 | 地点 | 参与者 | 目标 | 正文中文内容字符 | 静态审查 | Agent审查 | 状态 |",
         "| --- | --- | --- | --- | ---: | --- | --- | --- |",
     ]
     for record in records:
@@ -380,6 +387,8 @@ def _chapter_summary(records: list[SceneChapterRecord]) -> dict[str, int]:
         "ready_count": sum(1 for record in records if record.status == "ready"),
         "blocked_count": sum(1 for record in records if record.status != "ready"),
         "draft_chars": sum(record.draft_chars for record in records),
+        "draft_chinese_chars": sum(record.draft_chars for record in records),
+        "draft_machine_chars": sum(record.draft_machine_chars for record in records),
     }
 
 

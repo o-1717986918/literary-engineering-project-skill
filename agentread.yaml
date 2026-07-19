@@ -233,8 +233,8 @@ task_routes:
     protocol: longform-planning
     when:
       - 用户要求几十万字、百万字、多卷、多季、多篇章长篇规划
-      - 生成正文、大纲或章节时发现目标字数、剧情量、场景库存明显不足
-      - 需要把目标字数映射为卷、章、场景、叙事负载和扩纲计划
+      - 生成正文、大纲或章节时发现用户目标字数、剧情量、场景库存明显不足
+      - 需要把目标字数按中文内容字符口径映射为卷、章、场景、叙事负载和扩纲计划
     read:
       - references/agent-run-protocol.md
       - references/cli-run-protocol.md
@@ -242,15 +242,18 @@ task_routes:
       - references/artifact-contracts.md
       - references/workflows.md
       - docs/modules/longform-word-budget.md
+      - docs/modules/reader-experience-contract.md
       - docs/modules/cli-mediated-agent-workflow.md
       - docs/modules/workflow-state-machine.md
       - docs/implementation/phase65-longform-word-budget.md
       - docs/implementation/phase83-sidecar-state-machine-word-budget-chain.md
       - docs/implementation/phase84-cli-mediated-agent-workflow.md
+      - docs/implementation/phase88-reader-experience-contract.md
     inspect_if_present:
       - project.yaml
       - plot/outline.md
       - plot/word_budget/
+      - plot/chapter_obligations/
       - plot/candidates/outlines/
       - plot/candidates/scenes/
       - scenes/
@@ -260,23 +263,29 @@ task_routes:
       - word budget markdown/json
       - platform-agent budget expansion task sidecar
       - platform-agent scene inventory task sidecar
+      - platform-agent chapter obligation task sidecar
       - budgeted outline candidate
       - budgeted scene inventory candidate
+      - chapter obligation / reader-experience contract
       - word-budget review report
       - scene inventory review report
+      - chapter obligation review report
       - updated generation readiness decision
     completion_gates:
       - formal longform work uses task-next/task-open/task-submit/task-complete with route longform-planning until ready
-      - target words, volume count, genre, and time-span assumptions are explicit
+      - target Chinese-content characters, volume count, genre, and time-span assumptions are explicit
       - CLI budget is treated as deterministic constraint evidence, not creative authority
       - platform agent handled the budget expansion sidecar and created word_budget.agent_completion.json
       - platform agent handled the scene inventory expansion sidecar and created scene_inventory_expansion.agent_completion.json
+      - platform agent handled the chapter obligation sidecar and created chapter_obligations.agent_completion.json
       - plot/candidates/outlines/word_budget_expansion.md exists
       - plot/candidates/scenes/word_budget_scene_inventory.md exists
       - reviews/word_budget/word_budget_review.md conclusion is pass
       - reviews/word_budget/scene_inventory_review.md conclusion is pass
+      - reviews/word_budget/chapter_obligation_review.md conclusion is pass
       - budgeted outline remains candidate until review and user approval
       - chapter target Chinese-content characters, cleaned actual Chinese-content characters, machine diagnostic mapping, missing scenes, and expansion tasks are reviewed before bulk generation
+      - per-chapter `chapter-obligation --chapter-id <chapter_id>` contracts are completed before prose generation for that chapter
 
   character_and_world_assets:
     protocol: character-and-world-assets

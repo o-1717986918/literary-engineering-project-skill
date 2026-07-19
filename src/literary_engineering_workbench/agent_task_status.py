@@ -16,6 +16,7 @@ from .flow_gates import branch_selection_status
 from .anti_ai_style import style_lint_gate_message
 from .agent_schema import validate_payload
 from .new_character_register import new_character_register_issues
+from .reader_experience import reader_experience_contract
 from .word_budget import scene_word_budget_contract
 
 
@@ -341,7 +342,9 @@ def _add_longform_budget_gates(gates: list[dict[str, str]], root: Path, *, force
     budget_json = root / "plot" / "word_budget" / "word_budget.json"
     budget_task = root / "plot" / "word_budget" / "word_budget.agent_tasks.md"
     scene_task = root / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md"
+    obligation_task = root / "plot" / "chapter_obligations" / "chapter_obligations.agent_tasks.md"
     review = root / "reviews" / "word_budget" / "word_budget_review.md"
+    obligation_review = root / "reviews" / "word_budget" / "chapter_obligation_review.md"
     candidate = root / "plot" / "candidates" / "outlines" / "word_budget_expansion.md"
     scene_plan = root / "plot" / "candidates" / "scenes" / "word_budget_scene_inventory.md"
     scene_review = root / "reviews" / "word_budget" / "scene_inventory_review.md"
@@ -376,6 +379,31 @@ def _add_longform_budget_gates(gates: list[dict[str, str]], root: Path, *, force
         "blocking",
         "word-budget platform-agent task completed",
         f"word_budget.agent_tasks.md 未完成：{budget_completion.get('message')}",
+    )
+    _add_gate(
+        gates,
+        f"{prefix}:chapter-obligation-task",
+        obligation_task.exists(),
+        "blocking",
+        "chapter obligation planning task exists",
+        "word-budget 后必须生成 plot/chapter_obligations/chapter_obligations.agent_tasks.md，用于把数字预算转成章节承诺和读者体验契约。",
+    )
+    obligation_completion = agent_task_completion_status(obligation_task, root=root)
+    _add_gate(
+        gates,
+        f"{prefix}:chapter-obligation-task-complete",
+        obligation_completion.get("complete") is True,
+        "blocking",
+        "chapter obligation planning task completed",
+        f"chapter_obligations.agent_tasks.md 未完成：{obligation_completion.get('message')}",
+    )
+    _add_gate(
+        gates,
+        f"{prefix}:chapter-obligation-review",
+        obligation_review.exists(),
+        "blocking",
+        "chapter obligation review exists",
+        "平台 Agent 必须写 reviews/word_budget/chapter_obligation_review.md，确认每章承诺、兑现/延迟和读者问题后才能批量生成。",
     )
     if status == "needs_expansion":
         _add_gate(gates, f"{prefix}:budgeted-outline-candidate", candidate.exists(), "blocking", "budgeted outline candidate exists", "预算显示剧情库存不足；平台 Agent 需处理 word_budget.agent_tasks.md。")
@@ -736,6 +764,7 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
     state_patch_report = root / "characters" / "state_patches" / f"{scene_id}_state_patch.md"
     state_task = state_patch_json.with_suffix(".agent_tasks.md")
     budget_contract = scene_word_budget_contract(root, scene_path)
+    reader_contract = reader_experience_contract(root, scene_path)
 
     _add_gate(
         gates,
@@ -876,6 +905,15 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         "warning",
         f"{scene_id} scene word-count target aligns with budget source",
         f"{scene_id} 的 scene.yaml 字数目标与 word_budget 推导值差异过大：{'; '.join(str(item) for item in budget_contract.get('warnings', []))}",
+    )
+    reader_status = str(reader_contract.get("status") or "").strip().lower()
+    _add_gate(
+        gates,
+        f"{scene_id}:reader-experience-contract",
+        reader_status in {"pass", "not_required"},
+        "blocking",
+        f"{scene_id} reader-experience contract is ready",
+        f"{scene_id} 缺少可用读者体验/章节义务硬属性：{reader_contract.get('message')}",
     )
     _add_gate(
         gates,
@@ -1140,6 +1178,8 @@ def _stale_or_weak_chapter_gate_count(chapter_jsons: list[Path]) -> int:
         "agent_review_unresolved_notes",
         "style_adherence_status",
         "word_budget_adherence_status",
+        "reader_experience_adherence_status",
+        "reader_promise_satisfied",
         "flow_gate_issues",
         "readiness_issues",
     }
@@ -1151,6 +1191,7 @@ def _stale_or_weak_chapter_gate_count(chapter_jsons: list[Path]) -> int:
             if not required_keys.issubset(scene):
                 total += 1
                 continue
+            reader_status = scene.get("reader_experience_adherence_status")
             weak = (
                 scene.get("review_conclusion") != "pass"
                 or scene.get("agent_review_conclusion") != "pass"
@@ -1158,6 +1199,8 @@ def _stale_or_weak_chapter_gate_count(chapter_jsons: list[Path]) -> int:
                 or scene.get("agent_review_source_match") is not True
                 or bool(scene.get("agent_review_unresolved_notes"))
                 or scene.get("word_budget_adherence_status") not in {"pass", "not_required"}
+                or reader_status not in {"", "pass", "not_required"}
+                or (reader_status in {"pass", "not_required"} and scene.get("reader_promise_satisfied") is False)
                 or bool(scene.get("flow_gate_issues"))
                 or bool(scene.get("readiness_issues"))
             )

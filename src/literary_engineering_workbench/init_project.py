@@ -124,7 +124,8 @@ def _agents_md(title: str) -> str:
 - 角色推演必须基于人物 BDI。
 - 每个角色单独维护在 `characters/{{character_id}}.yaml`；`importance: major` 的主要角色常驻上下文，次要角色只在场景 `participants`、`referenced_characters` 或 `character_refs` 命中时完整载入。
 - 可挂载文风 `prompt.md` 必须是 500-2500 中文内容字符的高质量 LLM 提示词，计入汉字和中文标点，不计入 Markdown 标记、英文路径、代码围栏或空白，并包含身份/边界、优先级、核心机制、叙述距离、句法节奏、标点、意象感官、心理行为、对白语气、禁止倾向和自检。
-- 中长篇或百万字级目标必须先运行 `word-budget` / `longform-budget`，把目标字数拆成卷、章、场景和叙事负载；预算化大纲候选通过平台 Agent 审查前，不得批量生成正文。
+- 中长篇或百万字级目标必须先运行 `word-budget` / `longform-budget`，把目标中文内容字符拆成卷、章、场景和叙事负载；预算化大纲候选通过平台 Agent 审查前，不得批量生成正文。
+- 中长篇 scene-development 正文生成前必须完成 `chapter-obligation`：每章建立章节义务、读者问题、承诺回报、暂扣信息、兑现/延迟、反摘要要求和读后余味契约。
 - 正文生成和审查要降低 AI 腔：机械“不是……而是……”及“不是……——是……”等变体是核心禁区，不判断为合理修辞；器官轮岗、万能占位、比喻依赖、抽象总结、解释性心理标签、模板化转折、对称排比、景物强制同步和金句化结尾按约 2% 叙事单元密度门禁控制。
 - 从已有文本反推设定时，必须先写入 `sources/imports/` 和候选区，由平台 Agent 提取并审查，不得直接写入正式 canon、characters 或 plot。
 - 审查未通过的草稿不能进入正稿。
@@ -179,6 +180,7 @@ task_routes:
       - project.yaml
       - plot/outline.md
       - plot/word_budget/
+      - plot/chapter_obligations/
       - scenes/
       - reviews/word_budget/
 """
@@ -224,6 +226,7 @@ def init_work_project(options: InitOptions) -> InitResult:
 
     _write(root / "plot" / "outline.md", f"# {options.title} 大纲\n\n## Premise\n\n{options.premise or '尚未填写。'}\n", files)
     _write(root / "plot" / "word_budget" / "README.md", "# word_budget\n\n运行 `word-budget` / `longform-budget` 后，预算报告、JSON 和平台 Agent 任务侧车放在这里。\n", files)
+    _write(root / "plot" / "chapter_obligations" / "README.md", "# chapter_obligations\n\n运行 `chapter-obligation` 后，每章的承诺、兑现/延迟和逐场读者体验契约放在这里。\n", files)
     _write(root / "plot" / "candidates" / "outlines" / "README.md", "# outline candidates\n\nAgent 生成的大纲、章节计划和场景列表候选放在这里。\n", files)
     _write(root / "plot" / "candidates" / "relationships" / "README.md", "# relationship candidates\n\nAgent 生成的人物关系网候选放在这里。\n", files)
     _write(root / "plot" / "candidates" / "extracted" / "README.md", "# extracted plot candidates\n\n从已有作品反推的大纲、时间线、伏笔和未解问题候选放在这里。\n", files)

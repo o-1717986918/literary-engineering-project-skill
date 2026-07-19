@@ -17,6 +17,7 @@ from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 from .flow_gates import FlowGateError, branch_selection_status, ensure_agent_task_completed, selected_branch_from
+from .reader_experience import reader_experience_contract
 from .roleplay_lab import CharacterCard, _load_characters, _read
 from .word_budget import scene_word_budget_contract
 
@@ -104,6 +105,7 @@ def build_scene_composition(
     revision_targets = _revision_targets(facts, active_cards, branch)
     guardrails = _guardrails()
     word_budget_contract = scene_word_budget_contract(root, scene_path)
+    reader_contract = reader_experience_contract(root, scene_path)
 
     default_dir = root / "drafts" / "compositions"
     output_path = _resolve(root, output, default_dir / f"{facts.scene_id}_composition.md")
@@ -145,6 +147,7 @@ def build_scene_composition(
         "sensory_palette": sensory_palette,
         "prose_seed": prose_seed,
         "word_budget_contract": word_budget_contract,
+        "reader_experience_contract": reader_contract,
         "revision_targets": revision_targets,
         "writeback_candidates": branch.get("writeback_candidates", _fallback_writeback(facts)),
         "guardrails": guardrails,
@@ -185,6 +188,11 @@ def _write_composition_agent_tasks(
         source_paths.append(root / branch_manifest)
     if branch_selection:
         source_paths.append(root / branch_selection)
+    reader_contract = payload.get("reader_experience_contract") if isinstance(payload.get("reader_experience_contract"), dict) else {}
+    chapter_contract = reader_contract.get("chapter_obligation") if isinstance(reader_contract.get("chapter_obligation"), dict) else {}
+    obligation_path = str(chapter_contract.get("path") or "")
+    if obligation_path:
+        source_paths.append(root / obligation_path)
     return write_agent_tasks(
         default_agent_tasks_path(output_path),
         title=f"compose-scene {payload['scene_id']}",
@@ -205,7 +213,11 @@ def _write_composition_agent_tasks(
             ),
             (
                 "检查进入生成条件",
-                """判断当前 composition 是否适合作为 generate-scene 的输入。若适合，列出必须传给正文生成的硬约束；若不适合，提出最小修订步骤。""",
+                """判断当前 composition 是否适合作为 generate-scene 的输入。若适合，列出必须传给正文生成的硬约束；若不适合，提出最小修订步骤。硬约束必须包括场景字数预算口径、章节义务、读者问题、承诺回报、暂扣信息、兑现/延迟和反摘要要求。""",
+            ),
+            (
+                "检查读者体验与章节义务",
+                """读取 reader_experience_contract 与 chapter_obligation。确认本场不是只有事件摘要，而是有明确读者问题、期待回报、张力来源、信息暂扣、兑现或延迟、情绪曲线和读后余味。若契约缺失或 incomplete，停止进入正文生成，先运行 chapter-obligation 并完成平台 Agent 侧车。""",
             ),
             (
                 "检查写回候选",
@@ -627,10 +639,19 @@ def _render_markdown(root: Path, scene_path: Path, context_path: Path, context_t
             "## 字数预算硬属性",
             "",
             f"- 状态：`{payload.get('word_budget_contract', {}).get('status', 'missing')}`",
-            f"- 目标字数：{payload.get('word_budget_contract', {}).get('target_words', 0)}",
-            f"- 最低字数：{payload.get('word_budget_contract', {}).get('min_words', 0)}",
-            f"- 最高字数：{payload.get('word_budget_contract', {}).get('max_words', 0)}",
+            f"- 目标中文内容字符：{payload.get('word_budget_contract', {}).get('target_chinese_chars') or payload.get('word_budget_contract', {}).get('target_words', 0)}",
+            f"- 最低中文内容字符：{payload.get('word_budget_contract', {}).get('min_chinese_chars') or payload.get('word_budget_contract', {}).get('min_words', 0)}",
+            f"- 最高中文内容字符：{payload.get('word_budget_contract', {}).get('max_chinese_chars') or payload.get('word_budget_contract', {}).get('max_words', 0)}",
             f"- 叙事负载：{', '.join(str(item) for item in payload.get('word_budget_contract', {}).get('narrative_load', [])) or '未要求'}",
+            "",
+            "## 读者体验硬属性",
+            "",
+            f"- 状态：`{payload.get('reader_experience_contract', {}).get('status', 'missing')}`",
+            f"- 信息：{payload.get('reader_experience_contract', {}).get('message', '')}",
+            f"- 本场读者问题：{payload.get('reader_experience_contract', {}).get('reader_experience', {}).get('reader_question', '未填写') if isinstance(payload.get('reader_experience_contract', {}).get('reader_experience'), dict) else '未填写'}",
+            f"- 承诺回报：{payload.get('reader_experience_contract', {}).get('reader_experience', {}).get('promised_reward', '未填写') if isinstance(payload.get('reader_experience_contract', {}).get('reader_experience'), dict) else '未填写'}",
+            f"- 兑现或延迟：{payload.get('reader_experience_contract', {}).get('reader_experience', {}).get('payoff_or_delay', '未填写') if isinstance(payload.get('reader_experience_contract', {}).get('reader_experience'), dict) else '未填写'}",
+            f"- 反摘要要求：{payload.get('reader_experience_contract', {}).get('reader_experience', {}).get('anti_summary_requirement', '未填写') if isinstance(payload.get('reader_experience_contract', {}).get('reader_experience'), dict) else '未填写'}",
             "",
             "## 正文种子",
             "",

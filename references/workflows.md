@@ -161,6 +161,7 @@ python -m literary_engineering_workbench word-budget "<work-dir>" `
 - `plot/word_budget/word_budget.json`
 - `plot/word_budget/word_budget.agent_tasks.md`
 - `plot/word_budget/scene_inventory_expansion.agent_tasks.md`
+- `plot/chapter_obligations/chapter_obligations.agent_tasks.md`
 
 The platform agent must read the task sidecar and write:
 
@@ -168,8 +169,17 @@ The platform agent must read the task sidecar and write:
 - `reviews/word_budget/word_budget_review.md`
 - `plot/candidates/scenes/word_budget_scene_inventory.md`
 - `reviews/word_budget/scene_inventory_review.md`
+- `reviews/word_budget/chapter_obligation_review.md`
 
-The budgeted outline candidate should map Chinese-content target length to narrative inventory: volumes, chapters, scenes, relationship turns, world-pressure events, consequences, setup/payoff, and pacing relief. The scene-inventory candidate should bind each chapter to target Chinese-content characters, actual cleaned-body Chinese-content characters, machine count diagnostics, missing scene counts, and expansion tasks. Do not overwrite `plot/outline.md` or formal `scenes/*.yaml` until the candidate passes review and the user approves it.
+The budgeted outline candidate should map Chinese-content target length to narrative inventory: volumes, chapters, scenes, relationship turns, world-pressure events, consequences, setup/payoff, and pacing relief. The scene-inventory candidate should bind each chapter to target Chinese-content characters, actual cleaned-body Chinese-content characters, machine count diagnostics, missing scene counts, and expansion tasks. The chapter-obligation review should confirm every chapter has reader questions, promised rewards, withheld information, payoff/delay strategy, and anti-summary requirements. Do not overwrite `plot/outline.md` or formal `scenes/*.yaml` until the candidate passes review and the user approves it.
+
+Before prose for a specific chapter, create the per-chapter reader contract:
+
+```powershell
+python -m literary_engineering_workbench chapter-obligation "<work-dir>" --chapter-id chapter_0001
+```
+
+The platform agent must fill `plot/chapter_obligations/chapter_0001.json`, update the readable Markdown companion, and create `chapter_0001.agent_completion.json`. This is where scene-level `reader_question`, `promised_reward`, `withheld_information`, `payoff_or_delay`, `tension_source`, `anti_summary_requirement`, and `reader_aftertaste` become generation constraints.
 
 Then audit:
 
@@ -177,7 +187,7 @@ Then audit:
 python -m literary_engineering_workbench longform-audit "<work-dir>" --target-length 500000
 ```
 
-If the budget status is `needs_expansion`, resolve the outline and scene inventory before bulk scene generation. Later `generate-scene` prompt manifests automatically include the word-budget standard when `plot/word_budget/word_budget.json` exists. For formal longform work, each `scenes/*.yaml` should carry a real `chapter_id` that maps to the budget row, and may carry `word_count_target`, `word_count_min`, and `word_count_max` overrides. These are Chinese-content-character targets, counting Han characters and Chinese punctuation. The scene word-budget contract is injected into context packets, `compose-scene` output, prompt manifests, and generation sidecars; AgentReview, `promote-candidate`, `route-audit`, `chapter-workspace`, and export readiness recompute cleaned-body Chinese-content length before passing the scene, while machine nonspace counts remain diagnostics.
+If the budget status is `needs_expansion`, resolve the outline, scene inventory, and chapter obligation before bulk scene generation. Later `generate-scene` prompt manifests automatically include the word-budget standard when `plot/word_budget/word_budget.json` exists. For formal longform work, each `scenes/*.yaml` should carry a real `chapter_id` that maps to the budget row, and may carry `word_count_target`, `word_count_min`, and `word_count_max` overrides. These are Chinese-content-character targets, counting Han characters and Chinese punctuation. The scene word-budget and reader-experience contracts are injected into context packets, `compose-scene` output, prompt manifests, and generation sidecars; AgentReview, `promote-candidate`, `route-audit`, `chapter-workspace`, and export readiness recompute cleaned-body Chinese-content length and reader promise/payoff adherence before passing the scene, while machine nonspace counts remain diagnostics.
 
 Before bulk scene generation, check:
 

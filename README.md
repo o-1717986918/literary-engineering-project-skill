@@ -146,6 +146,8 @@ context packet
 
 `v0.87.0` 起，CLI-mediated workflow 增加 `workflow-validate` 合同校验：它会只读检查 `workflow-state`、task record、submission、completion marker 和 event log，抓出下游已 pass 但上游仍 blocking、ready 状态不一致、事件引用缺失 task、completion marker 未确认 expected artifacts 等问题。这个版本还统一了两个关键计数口径：文风提示词的 500-2500 门禁按中文内容字符计算；长篇预算和场景 `word_count_target/min/max` 按清洗后中文正文字符判断，计入汉字和中文标点，机器非空白字符只作为诊断映射。
 
+`v0.88.0` 起，长篇规划增加 Chapter Obligation / Reader Experience Contract。`word-budget` 会同时派发章节义务规划侧车，`longform-planning` route 必须完成 `chapter-obligation-agent-task` 和 `chapter-obligation-review` 后才 ready；单章正式生成前还要运行 `chapter-obligation --chapter-id <chapter_id>`，由平台 Agent 填写每章承诺、设置、变化、暂不解决项、章末钩子，以及逐场读者问题、承诺回报、信息暂扣、兑现/延迟、张力来源、反摘要要求和读后余味。`prompt manifest`、生成 `.agent_tasks.md`、AgentReview、promotion、route-audit、chapter-workspace 和 export readiness 都会读取这份契约，防止长篇正文只写成事件摘要。
+
 ### 4. 文风是可挂载能力，不是临时修饰
 
 文风学习模块以“作家为项目、作品为子项目”组织语料，最终输出可挂载 Style Skill。一个合格的文风提示词必须足够具体、可执行，覆盖叙述距离、句法节奏、意象系统、心理呈现、对白语气、标点节奏、禁用倾向和自检规则。
@@ -156,7 +158,7 @@ context packet
 
 它不会只告诉模型“写长一点”。`word-budget` / `longform-budget` 会把 10 万字、50 万字、百万字、多卷目标拆成卷、章、场景、叙事密度和扩场景任务，并通过 `longform-audit` 检查剧情库存是否足够。
 
-目标不是机械灌水，而是让时间跨度、人物弧线、冲突层级、线索回收和场景粒度支撑目标体量。
+目标不是机械灌水，而是让时间跨度、人物弧线、冲突层级、线索回收和场景粒度支撑目标体量。`v0.88.0` 进一步要求每章每场写清读者体验契约：读者在问什么、被承诺得到什么、哪些信息暂扣、这一场兑现还是延迟、为什么不是摘要。
 
 ### 6. 输出层会清理工程痕迹
 
@@ -271,7 +273,7 @@ python -m literary_engineering_workbench source-ingest "<work-dir>" --source "<s
 
 ### 7. 长篇字数预算与剧情库存
 
-当目标是 50 万字、5 卷或百万字级作品时，不能只要求模型“每章写长一点”。本项目把目标字数拆成可检查的卷、章、场景和叙事负载预算：
+当目标是 50 万中文内容字符、5 卷或百万字级作品时，不能只要求模型“每章写长一点”。本项目把目标中文内容字符拆成可检查的卷、章、场景和叙事负载预算：
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -285,10 +287,13 @@ python -m literary_engineering_workbench word-budget "<work-dir>" --target-words
 - `plot/word_budget/word_budget.json`
 - `plot/word_budget/word_budget.agent_tasks.md`
 - `plot/word_budget/scene_inventory_expansion.agent_tasks.md`
+- `plot/chapter_obligations/chapter_obligations.agent_tasks.md`
 
-随后 Codex / Claude 读取任务侧车，把预算转化为 `plot/candidates/outlines/word_budget_expansion.md`、`plot/candidates/scenes/word_budget_scene_inventory.md`、`reviews/word_budget/word_budget_review.md` 和 `reviews/word_budget/scene_inventory_review.md`。通过审查和用户批准前，它们只是候选大纲和候选场景库存，不会覆盖正式 `plot/outline.md` 或 `scenes/*.yaml`。
+随后 Codex / Claude 读取任务侧车，把预算转化为 `plot/candidates/outlines/word_budget_expansion.md`、`plot/candidates/scenes/word_budget_scene_inventory.md`、`reviews/word_budget/word_budget_review.md`、`reviews/word_budget/scene_inventory_review.md` 和 `reviews/word_budget/chapter_obligation_review.md`。通过审查和用户批准前，它们只是候选大纲、候选场景库存和章节义务规划，不会覆盖正式 `plot/outline.md` 或 `scenes/*.yaml`。
 
-后续场景生成会自动读取预算标准。正式长篇项目中，`scene.yaml` 的 `chapter_id` 必须能映射到 `word_budget.json` 的章节预算；可选 `word_count_target`、`word_count_min`、`word_count_max` 会作为本场景硬属性注入 context packet、composition、prompt manifest 和平台 Agent 写作任务。AgentReview 会用清洗后的可交付正文重新统计，低于最低值、超过最高值、未满足叙事负载或仍靠流程文本凑字数时不能 `pass`。`promote-candidate`、`route-audit`、`chapter-workspace`、`longform-audit` 和正式导出也会复查这条链路。
+后续场景生成会自动读取预算标准。正式长篇项目中，`scene.yaml` 的 `chapter_id` 必须能映射到 `word_budget.json` 的章节预算；可选 `word_count_target`、`word_count_min`、`word_count_max` 会作为本场景硬属性注入 context packet、composition、prompt manifest 和平台 Agent 写作任务。进入某章正文前，还要运行 `chapter-obligation --chapter-id <chapter_id>`，让平台 Agent 填写本章承诺、设置、变化、暂不解决项、章末钩子和逐场读者体验契约。AgentReview 会用清洗后的可交付正文重新统计，低于最低值、超过最高值、未满足叙事负载、reader promise/payoff 不成立或仍靠流程文本凑字数时不能 `pass`。`promote-candidate`、`route-audit`、`chapter-workspace`、`longform-audit` 和正式导出也会复查这条链路。
+
+计数口径：正式通过看清洗后中文内容字符，计入汉字和中文标点；机器非空白字符只作为诊断映射，用来发现英文路径、JSON/Markdown 或工程痕迹是否混进正文。
 
 当任务链路较长时，可以让 CLI 给平台 Agent 一张总控面板：
 

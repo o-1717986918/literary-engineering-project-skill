@@ -12,6 +12,7 @@ from .agent_tasks import agent_task_completion_status
 from .asset_workshop import ASSET_CANDIDATE_DIRS
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .flow_gates import branch_selection_status
+from .reader_experience import reader_experience_contract
 from .style_prompt import style_prompt_quality_report
 from .word_budget import scene_word_budget_contract
 
@@ -158,6 +159,18 @@ def _longform_state(root: Path) -> dict[str, object]:
             root / "reviews" / "word_budget" / "scene_inventory_review.md",
             "write a clean scene inventory review with conclusion: pass",
         ),
+        _longform_task_step(
+            "chapter-obligation-agent-task",
+            root,
+            root / "plot" / "chapter_obligations" / "chapter_obligations.agent_tasks.md",
+            [],
+            "complete chapter_obligations.agent_tasks.md and write per-chapter reader contracts",
+        ),
+        _longform_review_step(
+            "chapter-obligation-review",
+            root / "reviews" / "word_budget" / "chapter_obligation_review.md",
+            "write a clean chapter obligation review with conclusion: pass",
+        ),
     ]
     first_open = next((step for step in steps if step["status"] != "pass"), None)
     return {
@@ -176,7 +189,8 @@ def _word_budget_file_step(root: Path) -> dict[str, object]:
     markdown_path = root / "plot" / "word_budget" / "word_budget.md"
     budget_task = root / "plot" / "word_budget" / "word_budget.agent_tasks.md"
     scene_task = root / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md"
-    required = [json_path, markdown_path, budget_task, scene_task]
+    obligation_task = root / "plot" / "chapter_obligations" / "chapter_obligations.agent_tasks.md"
+    required = [json_path, markdown_path, budget_task, scene_task, obligation_task]
     missing = [_rel(path, root) for path in required if not path.exists()]
     if missing:
         return {
@@ -184,7 +198,7 @@ def _word_budget_file_step(root: Path) -> dict[str, object]:
             "status": "missing",
             "path": _rel(json_path, root),
             "message": "missing " + ", ".join(missing),
-            "next_action": "run word-budget / longform-budget to create budget JSON, report, and platform-agent sidecars",
+            "next_action": "run word-budget / longform-budget to create budget JSON, report, scene-inventory sidecar, and chapter-obligation sidecar",
         }
     payload = _read_json(json_path)
     if not payload or payload.get("schema") != "literary-engineering-workbench/word-budget/v1":
@@ -903,6 +917,7 @@ def _scene_state(root: Path, scene_path: Path) -> dict[str, object]:
         _file_step("composition-json", root / "drafts" / "compositions" / f"{scene_id}_composition.json", "run compose-scene --agent-tasks"),
         _task_step("composition-agent-task", root, root / "drafts" / "compositions" / f"{scene_id}_composition.agent_tasks.md", "complete scene composition sidecar and marker"),
         _word_budget_step(root, scene_path),
+        _reader_experience_step(root, scene_path),
         _candidate_step(root, scene_id, candidate),
         _task_step("generation-agent-task", root, candidate.with_suffix(".agent_tasks.md") if candidate else root / "drafts" / "candidates" / f"{scene_id}-platform-agent.agent_tasks.md", "complete generation sidecar and marker"),
         _review_step(root, scene_id, candidate),
@@ -989,6 +1004,21 @@ def _word_budget_step(root: Path, scene_path: Path) -> dict[str, object]:
         "min_words": contract.get("min_words", 0),
         "max_words": contract.get("max_words", 0),
         "next_action": "" if passed else "run word-budget, handle budget sidecars, review scene inventory, then retry generation",
+    }
+
+
+def _reader_experience_step(root: Path, scene_path: Path) -> dict[str, object]:
+    contract = reader_experience_contract(root, scene_path)
+    status = str(contract.get("status") or "")
+    passed = status in {"pass", "not_required"}
+    chapter = contract.get("chapter_obligation") if isinstance(contract.get("chapter_obligation"), dict) else {}
+    return {
+        "key": "reader-experience-contract",
+        "status": "pass" if passed else status or "missing",
+        "path": str(chapter.get("path") or ""),
+        "message": contract.get("message", ""),
+        "chapter_obligation_id": chapter.get("chapter_obligation_id", ""),
+        "next_action": "" if passed else "run chapter-obligation, handle its sidecar, and fill reader_experience_by_scene before prose generation",
     }
 
 

@@ -176,7 +176,7 @@
 
 ## Phase 65：长篇字数预算与剧情库存门禁
 
-已在 `v0.65.0` 实现 `word-budget` / `longform-budget` 和 `longform-planning` route：把目标字数、卷数、类型和时间跨度拆成卷、章、场景、平均字数与叙事负载预算，输出 `plot/word_budget/word_budget.md`、`word_budget.json` 和 `word_budget.agent_tasks.md`。平台 Agent 根据任务侧车写出 `plot/candidates/outlines/word_budget_expansion.md` 和 `reviews/word_budget/word_budget_review.md`，在正式生成前检查剧情库存是否足以支撑目标规模。`prompt_pack.py` 会把预算标准注入场景生成 prompt manifest；`longform-audit` 会报告预算缺失、needs_expansion 和场景库存不足。
+已在 `v0.65.0` 实现 `word-budget` / `longform-budget` 和 `longform-planning` route：把目标中文内容字符、卷数、类型和时间跨度拆成卷、章、场景、平均中文内容字符与叙事负载预算，输出 `plot/word_budget/word_budget.md`、`word_budget.json` 和 `word_budget.agent_tasks.md`。平台 Agent 根据任务侧车写出 `plot/candidates/outlines/word_budget_expansion.md` 和 `reviews/word_budget/word_budget_review.md`，在正式生成前检查剧情库存是否足以支撑目标规模。`prompt_pack.py` 会把预算标准注入场景生成 prompt manifest；`longform-audit` 会报告预算缺失、needs_expansion 和场景库存不足。
 
 ## Phase 66：流程阅读回执、Review Notes 小修闭环与生成硬约束摘要
 
@@ -188,7 +188,7 @@
 
 ## Phase 68：平台 Agent 总控、场景修订闭环与场景库存绑定
 
-已在 `v0.68.0` 实现 `agent-task-status` / `route-audit`，为工作项目输出 `workflow/agent_task_status.*` 和 `workflow/route_audit.*`，统一扫描 sidecar 未处理、预期产物缺失和 route gate 未完成。新增 `revise-scene`，将草稿、AgentReview notes、文风、canon、标点规范和字数预算汇总为平台 Agent 修订任务，输出修订候选与修订报告。`word-budget` 进一步生成分章预算、场景库存绑定、实际清洗正文字数、缺失场景列表和 `scene_inventory_expansion.agent_tasks.md`，使长篇目标字数与具体章节/场景库存强绑定。
+已在 `v0.68.0` 实现 `agent-task-status` / `route-audit`，为工作项目输出 `workflow/agent_task_status.*` 和 `workflow/route_audit.*`，统一扫描 sidecar 未处理、预期产物缺失和 route gate 未完成。新增 `revise-scene`，将草稿、AgentReview notes、文风、canon、标点规范和字数预算汇总为平台 Agent 修订任务，输出修订候选与修订报告。`word-budget` 进一步生成分章预算、场景库存绑定、实际清洗正文中文内容字符、缺失场景列表和 `scene_inventory_expansion.agent_tasks.md`，使长篇目标中文内容字符与具体章节/场景库存强绑定。
 
 ## Phase 69：引号统一与 DOCX 版式规划补强
 
@@ -276,4 +276,6 @@
 
 `v0.87.0` 已实现 Workflow Contract Validation。新增 `workflow-validate`，只读校验 `workflow-state`、task record、submission、completion marker 和 event log，阻塞下游 pass / 上游 blocking、ready 状态不一致、事件引用缺失 task、completion marker 未确认 expected artifacts 等问题。文风提示词质量门禁和长篇字数预算也统一为中文内容字符口径：计入汉字和中文标点，机器非空白字符保留为诊断映射，不再作为正式 pass/fail 基准。
 
-下一步规划：Phase 88-90 将继续推进 Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。
+`v0.88.0` 已实现 Reader Experience Contract。长篇规划不再只完成 word-budget 与 scene inventory：`word-budget` 会生成 `plot/chapter_obligations/chapter_obligations.agent_tasks.md`，`longform-planning` route 新增 `chapter-obligation-agent-task` 与 `chapter-obligation-review`；单章正文生成前，`chapter-obligation --chapter-id <chapter_id>` 会生成章节义务和逐场读者体验契约侧车。prompt manifest、生成任务、AgentReview、promotion、route-audit、chapter-workspace 和 export readiness 均接入 reader gate，防止“字数目标有了，但正文仍被压缩成摘要”。
+
+下一步规划：Phase 89-90 将继续推进最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。

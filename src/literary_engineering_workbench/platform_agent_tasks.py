@@ -20,6 +20,7 @@ from .context_broker import default_context_trace_path
 from .draft_text import count_delivery_chars, final_body_from_workbench_text
 from .new_character_register import render_new_character_register_contract
 from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
+from .reader_experience import reader_experience_adherence_for_body, reader_experience_contract, scene_chapter_obligation_id
 from .style_prompt import STYLE_PROMPT_LENGTH_RULE, STYLE_PROMPT_QUALITY_RULE
 from .word_budget import scene_word_budget_contract, word_budget_adherence_for_body
 
@@ -49,11 +50,15 @@ def write_platform_scene_review_task(
         source_paths.append(context_path)
     if context_trace_path.exists():
         source_paths.append(context_trace_path)
+    obligation_path = root / "plot" / "chapter_obligations" / f"{scene_chapter_obligation_id(root, scene_path)}.json"
+    if obligation_path.exists():
+        source_paths.append(obligation_path)
     _extend_unique(source_paths, _style_source_paths(root))
     draft_text = _read_optional(draft_path)
     body = final_body_from_workbench_text(draft_text)
     style_lint_block = render_ai_style_lint_block(body or draft_text)
     word_budget_adherence = word_budget_adherence_for_body(root, scene_path, body)
+    reader_adherence = reader_experience_adherence_for_body(root, scene_path, body)
     new_character_contract = render_new_character_register_contract()
     task_path = json_output.with_suffix(".agent_tasks.md")
     write_agent_tasks(
@@ -105,6 +110,12 @@ def write_platform_scene_review_task(
 若 `status` 为 under_target、over_target、revise_required、missing 或 needs_expansion，`conclusion` 不得为 pass。若字数在区间内，还要判断 narrative_load 是否真实完成；不能靠空泛描写、重复心理解释或流程文本填字数。""",
             ),
             (
+                "执行读者体验硬门禁",
+                f"""使用章节义务和读者体验契约审查正文是否真正推进读者期待，而不是只完成事件摘要。本次结构门禁：
+{json.dumps(reader_adherence, ensure_ascii=False, indent=2)}
+若 `status` 不是 pass 或 not_required，`conclusion` 不得为 pass。即使结构通过，也必须语义判断 reader_question、promised_reward、withheld_information、payoff_or_delay、emotional_curve、tension_source、curiosity_hook、freshness_requirement、anti_summary_requirement、reader_aftertaste 是否在正文中得到执行。""",
+            ),
+            (
                 "写入正式 JSON",
                 f"""创建或覆盖 `{_rel(json_output, root)}`，JSON 必须符合 `scene_review.v1`：
 {{
@@ -145,6 +156,12 @@ def write_platform_scene_review_task(
     "narrative_load_satisfied": true,
     "message": "{str(word_budget_adherence.get("message") or "").replace('"', "'")}"
   }},
+  "reader_experience_adherence": {{
+    "status": "{reader_adherence.get("status", "")}",
+    "message": "{str(reader_adherence.get("message") or "").replace('"', "'")}",
+    "reader_promise_satisfied": true,
+    "semantic_review_required": true
+  }},
   "new_character_register": {{
     "schema": "literary-engineering-workbench/new-character-register/v0.1",
     "status": "none | existing_only | ephemeral_only | resolved | needs_candidate | needs_review | needs_approval",
@@ -154,7 +171,7 @@ def write_platform_scene_review_task(
   }},
   "source_paths": []
 }}
-`conclusion=pass` 且 warnings / revision_actions / style_notes / style_adherence 偏差为空，且 word_budget_adherence.status 为 pass 或 not_required、narrative_load_satisfied=true，且 new_character_register.status 为 none / existing_only / ephemeral_only / resolved，才可进入 clean ready。`pass_with_notes` 必须先进入 revise-scene 或记录明确 waiver，不能直接章节装配或导出；新增事实仍保持候选。""",
+`conclusion=pass` 且 warnings / revision_actions / style_notes / style_adherence 偏差为空，且 word_budget_adherence.status 为 pass 或 not_required、narrative_load_satisfied=true，reader_experience_adherence.status 为 pass 或 not_required、reader_promise_satisfied=true，且 new_character_register.status 为 none / existing_only / ephemeral_only / resolved，才可进入 clean ready。`pass_with_notes` 必须先进入 revise-scene 或记录明确 waiver，不能直接章节装配或导出；新增事实仍保持候选。""",
             ),
             (
                 "处理 pass_with_notes 语义",
@@ -162,7 +179,7 @@ def write_platform_scene_review_task(
             ),
             (
                 "写入正式 Markdown 报告",
-                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“新角色登记门禁”段落：列出正文是否出现新角色、哪些是一次性路人、哪些需要候选资产/审查/approval/promotion。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。必须新增“字数预算门禁”段落：写明目标/最低/最高/清洗后正文字符数、叙事负载是否满足、是否存在灌水或摘要化。必须新增“反规避负担证明”段落：列出是否存在换皮转折、保留显式转折的理由、批判性反驳和最终判断。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
+                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“新角色登记门禁”段落：列出正文是否出现新角色、哪些是一次性路人、哪些需要候选资产/审查/approval/promotion。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。必须新增“字数预算门禁”段落：写明目标/最低/最高/清洗后正文中文内容字符、机器非空白字符诊断、叙事负载是否满足、是否存在灌水或摘要化。必须新增“读者体验门禁”段落：写明读者问题、承诺回报、暂扣信息、兑现/延迟、张力来源、反摘要要求和读后余味是否被正文执行。必须新增“反规避负担证明”段落：列出是否存在换皮转折、保留显式转折的理由、批判性反驳和最终判断。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
             ),
         ],
     )
@@ -190,8 +207,12 @@ def write_platform_scene_generation_task(
         source_paths.append(composition_path)
     if prompt_manifest_path and prompt_manifest_path.exists():
         source_paths.append(prompt_manifest_path)
+    obligation_path = root / "plot" / "chapter_obligations" / f"{scene_chapter_obligation_id(root, scene_path)}.json"
+    if obligation_path.exists():
+        source_paths.append(obligation_path)
     _extend_unique(source_paths, _style_source_paths(root))
     word_budget_contract = scene_word_budget_contract(root, scene_path)
+    reader_contract = reader_experience_contract(root, scene_path)
     new_character_contract = render_new_character_register_contract()
     task_path = candidate.with_suffix(".agent_tasks.md")
     write_agent_tasks(
@@ -212,7 +233,7 @@ def write_platform_scene_generation_task(
             ),
             (
                 "读取创作材料",
-                f"""读取 scene.yaml、context packet、context trace、composition packet、prompt manifest、style prompt/profile、长篇字数预算、上一轮 AgentReview 小修约束、生成前最终硬约束摘要、标点规范和相关 canon/character 文件。用 context trace 复核上下文实际来源：若 trace 缺少 scene/project required context，或没有加载本场参与角色、必要 canon、已挂载文风或场景字数预算，停止正文生成并先修复 context。确认人物 BDI、hidden background_story、scene goal、output_state、用户约束、文风生成标准、长篇字数预算标准、pass_with_notes 小修项和标点边界。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+                f"""读取 scene.yaml、context packet、context trace、composition packet、prompt manifest、style prompt/profile、长篇字数预算、章节义务/读者体验契约、上一轮 AgentReview 小修约束、生成前最终硬约束摘要、标点规范和相关 canon/character 文件。用 context trace 复核上下文实际来源：若 trace 缺少 scene/project required context，或没有加载本场参与角色、必要 canon、已挂载文风、场景字数预算或 reader_experience_contract，停止正文生成并先修复 context。确认人物 BDI、hidden background_story、scene goal、output_state、用户约束、文风生成标准、长篇字数预算标准、读者体验硬属性、pass_with_notes 小修项和标点边界。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
             ),
             (
                 "执行生成前最终硬约束摘要",
@@ -234,16 +255,22 @@ def write_platform_scene_generation_task(
 若 status 不是 pass 或 not_required，停止正文生成并回到 longform-planning。若 status=pass，正文清洗后的可交付部分必须落在 min_chinese_chars 到 max_chinese_chars 之间；计入汉字和中文标点，机器非空白字符只作为诊断映射。同时满足 narrative_load；不得靠水化描写拉长，也不得把预算需要的剧情量压缩为摘要。""",
             ),
             (
+                "执行生成前读者体验硬属性",
+                f"""在写候选正文前，检查 prompt manifest 的 generation_standards.reader_experience_contract 和章节义务文件。本场景读者体验硬属性如下：
+{json.dumps(reader_contract, ensure_ascii=False, indent=2)}
+若 status 不是 pass 或 not_required，停止正文生成并先运行 chapter-obligation。若 status=pass，正文必须执行 reader_question、promised_reward、withheld_information、payoff_or_delay、emotional_curve、tension_source、curiosity_hook、freshness_requirement、anti_summary_requirement 和 reader_aftertaste。不能只写“发生了什么”，还要让读者知道为什么继续读、期待被怎样兑现或延迟。""",
+            ),
+            (
                 "执行 AgentReview 小修约束",
                 """若 prompt manifest 中 generation_standards.review_notes_loaded=true，尤其上一轮结论为 pass_with_notes，必须执行 revision_actions / warnings / style_notes 中的局部小修。候选 manifest 记录 pass_with_notes_actions_applied=true；若任何小修无法执行，写入“需要人工确认”，不得静默忽略。""",
             ),
             (
                 "生成候选正文",
-                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选`、`## 状态变化候选` 和 `## 新角色候选登记`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。正文必须先执行文风生成标准、字数预算标准、反规避协议和新角色登记契约，再通过标准标点和降低 AI 腔自检。""",
+                f"""创建或覆盖 `{_rel(candidate, root)}`。正文必须包含 `## 正文候选`、`## 状态变化候选` 和 `## 新角色候选登记`，不得写入 `[AGENT_TASK: ...]`，不得把新增事实写成已确认 canon。背景故事只通过选择、回避、误判、语气或关系压力间接影响行动。正文必须先执行文风生成标准、读者体验硬属性、字数预算标准、反规避协议和新角色登记契约，再通过标准标点和降低 AI 腔自检。""",
             ),
             (
                 "生成候选 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false、word_budget_contract、clean_body_chinese_chars、clean_body_machine_chars、word_budget_adherence.status、new_character_register 和待审查事项。
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、reader_experience_contract、reader_experience_standard_applied=true/false、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false、word_budget_contract、clean_body_chinese_chars、clean_body_machine_chars、word_budget_adherence.status、new_character_register 和待审查事项。
 
 {new_character_contract}
 

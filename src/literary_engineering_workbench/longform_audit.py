@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .context_broker import context_trace_status
-from .draft_text import count_delivery_chars, final_body_from_draft_text
+from .draft_text import count_delivery_chars, count_delivery_chinese_content_chars, final_body_from_draft_text
 from .scene_readiness import agent_review_gate_state, scene_flow_gate_issues, scene_readiness_status
 from .word_budget import load_word_budget_summary
 
@@ -48,9 +48,12 @@ class LongformSceneRecord:
     agent_review_unresolved_notes: tuple[str, ...]
     style_adherence_status: str
     word_budget_adherence_status: str
+    reader_experience_adherence_status: str
+    reader_promise_satisfied: bool
     flow_gate_issues: tuple[str, ...]
     readiness_issues: tuple[str, ...]
     draft_chars: int
+    draft_machine_chars: int
     status: str
 
 
@@ -180,9 +183,12 @@ def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
                 agent_review_unresolved_notes=tuple(str(item) for item in agent_state.get("unresolved_notes", [])),
                 style_adherence_status=str(agent_state.get("style_adherence_status") or ""),
                 word_budget_adherence_status=str(agent_state.get("word_budget_adherence_status") or ""),
+                reader_experience_adherence_status=str(agent_state.get("reader_experience_adherence_status") or ""),
+                reader_promise_satisfied=bool(agent_state.get("reader_promise_satisfied")),
                 flow_gate_issues=flow_issues,
                 readiness_issues=readiness_issues,
-                draft_chars=count_delivery_chars(body),
+                draft_chars=count_delivery_chinese_content_chars(body),
+                draft_machine_chars=count_delivery_chars(body),
                 status=status,
             )
         )
@@ -359,7 +365,7 @@ def _audit_issues(
                 "medium",
                 "word_budget",
                 "plot/word_budget/word_budget.json",
-                "目标字数达到中长篇规模，但缺少长篇字数预算与剧情库存门禁。",
+                "目标中文内容字符达到中长篇规模，但缺少长篇字数预算与剧情库存门禁。",
                 "先运行 word-budget / longform-budget，并由平台 agent 根据任务侧车扩充预算化大纲候选。",
             )
         )
@@ -394,7 +400,7 @@ def _audit_issues(
                 "low",
                 "scale_progress",
                 "drafts",
-                f"当前正文约 {draft_chars} 字，距离目标 {target_length} 字仍处于早期阶段。",
+                f"当前正文约 {draft_chars} 个中文内容字符，距离目标 {target_length} 个中文内容字符仍处于早期阶段。",
                 "优先补齐场景草稿、章节工作台和连续性审查，再扩大生成规模。",
             )
         )
@@ -501,7 +507,8 @@ def _render_markdown(root: Path, payload: dict, graph_path: Path) -> str:
         f"- 场景数：{summary['scene_count']}",
         f"- 人物档案数：{summary['character_count']}",
         f"- 地点数：{summary['location_count']}",
-        f"- 正文字符数：{summary['draft_chars']} / 目标 {summary['target_length']}",
+        f"- 正文中文内容字符：{summary['draft_chars']} / 目标 {summary['target_length']}",
+        f"- 机器非空白字符诊断：{summary.get('draft_machine_chars', 0)}",
         f"- 字数预算状态：{summary.get('word_budget_status', 'missing')} / 预算场景 {summary.get('word_budget_scene_count', 0)}",
         f"- 可装配场景：{summary['ready_scene_count']}",
         f"- 阻塞场景：{summary['blocked_scene_count']}",
@@ -509,7 +516,7 @@ def _render_markdown(root: Path, payload: dict, graph_path: Path) -> str:
         "",
         "## 场景状态矩阵",
         "",
-        "| 章节 | 场景 | 地点 | 参与者 | 正文字符 | 静态审查 | Agent审查 | 状态 |",
+        "| 章节 | 场景 | 地点 | 参与者 | 正文中文内容字符 | 静态审查 | Agent审查 | 状态 |",
         "| --- | --- | --- | --- | ---: | --- | --- | --- |",
     ]
     for scene in scenes:
@@ -589,6 +596,8 @@ def _summary(
         "location_count": len(locations),
         "foreshadowing_count": len(foreshadowing),
         "draft_chars": sum(scene.draft_chars for scene in scenes),
+        "draft_chinese_chars": sum(scene.draft_chars for scene in scenes),
+        "draft_machine_chars": sum(scene.draft_machine_chars for scene in scenes),
         "target_length": target_length,
         "ready_scene_count": sum(1 for scene in scenes if scene.status == "ready"),
         "blocked_scene_count": sum(1 for scene in scenes if scene.status != "ready"),

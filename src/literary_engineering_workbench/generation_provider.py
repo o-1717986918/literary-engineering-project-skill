@@ -215,6 +215,7 @@ def generate_scene_candidate(
         "generated_at": _now(),
         "generated_chars": len(rendered),
         "prompt_sources": prompt_pack.sources,
+        "reader_experience_contract": prompt_pack.reader_experience_contract,
         "new_character_register": empty_new_character_register(),
         "request": {
             key: str(value) if isinstance(value, Path) else value
@@ -278,7 +279,7 @@ def _write_generation_agent_tasks(
         tasks=[
             (
                 "审查 prompt manifest",
-                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、generation_standards.style、generation_standards.word_budget、generation_standards.review_notes、generation_standards.anti_evasion、generation_standards.hard_constraints、generation_standards.new_character_register、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill、文风生成标准、长篇字数预算标准、新角色登记契约、AgentReview 小修约束、反规避协议、生成前最终硬约束摘要或用户约束。""",
+                """读取 .prompt.json，确认 system/user messages、source files、composition、style_profile、generation_standards.style、generation_standards.word_budget、generation_standards.reader_experience_contract、generation_standards.review_notes、generation_standards.anti_evasion、generation_standards.hard_constraints、generation_standards.new_character_register、provider 和 model 是否完整。检查是否遗漏 canon、character facts、scene goal、mounted style skill、文风生成标准、长篇字数预算标准、读者体验硬属性、新角色登记契约、AgentReview 小修约束、反规避协议、生成前最终硬约束摘要或用户约束。""",
             ),
             (
                 "审查反规避执行",
@@ -299,6 +300,10 @@ def _write_generation_agent_tasks(
             (
                 "审查生成前字数预算标准",
                 """若 prompt manifest 中 generation_standards.word_budget_loaded=true，检查候选是否服从长篇预算：本场景承担的剧情功能、信息变化、关系压力、后果链和章节节奏是否支撑预算，而不是把有限事件拉长或压缩为摘要。若预算缺失或 needs_expansion，说明是否应暂停批量生成。""",
+            ),
+            (
+                "审查读者体验硬属性",
+                """若 prompt manifest 中 generation_standards.reader_experience_loaded=true，检查候选是否执行本场读者问题、承诺回报、暂扣信息、兑现/延迟、情绪曲线、张力来源、新鲜度、反摘要要求和读后余味。若正文只完成事件摘要、没有推进读者期待或没有形成章节承诺的支付/延迟，标为阻塞。""",
             ),
             (
                 "审查候选正文",

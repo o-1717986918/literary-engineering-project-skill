@@ -12,7 +12,7 @@ from literary_engineering_workbench.longform_audit import build_longform_audit
 from literary_engineering_workbench.scene_composer import build_scene_composition
 from literary_engineering_workbench.word_budget import build_word_budget, word_budget_adherence_for_body
 
-from helpers import TempProjectMixin, make_reviewed_passing_scene
+from helpers import TempProjectMixin, make_reviewed_passing_scene, write_ready_chapter_obligation
 
 
 class WordBudgetTests(TempProjectMixin, unittest.TestCase):
@@ -31,6 +31,7 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue(result.json_path.exists())
         self.assertTrue(result.agent_tasks_path.exists())
         self.assertTrue(result.scene_inventory_tasks_path.exists())
+        self.assertTrue(result.chapter_obligation_tasks_path.exists())
         self.assertEqual(result.target_words, 500000)
         self.assertEqual(result.volume_count, 5)
         self.assertGreater(result.chapter_count, 80)
@@ -54,6 +55,9 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         scene_tasks = result.scene_inventory_tasks_path.read_text(encoding="utf-8")
         self.assertIn("word_budget_scene_inventory.md", scene_tasks)
         self.assertIn("扩场景", scene_tasks)
+        obligation_tasks = result.chapter_obligation_tasks_path.read_text(encoding="utf-8")
+        self.assertIn("chapter_obligation_review.md", obligation_tasks)
+        self.assertIn("读者体验", obligation_tasks)
 
     def test_cli_word_budget_alias(self):
         project = self.make_project()
@@ -76,9 +80,12 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("receiver: platform-agent", out.getvalue())
         self.assertIn("scene_inventory_tasks", out.getvalue())
+        self.assertIn("chapter_obligation_tasks", out.getvalue())
+        self.assertIn("target_chinese_chars: 120000", out.getvalue())
         self.assertTrue((project / "plot" / "word_budget" / "word_budget.json").exists())
         self.assertTrue((project / "plot" / "word_budget" / "word_budget.agent_tasks.md").exists())
         self.assertTrue((project / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md").exists())
+        self.assertTrue((project / "plot" / "chapter_obligations" / "chapter_obligations.agent_tasks.md").exists())
 
     def test_prompt_manifest_includes_word_budget_standard(self):
         project = self.make_project()
@@ -95,6 +102,7 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         review.parent.mkdir(parents=True, exist_ok=True)
         review.write_text("# Word Budget Review\n\n- 结论：`pass`\n", encoding="utf-8")
         write_agent_completion_marker(budget.agent_tasks_path, root=project, handled_by="platform-agent-test")
+        write_ready_chapter_obligation(project, chapter_id="chapter_0001", scene_id="scene_0001")
 
         result = generate_scene_candidate(
             project,
@@ -105,9 +113,12 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         manifest = json.loads(result.prompt_manifest_path.read_text(encoding="utf-8"))
 
         self.assertTrue(manifest["generation_standards"]["word_budget_loaded"])
+        self.assertTrue(manifest["generation_standards"]["reader_experience_loaded"])
         self.assertEqual(manifest["generation_standards"]["word_budget_path"], "plot/word_budget/word_budget.json")
         self.assertIn("长篇字数预算标准", manifest["messages"][1]["content"])
+        self.assertIn("本场景读者体验硬属性", manifest["messages"][1]["content"])
         self.assertIn("plot/word_budget/word_budget.json", {item["path"] for item in manifest["sources"]})
+        self.assertIn("plot/chapter_obligations/chapter_0001.json", {item["path"] for item in manifest["sources"]})
 
     def test_longform_audit_reports_missing_and_underbuilt_budget(self):
         project = self.make_project()
@@ -152,6 +163,8 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         self.assertGreater(adherence["clean_body_machine_chars"], 6)
         self.assertEqual(adherence["target_chinese_chars"], 6)
         self.assertEqual(adherence["machine_count_mapping"]["target_unit"], "chinese_content_chars_including_chinese_punctuation")
+        self.assertEqual(adherence["machine_count_mapping"]["rough_expected_machine_chars_range"], [6, 7])
+        self.assertEqual(adherence["machine_count_mapping"]["diagnostic_warning"], "machine_count_inflated_by_non_chinese_or_workbench_content")
 
 
 def _prepare_generation_ready(project: Path):

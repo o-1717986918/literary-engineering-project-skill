@@ -150,7 +150,7 @@ CLI 只负责：
 
 `task-next --route longform-planning` 使用同一套 `task-open` / `task-submit` / `task-complete` 生命周期。该路线的关键门禁：
 
-1. `word_budget.json` 必须存在、schema 正确、target words 为正、包含 `chapter_budgets` 与 `scene_inventory_binding`。
+1. `word_budget.json` 必须存在、schema 正确、目标中文内容字符为正、包含 `chapter_budgets` 与 `scene_inventory_binding`。
 2. `word_budget.agent_tasks.md` 与 `scene_inventory_expansion.agent_tasks.md` 必须存在。
 3. `word_budget.agent_completion.json` 不能单独放行，`plot/candidates/outlines/word_budget_expansion.md` 也必须存在。
 4. `scene_inventory_expansion.agent_completion.json` 不能单独放行，`plot/candidates/scenes/word_budget_scene_inventory.md` 也必须存在。

@@ -63,7 +63,7 @@ python -m literary_engineering_workbench workflow-events <project>
 $env:PYTHONPATH = "src"
 python -m literary_engineering_workbench task-next <project> --route longform-planning
 python -m literary_engineering_workbench task-open <project> --task-id <task-id>
-# 平台 Agent 按 task 执行 word-budget、预算化大纲、预算 review、场景库存候选和库存 review
+# 平台 Agent 按 task 执行 word-budget、预算化大纲、预算 review、场景库存候选、库存 review、章节义务规划和章节义务 review
 python -m literary_engineering_workbench task-submit <project> --task-id <task-id> --from <artifact>
 python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
 python -m literary_engineering_workbench workflow-advance <project> --route longform-planning
@@ -114,6 +114,8 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 
 从 `v0.84.2` 起，`task_registry.py` 使用 route registry 分发表、选择器、任务构建器和门禁函数。`longform-planning` 已接入同一生命周期：`word-budget-file`、`budget-agent-task`、`budget-review`、`scene-inventory-agent-task`、`scene-inventory-review`。预算 sidecar 的 completion marker 不能单独放行；预算化大纲候选、分场景库存候选和对应 clean `pass` review 也必须存在。
 
+从 `v0.88.0` 起，`longform-planning` 在 scene inventory 后新增 `chapter-obligation-agent-task` 和 `chapter-obligation-review`。`word-budget` 会生成 `plot/chapter_obligations/chapter_obligations.agent_tasks.md`，平台 Agent 必须完成章节义务规划、写 clean review 和 completion marker。单章正式生成前还要通过 `chapter-obligation --chapter-id <chapter_id>` 建立 per-chapter reader contract；缺失时 scene-development 会停在 `reader-experience-contract`，不会进入正文候选生成。
+
 从 `v0.84.3` 起，`source-ingest` 已接入同一生命周期：`source-manifest`、`extraction-agent-task`、`extraction-review`。已有作品导入只负责源文本、chunk 和 extraction sidecar；反推出的项目简报、人物/背景、世界观、大纲、时间线、伏笔、文风 notes 和 extraction review 必须由平台 Agent 写入候选区。completion marker、候选文件和 clean `pass` review 缺一项都不能 ready。
 
 从 `v0.84.4` 起，`style-engineering` 已接入同一生命周期：`style-profile`、`style-prompt-task-file`、`style-prompt-agent-task`、`style-prompt-quality`、`style-eval-readiness`。项目根 `style/style-profile.md` 占位文件不会被误当成 profile；真正的 profile 目录必须完成 sidecar、prompt、agent JSON、质量检查和 accepted style eval 后才 ready。
@@ -144,15 +146,16 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 8. `composition-json`
 9. `composition-agent-task`
 10. `scene-word-budget-contract`
-11. `candidate-generation-provenance`
-12. `generation-agent-task`
-13. `candidate-review`
-14. `agent-review-task`
-15. `promotion-manifest`
-16. `promoted-draft`
-17. `static-review`
-18. `state-patch-json`
-19. `state-agent-task`
+11. `reader-experience-contract`
+12. `candidate-generation-provenance`
+13. `generation-agent-task`
+14. `candidate-review`
+15. `agent-review-task`
+16. `promotion-manifest`
+17. `promoted-draft`
+18. `static-review`
+19. `state-patch-json`
+20. `state-agent-task`
 
 状态不是靠 CLI 手写推进，而是由真实项目文件、sidecar completion marker 和现有 gate 推导。`workflow-advance` 只是刷新账本，不允许把未完成状态强行改成完成。
 
@@ -165,6 +168,8 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 3. `budget-review`
 4. `scene-inventory-agent-task`
 5. `scene-inventory-review`
+6. `chapter-obligation-agent-task`
+7. `chapter-obligation-review`
 
 对应硬产物：
 
@@ -178,8 +183,11 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 8. `plot/word_budget/scene_inventory_expansion.agent_completion.json`
 9. `plot/candidates/scenes/word_budget_scene_inventory.md`
 10. `reviews/word_budget/scene_inventory_review.md`，结论必须为 `pass`
+11. `plot/chapter_obligations/chapter_obligations.agent_tasks.md`
+12. `plot/chapter_obligations/chapter_obligations.agent_completion.json`
+13. `reviews/word_budget/chapter_obligation_review.md`，结论必须为 `pass`
 
-这条路线专门堵住“预算文件生成了但没人读”的漏洞。正式批量场景生成前，平台 Agent 必须完成预算化大纲和场景库存两类判断，不能只靠拉长每个场景满足目标字数。
+这条路线专门堵住“预算文件生成了但没人读”的漏洞。正式批量场景生成前，平台 Agent 必须完成预算化大纲、场景库存和章节义务三类判断，不能只靠拉长每个场景满足目标字数，也不能把章节写成缺乏读者承诺的事件摘要。
 
 ## 4.2 Source-ingest 状态
 
@@ -400,5 +408,6 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 3. New Character Register：阻止持久新角色从正文旁路进入角色库。
    - `v0.86.1` 已完成生成 manifest、AgentReview、promotion、readiness、route-audit 和 state-evolve 接入。
 4. Reader Experience Contract：让字数和章节义务进入 `task-open` 与 `task-complete`。
+   - `v0.88.0` 已完成 chapter-obligation sidecar、reader-experience scene gate、prompt/generation/review/promotion/readiness 接入。
 5. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
 6. 扩展跨路线 dashboard：把七条正式路线的缺口压缩成用户可读的下一步队列。

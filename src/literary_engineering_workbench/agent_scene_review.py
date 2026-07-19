@@ -13,6 +13,7 @@ from .agent_schema import validate_agent_run
 from .context_broker import default_context_trace_path
 from .draft_text import final_body_from_workbench_text
 from .new_character_register import empty_new_character_register, render_new_character_register_contract
+from .reader_experience import reader_experience_adherence_for_body, scene_chapter_obligation_id
 from .word_budget import word_budget_adherence_for_body
 
 
@@ -54,6 +55,9 @@ def review_scene_with_agent(
         source_paths.append(_rel_str(context_trace_path, root))
     if style_prompt_path and style_prompt_path.exists():
         source_paths.append(_rel_str(style_prompt_path, root))
+    obligation_path = root / "plot" / "chapter_obligations" / f"{scene_chapter_obligation_id(root, scene_path)}.json"
+    if obligation_path.exists():
+        source_paths.append(_rel_str(obligation_path, root))
 
     scene_text = _read(scene_path)
     draft_text = _read(draft_path) if draft_path.exists() else ""
@@ -62,13 +66,14 @@ def review_scene_with_agent(
     context_trace_text = _read(context_trace_path) if context_trace_path.exists() else ""
     style_text = _read(style_prompt_path) if style_prompt_path else ""
     word_budget_adherence = word_budget_adherence_for_body(root, scene_path, draft_body)
-    dry_payload = _dry_scene_review(scene_id, draft_text, source_paths, word_budget_adherence)
+    reader_adherence = reader_experience_adherence_for_body(root, scene_path, draft_body)
+    dry_payload = _dry_scene_review(scene_id, draft_text, source_paths, word_budget_adherence, reader_adherence)
     run_result = run_agent_task(
         root,
         agent_id="scene-reviewer",
         task=f"review-scene:{scene_id}",
         system_prompt=_system_prompt(),
-        user_prompt=_user_prompt(scene_text, draft_text, context_text, context_trace_text, style_text, source_paths, word_budget_adherence),
+        user_prompt=_user_prompt(scene_text, draft_text, context_text, context_trace_text, style_text, source_paths, word_budget_adherence, reader_adherence),
         provider=provider,
         metadata={"schema_name": "scene_review.v1", "scene_id": scene_id, "source_paths": source_paths},
         dry_run_output=dry_payload,
@@ -98,7 +103,7 @@ def review_scene_with_agent(
 def _system_prompt() -> str:
     return """You are a literary engineering scene review agent.
 
-Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, mounted style adherence, punctuation rhythm, deterministic Style Lint evidence, anti-evasion revision integrity, cleaned-body word-budget adherence, new character registration, and revision actions. Output JSON only using schema scene_review.v1, including structured style_adherence, word_budget_adherence, new_character_register, and revision_integrity objects."""
+Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, reader-experience payoff, mounted style adherence, punctuation rhythm, deterministic Style Lint evidence, anti-evasion revision integrity, cleaned-body word-budget adherence, new character registration, and revision actions. Output JSON only using schema scene_review.v1, including structured style_adherence, word_budget_adherence, reader_experience_adherence, new_character_register, and revision_integrity objects."""
 
 
 def _user_prompt(
@@ -109,6 +114,7 @@ def _user_prompt(
     style_text: str,
     source_paths: list[str],
     word_budget_adherence: dict[str, object],
+    reader_adherence: dict[str, object],
 ) -> str:
     draft_body = final_body_from_workbench_text(draft_text) or draft_text
     return f"""Source paths: {source_paths}
@@ -128,6 +134,14 @@ def _user_prompt(
 ```
 
 若 status 不是 pass 或 not_required，`conclusion` 不得为 pass。若 status 已通过，也必须判断 narrative_load_satisfied；不能靠重复心理解释、空泛描写或流程文本填字数。
+
+## Reader Experience Gate
+
+以下是章节义务与读者体验契约的确定性结构门禁。语义判断由平台 Agent 完成，但若 status 不是 pass 或 not_required，`conclusion` 不得为 pass。即使结构通过，也必须判断正文是否推进了读者问题、承诺回报、暂扣信息、兑现/延迟、情绪曲线、张力来源、新鲜度、反摘要要求和读后余味；不能只复述事件梗概：
+
+```json
+{json.dumps(reader_adherence, ensure_ascii=False, indent=2)}
+```
 
 ## Scene YAML
 
@@ -165,18 +179,28 @@ def _user_prompt(
 """
 
 
-def _dry_scene_review(scene_id: str, draft_text: str, source_paths: list[str], word_budget_adherence: dict[str, object]) -> dict[str, object]:
+def _dry_scene_review(
+    scene_id: str,
+    draft_text: str,
+    source_paths: list[str],
+    word_budget_adherence: dict[str, object],
+    reader_adherence: dict[str, object],
+) -> dict[str, object]:
     draft_body = final_body_from_workbench_text(draft_text) or draft_text
     has_body = bool(draft_body.strip()) and "<!-- 在这里写入场景正文。 -->" not in draft_body
     lint_issues = lint_ai_style(draft_body) if has_body else []
     blocking_lint = [issue for issue in lint_issues if issue.severity not in {"low"}]
     budget_status = str(word_budget_adherence.get("status") or "").strip().lower()
     budget_blocked = budget_status not in {"pass", "not_required"}
-    conclusion = "revise_required" if not has_body or blocking_lint or budget_blocked else "pass_with_notes"
+    reader_status = str(reader_adherence.get("status") or "").strip().lower()
+    reader_blocked = reader_status not in {"pass", "not_required"}
+    conclusion = "revise_required" if not has_body or blocking_lint or budget_blocked or reader_blocked else "pass_with_notes"
     warnings = [] if has_body else ["场景草稿缺少可审查正文，需先补正文或提升生成候选。"]
     warnings.extend(f"Style lint: {issue.rule} - {issue.message}" for issue in blocking_lint)
     if budget_blocked:
         warnings.append(f"Word budget gate: {word_budget_adherence.get('message')}")
+    if reader_blocked:
+        warnings.append(f"Reader experience gate: {reader_adherence.get('message')}")
     style_source = _style_source_label(source_paths)
     style_status = "pass_with_notes" if style_source and has_body else ("revise_required" if style_source else "not_applicable")
     style_revision_actions = (
@@ -217,6 +241,11 @@ def _dry_scene_review(scene_id: str, draft_text: str, source_paths: list[str], w
             **word_budget_adherence,
             "narrative_load_satisfied": budget_status in {"pass", "not_required"},
         },
+        "reader_experience_adherence": {
+            **reader_adherence,
+            "reader_promise_satisfied": reader_status in {"pass", "not_required"},
+            "semantic_review_required": reader_adherence.get("requires_platform_agent_semantic_review", True),
+        },
         "new_character_register": empty_new_character_register(),
         "revision_integrity": {
             "anti_evasion_checked": True,
@@ -243,6 +272,12 @@ def _render_report(payload: dict[str, object], validation_status: str) -> str:
         f"- 状态：`{(payload.get('word_budget_adherence') if isinstance(payload.get('word_budget_adherence'), dict) else {}).get('status', '')}`",
         f"- 清洗后正文中文内容字符：`{(payload.get('word_budget_adherence') if isinstance(payload.get('word_budget_adherence'), dict) else {}).get('clean_body_chinese_chars', '')}`",
         f"- 机器非空白字符诊断：`{(payload.get('word_budget_adherence') if isinstance(payload.get('word_budget_adherence'), dict) else {}).get('clean_body_machine_chars', '')}`",
+        "",
+        "## 读者体验门禁",
+        "",
+        f"- 状态：`{(payload.get('reader_experience_adherence') if isinstance(payload.get('reader_experience_adherence'), dict) else {}).get('status', '')}`",
+        f"- 信息：{(payload.get('reader_experience_adherence') if isinstance(payload.get('reader_experience_adherence'), dict) else {}).get('message', '')}",
+        f"- 语义复核：`{(payload.get('reader_experience_adherence') if isinstance(payload.get('reader_experience_adherence'), dict) else {}).get('semantic_review_required', '')}`",
         "",
         "## 摘要",
         "",

@@ -54,6 +54,7 @@ from .platform_agent_tasks import (
 )
 from .prompt_pack import build_scene_prompt_pack, write_prompt_manifest
 from .publish import publish_chapter
+from .reader_experience import build_chapter_obligation_tasks
 from .review_ci import review_scene_draft
 from .scene_composer import build_scene_composition
 from .roleplay_lab import build_roleplay_simulation
@@ -574,7 +575,7 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         word_budget = sub.add_parser(command, help=help_text)
         word_budget.add_argument("project", help="Work project directory.")
-        word_budget.add_argument("--target-words", type=int, default=0, help="Target total character count. Defaults to project.yaml target_length.")
+        word_budget.add_argument("--target-words", type=int, default=0, help="Target total Chinese-content character count, including Han characters and Chinese punctuation. Defaults to project.yaml target_length.")
         word_budget.add_argument("--volumes", type=int, default=0, help="Volume count. Defaults to project.yaml volumes or an inferred value.")
         word_budget.add_argument("--genre", default="", help="Genre preset, such as general, mystery, speculative, urban, or literary.")
         word_budget.add_argument("--time-span", default="", help="Story time-span note for platform-agent planning.")
@@ -582,6 +583,13 @@ def build_parser() -> argparse.ArgumentParser:
         word_budget.add_argument("--out", default="", help="Output markdown path. Defaults to plot/word_budget/word_budget.md.")
         word_budget.add_argument("--json-out", default="", help="Output JSON path. Defaults to plot/word_budget/word_budget.json.")
         word_budget.add_argument("--agent-tasks-out", default="", help="Output agent task sidecar. Defaults to plot/word_budget/word_budget.agent_tasks.md.")
+
+    obligation = sub.add_parser("chapter-obligation", help="Create a chapter obligation and reader-experience platform-agent task.")
+    obligation.add_argument("project", help="Work project directory.")
+    obligation.add_argument("--chapter-id", default="", help="Chapter id. Defaults to the first scene chapter or chapter_0001.")
+    obligation.add_argument("--out", default="", help="Output markdown path. Defaults to plot/chapter_obligations/{chapter_id}.md.")
+    obligation.add_argument("--json-out", default="", help="Output JSON path. Defaults to plot/chapter_obligations/{chapter_id}.json.")
+    obligation.add_argument("--agent-tasks-out", default="", help="Output agent task sidecar. Defaults to plot/chapter_obligations/{chapter_id}.agent_tasks.md.")
 
     longform = sub.add_parser("longform-audit", help="Audit long-form continuity, readiness, and graph structure.")
     longform.add_argument("project", help="Work project directory.")
@@ -1870,14 +1878,37 @@ def main(argv=None) -> int:
         print(f"json: {result.json_path}")
         print(f"agent_tasks: {result.agent_tasks_path}")
         print(f"scene_inventory_tasks: {result.scene_inventory_tasks_path}")
+        print(f"chapter_obligation_tasks: {result.chapter_obligation_tasks_path}")
         _print_agent_task_notice(result.agent_tasks_path, project=Path(args.project).resolve())
         _print_agent_task_notice(result.scene_inventory_tasks_path, project=Path(args.project).resolve())
+        _print_agent_task_notice(result.chapter_obligation_tasks_path, project=Path(args.project).resolve())
         print(f"target_words: {result.target_words}")
+        print(f"target_chinese_chars: {result.target_words}")
         print(f"volumes: {result.volume_count}")
         print(f"chapters: {result.chapter_count}")
         print(f"scenes: {result.scene_count}")
         print(f"status: {result.status}")
         print(f"issues: {result.issue_count}")
+        print("receiver: platform-agent")
+        return 0
+
+    if args.command == "chapter-obligation":
+        try:
+            result = build_chapter_obligation_tasks(
+                Path(args.project),
+                chapter_id=args.chapter_id,
+                output=Path(args.out) if args.out else None,
+                json_output=Path(args.json_out) if args.json_out else None,
+                agent_tasks_output=Path(args.agent_tasks_out) if args.agent_tasks_out else None,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            parser.error(str(exc))
+        print(f"chapter_obligation: {result.markdown_path}")
+        print(f"json: {result.json_path}")
+        print(f"agent_tasks: {result.agent_tasks_path}")
+        _print_agent_task_notice(result.agent_tasks_path, project=Path(args.project).resolve())
+        print(f"chapter_id: {result.chapter_id}")
+        print(f"status: {result.status}")
         print("receiver: platform-agent")
         return 0
 

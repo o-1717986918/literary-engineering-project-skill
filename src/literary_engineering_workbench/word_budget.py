@@ -94,6 +94,7 @@ class WordBudgetResult:
     json_path: Path
     agent_tasks_path: Path
     scene_inventory_tasks_path: Path
+    chapter_obligation_tasks_path: Path
     target_words: int
     volume_count: int
     chapter_count: int
@@ -120,7 +121,7 @@ def build_word_budget(
     project_text = _read(root / "project.yaml")
     resolved_target = int(target_words or _project_int(project_text, "target_length") or 100000)
     if resolved_target <= 0:
-        raise ValueError("target words must be positive")
+        raise ValueError("target Chinese-content characters must be positive")
     volume_count = max(int(volumes or _infer_volumes(project_text, resolved_target)), 1)
     preset_key, preset = _preset_for(genre or _project_genre(project_text))
     volume_words = _distribute_words(resolved_target, volume_count)
@@ -145,6 +146,8 @@ def build_word_budget(
         "budget_review": "reviews/word_budget/word_budget_review.md",
         "scene_inventory_expansion": "plot/candidates/scenes/word_budget_scene_inventory.md",
         "scene_inventory_review": "reviews/word_budget/scene_inventory_review.md",
+        "chapter_obligations": "plot/chapter_obligations/",
+        "chapter_obligation_review": "reviews/word_budget/chapter_obligation_review.md",
     }
     status = "pass" if not [issue for issue in issues if issue["severity"] in {"high", "medium"}] else "needs_expansion"
 
@@ -152,12 +155,14 @@ def build_word_budget(
     json_path = _resolve_output(root, json_output, "plot", "word_budget", "word_budget.json")
     task_path = _resolve_output(root, agent_tasks_output, "plot", "word_budget", "word_budget.agent_tasks.md")
     scene_task_path = root / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md"
+    chapter_obligation_task_path = root / "plot" / "chapter_obligations" / "chapter_obligations.agent_tasks.md"
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.parent.mkdir(parents=True, exist_ok=True)
     task_path.parent.mkdir(parents=True, exist_ok=True)
     (root / "reviews" / "word_budget").mkdir(parents=True, exist_ok=True)
     (root / "plot" / "candidates" / "outlines").mkdir(parents=True, exist_ok=True)
     (root / "plot" / "candidates" / "scenes").mkdir(parents=True, exist_ok=True)
+    (root / "plot" / "chapter_obligations").mkdir(parents=True, exist_ok=True)
 
     payload = {
         "schema": "literary-engineering-workbench/word-budget/v1",
@@ -193,6 +198,7 @@ def build_word_budget(
                 "budgeted outline expansion",
                 "volume/chapter/scene creative allocation",
                 "narrative-load review",
+                "chapter obligation and reader-experience planning",
                 "approval before promotion",
             ],
         },
@@ -201,6 +207,7 @@ def build_word_budget(
     markdown_path.write_text(_render_markdown(root, payload, json_path), encoding="utf-8")
     _write_agent_tasks(root, markdown_path, json_path, outline_path, task_path, payload)
     _write_scene_inventory_agent_tasks(root, markdown_path, json_path, outline_path, scene_task_path, payload)
+    _write_chapter_obligation_plan_tasks(root, markdown_path, json_path, outline_path, chapter_obligation_task_path, payload)
 
     return WordBudgetResult(
         project_root=root,
@@ -208,6 +215,7 @@ def build_word_budget(
         json_path=json_path,
         agent_tasks_path=task_path,
         scene_inventory_tasks_path=scene_task_path,
+        chapter_obligation_tasks_path=chapter_obligation_task_path,
         target_words=resolved_target,
         volume_count=volume_count,
         chapter_count=totals["chapter_count"],
@@ -374,7 +382,7 @@ def scene_word_budget_contract(root: Path, scene_path: Path) -> dict[str, object
     base.update(
         {
             "status": "pass" if target_words else "invalid",
-            "message": "scene word budget contract is ready" if target_words else "scene target words could not be computed",
+            "message": "scene Chinese-content word budget contract is ready" if target_words else "scene target Chinese-content characters could not be computed",
             "target_words": target_words,
             "min_words": min_words,
             "max_words": max_words,
@@ -390,7 +398,8 @@ def scene_word_budget_contract(root: Path, scene_path: Path) -> dict[str, object
                 "machine_unit": MACHINE_NONSPACE_COUNT_UNIT,
                 "target_chinese_chars": target_words,
                 "rough_expected_machine_chars": target_words,
-                "note": "Formal gates use Chinese content chars; machine nonspace chars are diagnostic only.",
+                "rough_expected_machine_chars_range": [round(target_words * 0.95), round(target_words * 1.15)],
+                "note": "Formal gates use Chinese content chars; machine nonspace chars are diagnostic only. The range is a rough bridge for UI/platform displays, not a pass/fail threshold.",
             },
             "source": source,
             "alignment_status": alignment_status,
@@ -525,6 +534,7 @@ def render_scene_word_budget_contract(root: Path, scene_path: Path) -> str:
             f"- 最低中文内容字符：{contract.get('min_chinese_chars')}",
             f"- 最高中文内容字符：{contract.get('max_chinese_chars')}",
             f"- 机器非空白字符诊断：{contract.get('machine_count_mapping', {}).get('rough_expected_machine_chars', contract.get('target_words'))}",
+            f"- 机器非空白粗略范围：{contract.get('machine_count_mapping', {}).get('rough_expected_machine_chars_range', [])}",
             f"- 目标来源：{contract.get('source') or 'unknown'}",
             f"- scene.yaml 显式目标：{contract.get('scene_yaml_target_words') or 0}",
             f"- 预算推导目标：{contract.get('derived_target_words') or 0}",
@@ -555,11 +565,11 @@ def _write_agent_tasks(root: Path, markdown_path: Path, json_path: Path, outline
         tasks=[
             (
                 "审查预算与类型映射",
-                """读取 word_budget.json / word_budget.md，确认目标字数、卷数、类型、时间跨度、章节数、场景数和平均场景字数是否适合该作品。若类型或时间跨度导致节奏不合理，提出修正预算而不是直接缩水。""",
+                """读取 word_budget.json / word_budget.md，确认目标中文内容字符、卷数、类型、时间跨度、章节数、场景数和平均场景中文内容字符是否适合该作品。若类型或时间跨度导致节奏不合理，提出修正预算而不是直接缩水。""",
             ),
             (
                 "补足剧情库存候选",
-                f"""创建或覆盖 `{candidate}`。按卷 -> 章 -> 场景列出可支撑目标字数的候选结构。每章必须包含目标字数、2-5个场景、每个场景的功能、目标字数、主线/副线/人物线/世界信息/后果负载、详略等级和承接的前后因果。不得只写概括性梗概。""",
+                f"""创建或覆盖 `{candidate}`。按卷 -> 章 -> 场景列出可支撑目标中文内容字符的候选结构。每章必须包含目标中文内容字符、2-5个场景、每个场景的功能、目标中文内容字符、主线/副线/人物线/世界信息/后果负载、详略等级和承接的前后因果。不得只写概括性梗概。""",
             ),
             (
                 "建立字数-剧情量映射",
@@ -567,7 +577,7 @@ def _write_agent_tasks(root: Path, markdown_path: Path, json_path: Path, outline
             ),
             (
                 "写入预算审查报告",
-                f"""创建或覆盖 `{review}`。报告结论使用 pass / pass_with_notes / revise_required / reject，说明当前大纲是否足以支撑目标字数、哪里欠剧情库存、哪些卷需要扩展、哪些内容需要用户确认。不要写入 `[AGENT_TASK: ...]`。""",
+                f"""创建或覆盖 `{review}`。报告结论使用 pass / pass_with_notes / revise_required / reject，说明当前大纲是否足以支撑目标中文内容字符、哪里欠剧情库存、哪些卷需要扩展、哪些内容需要用户确认。不要写入 `[AGENT_TASK: ...]`。""",
             ),
         ],
     )
@@ -586,7 +596,7 @@ def _write_scene_inventory_agent_tasks(root: Path, markdown_path: Path, json_pat
         source_paths=source_paths,
         notes=[
             "这是字数预算到场景库存的绑定任务。",
-            "CLI 已计算每章目标字数、目标场景数、实际 scene 文件数、已写正文字符数、缺失场景数和正文缺口。",
+            "CLI 已计算每章目标中文内容字符、目标场景数、实际 scene 文件数、已写正文中文内容字符、机器非空白字符诊断、缺失场景数和正文缺口。",
             "平台 agent 必须把缺口转化为新场景候选、关系转折、信息释放、行动后果和伏笔链，不得用灌水描写填字数。",
             "候选场景列表未经审查和用户批准，不得直接写入 scenes/ 或覆盖 plot/outline.md。",
         ],
@@ -597,11 +607,43 @@ def _write_scene_inventory_agent_tasks(root: Path, markdown_path: Path, json_pat
             ),
             (
                 "生成扩场景候选",
-                f"""创建或覆盖 `{candidate}`。按章节列出补足目标字数所需的新场景候选：每个候选包含 scene_id 建议、目标字数、场景功能、参与角色、冲突、信息释放、关系变化、行动后果、伏笔设置/回收、承接前后因果。不得只写“增加描写”。""",
+                f"""创建或覆盖 `{candidate}`。按章节列出补足目标中文内容字符所需的新场景候选：每个候选包含 scene_id 建议、目标中文内容字符、场景功能、参与角色、冲突、信息释放、关系变化、行动后果、伏笔设置/回收、承接前后因果。不得只写“增加描写”。""",
             ),
             (
                 "写入扩场景审查报告",
                 f"""创建或覆盖 `{review}`。报告结论使用 pass / pass_with_notes / revise_required / reject，说明候选场景是否足以支撑预算，哪些候选需要用户确认，哪些不能直接晋升。不要写入 `[AGENT_TASK: ...]`。""",
+            ),
+        ],
+    )
+
+
+def _write_chapter_obligation_plan_tasks(root: Path, markdown_path: Path, json_path: Path, outline_path: Path, task_path: Path, payload: dict) -> None:
+    review = payload["candidate_outputs"]["chapter_obligation_review"]
+    source_paths = [markdown_path, json_path, root / "project.yaml", root / "scenes"]
+    if outline_path.exists():
+        source_paths.append(outline_path)
+    write_agent_tasks(
+        task_path,
+        title="longform chapter obligation and reader-experience planning",
+        root=root,
+        source_paths=source_paths,
+        notes=[
+            "这是从字数预算进入正文生成前的章节义务总规划任务。",
+            "CLI 已给出 chapter_budgets 和 scene_inventory_binding，但读者问题、章节承诺、悬念兑现和反摘要要求必须由平台 Agent 判断。",
+            "每个长篇章节正式生成前，还应运行 chapter-obligation --chapter-id <chapter_id> 生成单章契约侧车并完成 marker。",
+        ],
+        tasks=[
+            (
+                "建立章节承诺表",
+                """读取 word_budget.json 的 chapter_budgets。按每章建立一行章节义务：chapter_id、目标中文内容字符、目标场景数、chapter_function、must_payoff、must_setup、must_change、must_not_resolve、inherited_hooks、ending_hook、inventory_sufficiency、expansion_needed。""",
+            ),
+            (
+                "建立读者体验规划",
+                """为每章列出读者将带着什么问题进入、期望什么回报、哪些信息暂扣、哪些承诺本章兑现、哪些必须延迟到后文。重点检查剧情库存是否支撑目标中文内容字符；不足时补事件链、关系压力、信息释放和后果，而不是要求正文灌水。""",
+            ),
+            (
+                "写入章节义务审查报告",
+                f"""创建或覆盖 `{review}`。报告结论使用 pass / pass_with_notes / revise_required / reject。若未能为主要章节建立可执行的读者体验契约，不得进入批量 scene-development。""",
             ),
         ],
     )

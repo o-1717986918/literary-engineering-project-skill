@@ -6,7 +6,7 @@
 目标读者：维护本 Skill 的平台 Agent、项目开发者、后续代码实现者  
 生成背景：基于当前 Skill 架构复盘，以及对 ProseForge、ai-novel-writer、AI-Novel-Writing-Assistant 三个外部项目的互补性分析。
 
-执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`；`v0.86.0` 已完成 Context Broker / Context Trace，详见 `docs/implementation/phase86-context-broker.md`；`v0.86.1` 已完成 New Character Register，详见 `docs/implementation/phase86-1-new-character-register.md`；`v0.87.0` 已完成 Workflow Contract Validation 与中文内容字符计数口径修正，详见 `docs/implementation/phase87-workflow-contract-validation.md`。Phase 88-90 仍按本计划继续推进。
+执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`；`v0.86.0` 已完成 Context Broker / Context Trace，详见 `docs/implementation/phase86-context-broker.md`；`v0.86.1` 已完成 New Character Register，详见 `docs/implementation/phase86-1-new-character-register.md`；`v0.87.0` 已完成 Workflow Contract Validation 与中文内容字符计数口径修正，详见 `docs/implementation/phase87-workflow-contract-validation.md`；`v0.88.0` 已完成 Reader Experience / Chapter Obligation Contract，详见 `docs/implementation/phase88-reader-experience-contract.md`。Phase 89-90 仍按本计划继续推进。
 
 ## 1. 背景与判断
 
@@ -447,13 +447,13 @@ Phase 84 后续横向接入顺序：
 6. `tension_source`
 7. `curiosity_hook`
 8. `freshness_requirement`
-9. `anti-summary_requirement`
+9. `anti_summary_requirement`
 10. `reader_aftertaste`
 
 ### 10.4 Chapter Obligation 字段
 
 1. `chapter_id`
-2. `target_word_count`
+2. `target_chinese_chars`
 3. `scene_count_target`
 4. `chapter_function`
 5. `must_payoff`
@@ -467,19 +467,23 @@ Phase 84 后续横向接入顺序：
 
 ### 10.5 链路接入
 
-1. `word-budget` 输出章节和场景预算后，生成 chapter obligation agent task。
-2. `compose-scene` 必须读取当前章节义务。
-3. `scene.yaml` 必须携带 `word_count_target`、`word_count_min`、`word_count_max`、`chapter_obligation_id`。
-4. 正文生成任务必须把字数目标作为硬属性，而不是软建议。
-5. `agent-review-scene` 必须检查场景正文是否满足场景功能、字数范围、读者问题和承诺推进。
-6. `longform-audit` 必须检查章节义务是否被兑现，不能只统计文件存在。
+1. `word-budget` 输出章节和场景预算后，生成 `plot/chapter_obligations/chapter_obligations.agent_tasks.md`。已完成。
+2. `longform-planning` 状态机新增 `chapter-obligation-agent-task` 与 `chapter-obligation-review`。已完成。
+3. 新增 `chapter-obligation --chapter-id <chapter_id>`，生成单章 JSON/Markdown/sidecar。已完成。
+4. `compose-scene`、`generate-scene`、prompt manifest 和生成 sidecar 必须读取当前章节义务。已完成。
+5. `scene.yaml` 支持 `chapter_obligation_id` 和 `reader_experience` 字段；`word_count_target`、`word_count_min`、`word_count_max` 继续作为中文内容字符硬属性。已完成。
+6. `agent-review-scene` 必须检查场景正文是否满足场景功能、字数范围、读者问题和承诺推进。已完成。
+7. `promotion`、`route-audit`、`chapter-workspace`、`longform-audit` 与 export readiness 接入 reader gate。已完成。
 
 ### 10.6 验收标准
 
-1. 长篇项目生成前必须能看到“剧情库存是否足以支撑目标字数”。
-2. 每个正式场景都带目标字数范围和章节义务引用。
-3. 正文字数统计只统计 cleaned deliverable prose，不统计工程痕迹。
-4. 欠账场景和欠账章节能被自动列出。
+1. 长篇项目生成前必须能看到“剧情库存是否足以支撑目标中文内容字符”。已完成。
+2. 每个正式场景都带目标中文内容字符范围和章节义务引用。已完成。
+3. 正文字数统计只统计 cleaned deliverable prose，不统计工程痕迹。已完成。
+4. 欠账场景和欠账章节能被自动列出。已完成。
+5. 长篇 route ready 前必须完成章节义务规划 sidecar、completion marker 和 clean review。已完成。
+6. 场景生成前必须有 pass/not_required 的 reader-experience contract。已完成。
+7. AgentReview、promotion、chapter/export readiness 必须读取 `reader_experience_adherence`。已完成。
 
 ## 11. Phase 89：最小项目总控面板
 
@@ -547,7 +551,7 @@ Phase 84 后续横向接入顺序：
 2. Phase 85 Prompt Registry：把 CLI 输出给 Agent 的提示词、硬约束和输出契约注册化，避免 task 继续依赖散落文档。
 3. Phase 86 Context Broker：让 CLI task 能稳定携带必读上下文、context trace、文风、字数预算和角色背景。
 4. Phase 87 Workflow State Machine：把 Phase 84 的最小任务闭环扩展为完整 scene/chapter/longform 状态机。
-5. Phase 88 Reader Experience Contract：强化长篇剧情质量和字数承载，并接入 task-open / task-submit / review gate。
+5. Phase 88 Reader Experience Contract：强化长篇剧情质量和字数承载，并接入 task-open / task-submit / review gate。`v0.88.0` 已完成。
 6. Phase 90 Regression Tests：把门禁和历史问题固化，尤其测试“Agent 不经 CLI 手写正式产物”的失败模式。
 7. Phase 89 Minimal Cockpit：等 task registry、状态机和 audit 输出稳定后再做面板，否则前端会跟着内部接口反复改。
 8. 外部项目 Research Docs 可以穿插完成，但必须在引入外部架构概念前先落文档。

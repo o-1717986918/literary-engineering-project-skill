@@ -84,3 +84,4 @@
 - `phase86-context-broker.md`：Context Broker 与 Context Trace
 - `phase86-1-new-character-register.md`：新角色登记门禁
 - `phase87-workflow-contract-validation.md`：Workflow Contract 校验与中文内容字符计数口径
+- `phase88-reader-experience-contract.md`：章节义务与读者体验生成前门禁

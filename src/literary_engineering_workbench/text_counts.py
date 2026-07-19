@@ -51,14 +51,28 @@ def chinese_machine_count_mapping(text: str, *, target_chinese_chars: int = 0) -
     machine_chars = count_nonspace_chars(text)
     ratio = round(machine_chars / chinese_chars, 3) if chinese_chars else 0.0
     expected_machine_chars = round(target_chinese_chars * (ratio or 1.0)) if target_chinese_chars else 0
+    expected_machine_range = (
+        [round(target_chinese_chars * 0.95), round(target_chinese_chars * 1.15)]
+        if target_chinese_chars
+        else [0, 0]
+    )
+    delta = machine_chars - chinese_chars
+    warning = ""
+    if chinese_chars and ratio >= 1.15:
+        warning = "machine_count_inflated_by_non_chinese_or_workbench_content"
+    elif chinese_chars and ratio <= 0.85:
+        warning = "machine_count_lower_than_chinese_content_unusual"
     return {
         "target_unit": CHINESE_CONTENT_COUNT_UNIT,
         "machine_unit": MACHINE_NONSPACE_COUNT_UNIT,
         "chinese_content_chars": chinese_chars,
         "machine_nonspace_chars": machine_chars,
         "machine_to_chinese_ratio": ratio,
+        "machine_minus_chinese_chars": delta,
+        "diagnostic_warning": warning,
         "target_chinese_chars": int(target_chinese_chars or 0),
         "rough_expected_machine_chars": expected_machine_chars,
+        "rough_expected_machine_chars_range": expected_machine_range,
         "note": (
             "Formal gates compare Chinese content characters, including Chinese punctuation. "
             "Machine nonspace characters are diagnostic only because markdown traces, ASCII labels, "

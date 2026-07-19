@@ -247,7 +247,9 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "references/artifact-contracts.md",
             "references/workflows.md",
             "docs/modules/longform-word-budget.md",
+            "docs/modules/reader-experience-contract.md",
             "docs/implementation/phase65-longform-word-budget.md",
+            "docs/implementation/phase88-reader-experience-contract.md",
         ),
         preflight=COMMON_PREFLIGHT
         + (
@@ -260,26 +262,30 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "python -m literary_engineering_workbench word-budget <project> --target-words 500000 --volumes 5 --genre mystery",
             "Read plot/word_budget/word_budget.agent_tasks.md and write plot/candidates/outlines/word_budget_expansion.md plus reviews/word_budget/word_budget_review.md.",
             "Read plot/word_budget/scene_inventory_expansion.agent_tasks.md and write plot/candidates/scenes/word_budget_scene_inventory.md plus reviews/word_budget/scene_inventory_review.md.",
+            "Read plot/chapter_obligations/chapter_obligations.agent_tasks.md and write reviews/word_budget/chapter_obligation_review.md plus the completion marker.",
+            "For each chapter entering prose, run python -m literary_engineering_workbench chapter-obligation <project> --chapter-id <chapter_id>, then fill the per-chapter reader contract and completion marker.",
             "python -m literary_engineering_workbench route-audit <project> --route longform-planning",
             "python -m literary_engineering_workbench longform-audit <project> --target-length 500000",
         ),
         platform_agent_handoffs=(
             "Genre-to-length judgment, time-span/detail calibration, and narrative-load tradeoffs.",
-            "Budgeted outline expansion, scene inventory design, subplot density, and pacing decisions.",
+            "Budgeted outline expansion, scene inventory design, chapter obligation design, subplot density, and pacing decisions.",
             "Review of whether the generated outline truly supports the target length without filler or compression.",
+            "Reader question, promised reward, withheld information, payoff/delay, and anti-summary planning for each chapter/scene.",
         ),
         completion_gates=(
             "word_budget.md/json and word_budget.agent_tasks.md exist or the reason for skipping is recorded.",
             "Platform agent has written or explicitly deferred the budgeted outline candidate and word-budget review.",
-            "Chapter-level and scene-level word targets, actual cleaned body counts, missing scenes, and expansion tasks are reviewed.",
+            "Platform agent has handled scene inventory and chapter obligation sidecars with completion markers.",
+            "Chapter-level and scene-level word targets, actual cleaned body counts, machine-count mappings, missing scenes, expansion tasks, and reader-experience obligations are reviewed.",
             "Scene/chapter inventory is sufficient for the target length before batch scene generation or the shortfall is listed as pending.",
-            "Prompt manifest and generation flow will load the word-budget standard.",
+            "Prompt manifest and generation flow will load the word-budget standard and reader-experience contract.",
         ),
         forbidden_shortcuts=COMMON_FORBIDDEN
         + (
-            "Do not treat a target word count as satisfied by asking scenes to be longer without increasing narrative events.",
+            "Do not treat a target Chinese-content character count as satisfied by asking scenes to be longer without increasing narrative events.",
             "Do not overwrite plot/outline.md with a budgeted expansion until review and user approval.",
-            "Do not start bulk prose generation when word_budget status is needs_expansion.",
+            "Do not start bulk prose generation when word_budget status is needs_expansion or chapter/reader contracts are incomplete.",
         ),
     ),
     "scene-development": ProtocolRoute(

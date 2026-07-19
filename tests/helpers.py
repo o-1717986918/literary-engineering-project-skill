@@ -5,6 +5,7 @@ from pathlib import Path
 from literary_engineering_workbench.agent_tasks import write_agent_completion_marker
 from literary_engineering_workbench.context_packet import build_context_packet
 from literary_engineering_workbench.init_project import InitOptions, init_work_project
+from literary_engineering_workbench.reader_experience import build_chapter_obligation_tasks
 from literary_engineering_workbench.review_ci import review_scene_draft
 from literary_engineering_workbench.scene_draft import build_scene_draft
 
@@ -136,6 +137,12 @@ def write_platform_scene_review(project_root: Path, scene_id: str = "scene_0001"
             "narrative_load_satisfied": True,
             "message": "test project does not require longform budget",
         },
+        "reader_experience_adherence": {
+            "status": "not_required",
+            "message": "test project does not require reader-experience contract",
+            "reader_promise_satisfied": True,
+            "requires_platform_agent_semantic_review": False,
+        },
         "new_character_register": {
             "schema": "literary-engineering-workbench/new-character-register/v0.1",
             "status": "none",
@@ -166,6 +173,80 @@ def write_platform_scene_review(project_root: Path, scene_id: str = "scene_0001"
     return json_path
 
 
+def write_ready_chapter_obligation(project_root: Path, chapter_id: str = "chapter_0001", scene_id: str = "scene_0001") -> Path:
+    result = build_chapter_obligation_tasks(project_root, chapter_id=chapter_id)
+    payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+    payload.update(
+        {
+            "status": "pass",
+            "chapter_function": "测试章节承担承诺、推进与收束功能。",
+            "must_payoff": ["兑现上一章留下的测试问题。"],
+            "must_setup": ["设置下一场的测试追问。"],
+            "must_change": ["主角获得一条新的行动理由。"],
+            "must_not_resolve": ["不提前解决主线谜题。"],
+            "inherited_hooks": ["上一场留下的档案线索。"],
+            "ending_hook": "章末留下下一次行动入口。",
+            "inventory_sufficiency": "pass: 测试场景库存足以支撑本章目标。",
+            "expansion_needed": [],
+        }
+    )
+    rows = payload.get("reader_experience_by_scene")
+    if not isinstance(rows, list) or not rows:
+        rows = [{"scene_id": scene_id}]
+    found = False
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("scene_id") or "") != scene_id:
+            continue
+        found = True
+        row.update(
+            {
+                "scene_id": scene_id,
+                "word_count_target": row.get("word_count_target") or 1200,
+                "word_count_min": row.get("word_count_min") or 900,
+                "word_count_max": row.get("word_count_max") or 1500,
+                "reader_question": "林舟能否确认旧楼线索的真实来源？",
+                "promised_reward": "读者将获得线索来源和下一步行动方向。",
+                "withheld_information": ["线索背后的真实组织暂不揭示。"],
+                "payoff_or_delay": "兑现旧楼线索，延迟幕后组织真相。",
+                "emotional_curve": ["谨慎进入", "发现异常", "带着压力离开"],
+                "tension_source": "巡逻灯和档案线索之间的时间压力。",
+                "curiosity_hook": "档案缺页对应另一处未去过的地点。",
+                "freshness_requirement": "用行动和物件关系推进，不写成摘要。",
+                "anti_summary_requirement": "至少写出一个选择、一个误判风险和一个后果。",
+                "reader_aftertaste": "读者知道林舟向真相近了一步，但代价还没结清。",
+            }
+        )
+    if not found:
+        rows.append(
+            {
+                "scene_id": scene_id,
+                "word_count_target": 1200,
+                "word_count_min": 900,
+                "word_count_max": 1500,
+                "reader_question": "林舟能否确认旧楼线索的真实来源？",
+                "promised_reward": "读者将获得线索来源和下一步行动方向。",
+                "withheld_information": ["线索背后的真实组织暂不揭示。"],
+                "payoff_or_delay": "兑现旧楼线索，延迟幕后组织真相。",
+                "emotional_curve": ["谨慎进入", "发现异常", "带着压力离开"],
+                "tension_source": "巡逻灯和档案线索之间的时间压力。",
+                "curiosity_hook": "档案缺页对应另一处未去过的地点。",
+                "freshness_requirement": "用行动和物件关系推进，不写成摘要。",
+                "anti_summary_requirement": "至少写出一个选择、一个误判风险和一个后果。",
+                "reader_aftertaste": "读者知道林舟向真相近了一步，但代价还没结清。",
+            }
+        )
+    payload["reader_experience_by_scene"] = rows
+    result.json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    result.markdown_path.write_text(
+        f"# 章节义务与读者体验契约：{chapter_id}\n\n- 结论：`pass`\n- 测试章节义务已填写。\n",
+        encoding="utf-8",
+    )
+    write_agent_completion_marker(result.agent_tasks_path, root=project_root, handled_by="platform-agent-test")
+    return result.json_path
+
+
 def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_id: str = "scene_0001", *, revision: bool = False) -> None:
     rel_candidate = candidate.resolve().relative_to(project_root.resolve()).as_posix()
     prompt_manifest = candidate.with_suffix(".prompt.json")
@@ -184,6 +265,11 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
                 "generation_standards": {
                     "style": "test style standard",
                     "word_budget": "test word budget standard",
+                    "reader_experience_contract": {
+                        "status": "not_required",
+                        "message": "test project does not require reader-experience contract",
+                    },
+                    "reader_experience_loaded": True,
                     "review_notes": "test review notes",
                     "anti_evasion": "test anti-evasion",
                     "hard_constraints": "test hard constraints",
@@ -241,6 +327,11 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
             "composition": f"drafts/compositions/{scene_id}_composition.md",
             "style_generation_standard_applied": True,
             "word_budget_standard_applied": False,
+            "reader_experience_contract": {
+                "status": "not_required",
+                "message": "test project does not require reader-experience contract",
+            },
+            "reader_experience_standard_applied": True,
             "hard_constraints_applied": True,
             "anti_evasion_protocol_applied": True,
             "pass_with_notes_actions_applied": False,

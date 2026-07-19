@@ -18,6 +18,7 @@ from .context_broker import context_trace_status
 from .draft_text import final_body_from_draft_path
 from .flow_gates import FlowGateError, branch_selection_status, ensure_composition_ready_for_generation
 from .prompt_registry import resolve_prompt_asset
+from .reader_experience import ensure_reader_experience_ready, reader_experience_adherence_for_body
 from .style_prompt import style_prompt_quality_report
 from .word_budget import ensure_scene_word_budget_ready, word_budget_adherence_for_body
 from .workflow_state import build_workflow_state
@@ -802,6 +803,11 @@ def _build_export_release_task_payload(root: Path, route: str, state: dict[str, 
 
 
 def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_state: str, next_action: str) -> dict[str, object]:
+    scene_text = _read_text(_resolve_project_path(root, scene_rel))
+    chapter_match = re.search(r"(?m)^[ \t]*chapter_obligation_id:[ \t]*['\"]?([^'\"\n#]+)", scene_text) or re.search(
+        r"(?m)^[ \t]*chapter_id:[ \t]*['\"]?([^'\"\n#]+)", scene_text
+    )
+    chapter_id = chapter_match.group(1).strip().strip("\"'") if chapter_match else "chapter_0001"
     context = f"memory/context_packets/{scene_id}.md"
     context_trace = f"memory/context_packets/{scene_id}.trace.json"
     branch_dir = f"branches/{scene_id}"
@@ -934,6 +940,26 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "hard_constraints": ["Longform scenes must carry word_count_target/min/max before formal generation."],
             "style_constraints": [],
             "validation_gates": ["scene word budget contract passes or is not required"],
+            "next_allowed_states": ["reader-experience-contract"],
+        },
+        "reader-experience-contract": {
+            "task_type": "deterministic-cli-plus-platform-review",
+            "prompt_asset_id": "route.longform-planning.reader-experience.v1",
+            "command": f"python -m literary_engineering_workbench chapter-obligation <project> --chapter-id {chapter_id}",
+            "source_paths": [scene_rel, context, context_trace, "project.yaml", "plot/word_budget/word_budget.json", "plot/chapter_obligations/"],
+            "context_trace": context_trace,
+            "expected_outputs": [
+                f"plot/chapter_obligations/{chapter_id}.json",
+                f"plot/chapter_obligations/{chapter_id}.md",
+                f"plot/chapter_obligations/{chapter_id}.agent_tasks.md",
+                f"plot/chapter_obligations/{chapter_id}.agent_completion.json",
+            ],
+            "hard_constraints": [
+                "Longform scenes must have a ready chapter obligation and reader-experience contract before prose generation.",
+                "The platform agent must fill reader_question, promised_reward, withheld_information, payoff_or_delay, emotional_curve, tension_source, curiosity_hook, freshness_requirement, anti_summary_requirement, and reader_aftertaste for this scene.",
+            ],
+            "style_constraints": ["Do not turn reader-experience notes into visible workflow text inside prose."],
+            "validation_gates": ["reader-experience contract passes or is not required"],
             "next_allowed_states": ["candidate-generation-provenance"],
         },
         "candidate-generation-provenance": {
@@ -1088,6 +1114,7 @@ def _longform_blueprint_for_state(root: Path, current_state: str, next_action: s
                 "plot/word_budget/word_budget.json",
                 "plot/word_budget/word_budget.agent_tasks.md",
                 "plot/word_budget/scene_inventory_expansion.agent_tasks.md",
+                "plot/chapter_obligations/chapter_obligations.agent_tasks.md",
             ],
             "hard_constraints": [
                 "Run word-budget / longform-budget before bulk outline or scene generation.",
@@ -1095,7 +1122,7 @@ def _longform_blueprint_for_state(root: Path, current_state: str, next_action: s
             ],
             "style_constraints": [],
             "word_count_target": target_words,
-            "validation_gates": ["word_budget.json exists", "word budget schema is valid", "budget and scene inventory sidecars exist"],
+            "validation_gates": ["word_budget.json exists", "word budget schema is valid", "budget, scene inventory, and chapter obligation sidecars exist"],
             "next_allowed_states": ["budget-agent-task"],
         },
         "budget-agent-task": {
@@ -1156,7 +1183,7 @@ def _longform_blueprint_for_state(root: Path, current_state: str, next_action: s
             ],
             "hard_constraints": [
                 "Read scene_inventory_expansion.agent_tasks.md and create budgeted scene inventory candidates.",
-                "Each added scene candidate needs target words, function, participants, conflict, information release, consequence, and setup/payoff role.",
+                "Each added scene candidate needs target Chinese-content characters, function, participants, conflict, information release, consequence, and setup/payoff role.",
                 "Scene inventory remains candidate material until review and user approval.",
             ],
             "style_constraints": [],
@@ -1178,6 +1205,47 @@ def _longform_blueprint_for_state(root: Path, current_state: str, next_action: s
             "style_constraints": [],
             "word_count_target": target_words,
             "validation_gates": ["scene inventory review conclusion is pass"],
+            "next_allowed_states": ["chapter-obligation-agent-task"],
+        },
+        "chapter-obligation-agent-task": {
+            "task_type": "platform-agent-judgment",
+            "prompt_asset_id": "route.longform-planning.chapter-obligation.execute.v1",
+            "command": "",
+            "source_paths": [
+                "project.yaml",
+                "plot/outline.md",
+                "plot/word_budget/word_budget.json",
+                "plot/chapter_obligations/chapter_obligations.agent_tasks.md",
+                "plot/candidates/scenes/word_budget_scene_inventory.md",
+            ],
+            "expected_outputs": [
+                "reviews/word_budget/chapter_obligation_review.md",
+                "plot/chapter_obligations/chapter_obligations.agent_completion.json",
+            ],
+            "hard_constraints": [
+                "Read chapter_obligations.agent_tasks.md and build a chapter-level promise/payoff plan.",
+                "Each chapter must map target Chinese-content characters to reader questions, promised rewards, withheld information, payoff/delay, and anti-summary requirements.",
+                "Per-scene chapter-obligation JSON files remain platform-agent contracts; create them with chapter-obligation before scene prose generation.",
+            ],
+            "style_constraints": [],
+            "word_count_target": target_words,
+            "validation_gates": ["chapter obligation sidecar completion marker exists", "chapter obligation review conclusion is pass"],
+            "next_allowed_states": ["chapter-obligation-review"],
+        },
+        "chapter-obligation-review": {
+            "task_type": "platform-agent-review",
+            "prompt_asset_id": "route.longform-planning.chapter-obligation-review.v1",
+            "command": "",
+            "source_paths": [
+                "plot/word_budget/word_budget.json",
+                "plot/chapter_obligations/chapter_obligations.agent_tasks.md",
+                "reviews/word_budget/chapter_obligation_review.md",
+            ],
+            "expected_outputs": ["reviews/word_budget/chapter_obligation_review.md"],
+            "hard_constraints": ["The chapter obligation review conclusion must be pass before longform-planning is ready."],
+            "style_constraints": [],
+            "word_count_target": target_words,
+            "validation_gates": ["chapter obligation review conclusion is pass"],
             "next_allowed_states": ["ready"],
         },
     }
@@ -1986,6 +2054,8 @@ def _state_gate_validation(root: Path, task: dict[str, object]) -> tuple[list[st
         errors.extend(_composition_gate_errors(root, scene_id))
     if current_state == "scene-word-budget-contract":
         errors.extend(_word_budget_gate_errors(root, task))
+    if current_state == "reader-experience-contract":
+        errors.extend(_reader_experience_gate_errors(root, task))
     if current_state in {"candidate-generation-provenance", "generation-agent-task"}:
         candidate = _candidate_path_for_task(root, task)
         errors.extend(_candidate_generation_gate_errors(root, task, candidate))
@@ -2031,10 +2101,16 @@ def _longform_state_gate_validation(root: Path, task: dict[str, object]) -> tupl
             )
         )
         errors.extend(_longform_review_gate_errors(root / "reviews" / "word_budget" / "scene_inventory_review.md", root, "scene-inventory review"))
+    if current_state in {"chapter-obligation-agent-task", "chapter-obligation-review"}:
+        errors.extend(_word_budget_file_gate_errors(root))
+        errors.extend(_longform_sidecar_completion_errors(root / "plot" / "chapter_obligations" / "chapter_obligations.agent_tasks.md", root, "chapter obligation planning"))
+        errors.extend(_longform_review_gate_errors(root / "reviews" / "word_budget" / "chapter_obligation_review.md", root, "chapter obligation review"))
     if current_state in {"budget-agent-task", "budget-review"} and not errors:
         notes.append("word-budget expansion reviewed")
     if current_state in {"scene-inventory-agent-task", "scene-inventory-review"} and not errors:
         notes.append("scene inventory reviewed")
+    if current_state in {"chapter-obligation-agent-task", "chapter-obligation-review"} and not errors:
+        notes.append("chapter obligation reviewed")
     return errors, notes
 
 
@@ -2420,8 +2496,9 @@ def _word_budget_file_gate_errors(root: Path) -> list[str]:
     markdown_path = root / "plot" / "word_budget" / "word_budget.md"
     budget_task = root / "plot" / "word_budget" / "word_budget.agent_tasks.md"
     scene_task = root / "plot" / "word_budget" / "scene_inventory_expansion.agent_tasks.md"
+    obligation_task = root / "plot" / "chapter_obligations" / "chapter_obligations.agent_tasks.md"
     errors: list[str] = []
-    for path in (markdown_path, json_path, budget_task, scene_task):
+    for path in (markdown_path, json_path, budget_task, scene_task, obligation_task):
         if not path.exists():
             errors.append(f"missing longform budget artifact: {_rel(path, root)}")
     payload, error = _read_optional_json(json_path)
@@ -2433,7 +2510,7 @@ def _word_budget_file_gate_errors(root: Path) -> list[str]:
     target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
     totals = payload.get("totals") if isinstance(payload.get("totals"), dict) else {}
     if _to_int(target.get("target_words") or totals.get("target_words")) <= 0:
-        errors.append("word_budget.json target_words must be positive")
+        errors.append("word_budget.json target Chinese-content characters must be positive")
     if not isinstance(payload.get("chapter_budgets"), list) or not payload.get("chapter_budgets"):
         errors.append("word_budget.json must contain chapter_budgets")
     if not isinstance(payload.get("scene_inventory_binding"), dict):
@@ -2852,6 +2929,17 @@ def _word_budget_gate_errors(root: Path, task: dict[str, object]) -> list[str]:
     return errors
 
 
+def _reader_experience_gate_errors(root: Path, task: dict[str, object]) -> list[str]:
+    scene_path = _scene_path_for_task(root, task)
+    try:
+        contract = ensure_reader_experience_ready(root, scene_path)
+    except (FileNotFoundError, ValueError) as exc:
+        return [str(exc)]
+    if contract.get("status") == "not_required":
+        return []
+    return []
+
+
 def _candidate_generation_gate_errors(root: Path, task: dict[str, object], candidate: Path) -> list[str]:
     scene_id = str(task.get("scene_id") or candidate.stem.split("-")[0])
     gate = candidate_generation_gate(root, scene_id, candidate)
@@ -2882,6 +2970,9 @@ def _candidate_body_gate_errors(root: Path, task: dict[str, object], candidate: 
     budget = word_budget_adherence_for_body(root, scene_path, body)
     if budget.get("status") not in {"pass", "not_required"}:
         errors.append(f"candidate failed scene word-budget gate: {budget.get('message')}")
+    reader = reader_experience_adherence_for_body(root, scene_path, body)
+    if reader.get("status") not in {"pass", "not_required"}:
+        errors.append(f"candidate failed reader-experience gate: {reader.get('message')}")
     return errors
 
 

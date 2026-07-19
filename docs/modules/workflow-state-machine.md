@@ -45,6 +45,22 @@ Use these dashboards together:
 - Event rows must use the workflow event schema and reference existing task ids.
 - Manually created artifacts do not satisfy formal provenance unless a command was attempted, failed, and the workaround records explicit CLI-equivalent provenance for review.
 
+## Longform Reader Gate
+
+For longform-planning, the state machine must not stop after scene inventory. The formal route now includes:
+
+```text
+word-budget-file
+-> budget-agent-task
+-> budget-review
+-> scene-inventory-agent-task
+-> scene-inventory-review
+-> chapter-obligation-agent-task
+-> chapter-obligation-review
+```
+
+For scene-development on 100000+ Chinese-content-character or multi-volume projects, `reader-experience-contract` is an order-neutral gate after `scene-word-budget-contract` and before candidate generation. It passes only when the current chapter has a filled `plot/chapter_obligations/{chapter_id}.json` contract, the sidecar completion marker exists, and the current scene has complete reader-question/promise/payoff fields.
+
 ## Character Count Policy
 
 Formal longform length targets are measured as cleaned Chinese-content characters: Han characters plus Chinese punctuation after workflow traces, scene ids, paths, Markdown scaffolding, review notes, state/writeback candidates, and `[AGENT_TASK: ...]` blocks are removed. Machine non-whitespace character counts are diagnostics only. If the two numbers disagree, the Chinese-content count controls pass/fail.
