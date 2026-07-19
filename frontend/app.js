@@ -1,6 +1,11 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 let dashboardTimer = null;
+let libraryTimer = null;
+let librarySnapshot = null;
+let activeLibraryKind = "drafts";
+let currentChoices = [];
+let selectedLibraryItem = null;
 
 const routeNames = {
   "scene-development": "场景开发",
@@ -10,6 +15,17 @@ const routeNames = {
   "character-and-world-assets": "人物与世界资产",
   "review-and-audit": "审查与审计",
   "export-and-release": "导出与发布",
+};
+
+const sectionNames = {
+  drafts: "正文草稿",
+  characters: "人物设定",
+  world: "世界观设定",
+  scenes: "场景设定",
+  branches: "推演分支",
+  style: "文风挂载",
+  reviews: "审查证据",
+  word_budget: "字数预算",
 };
 
 function escapeHtml(value) {
@@ -55,7 +71,7 @@ function setSharedStyleLibraryRoot(value) {
 }
 
 function sharedProjectRoot() {
-  return $("#dashboardForm")?.project_root.value || $("#configForm")?.project_root.value || $("#styleForm")?.project_root.value || "";
+  return $("#dashboardForm")?.project_root.value || $("#libraryForm")?.project_root.value || $("#configForm")?.project_root.value || $("#styleForm")?.project_root.value || "";
 }
 
 async function loadHealth() {
@@ -338,6 +354,251 @@ function renderEvent(event) {
   `;
 }
 
+async function loadLibrary() {
+  const form = $("#libraryForm");
+  const root = form.project_root.value || $("#dashboardForm").project_root.value || $("#configForm").project_root.value || $("#styleForm").project_root.value;
+  if (!root) throw new Error("请先填写当前项目目录。");
+  setSharedProjectRoot(root);
+  $("#libraryStatus").textContent = "正在整理作品档案";
+  const result = await api(`/project/library?project_root=${encodeURIComponent(root)}`);
+  librarySnapshot = result;
+  activeLibraryKind = form.section.value || activeLibraryKind;
+  renderLibrary(result);
+  await loadChoices(root);
+  $("#libraryStatus").textContent = result.generated_at ? `已整理 ${formatTime(result.generated_at)}` : "已整理";
+  return result;
+}
+
+function renderLibrary(result) {
+  const project = result.project || {};
+  const counts = result.counts || {};
+  const sections = result.sections || {};
+  const projectBadges = Array.isArray(project.badges) ? project.badges.filter(Boolean) : [];
+  $("#librarySummary").innerHTML = `
+    <article class="library-cover">
+      <div class="cover-stamp">作品</div>
+      <div>
+        <span class="eyebrow light">当前项目</span>
+        <h3>${escapeHtml(project.title || "未命名作品")}</h3>
+        <p>${escapeHtml(project.excerpt || "还没有项目简介。")}</p>
+        <footer>${projectBadges.map((badge) => `<span>${escapeHtml(badge)}</span>`).join("")}</footer>
+      </div>
+    </article>
+    <article class="library-stat"><b>${escapeHtml(counts.drafts || 0)}</b><span>正文与候选</span></article>
+    <article class="library-stat"><b>${escapeHtml(counts.characters || 0)}</b><span>人物档案</span></article>
+    <article class="library-stat"><b>${escapeHtml(counts.scenes || 0)}</b><span>场景设定</span></article>
+    <article class="library-stat"><b>${escapeHtml(counts.branches || 0)}</b><span>分支推演</span></article>
+  `;
+
+  $("#libraryTabs").innerHTML = Object.entries(sectionNames).map(([key, label]) => {
+    const count = counts[key] || 0;
+    return `<button type="button" data-kind="${key}" class="${key === activeLibraryKind ? "active" : ""}">${escapeHtml(label)}<span>${escapeHtml(count)}</span></button>`;
+  }).join("");
+  const items = Array.isArray(sections[activeLibraryKind]) ? sections[activeLibraryKind] : [];
+  renderLibraryList(items);
+  if (items.length) selectLibraryItem(items[0]);
+  else renderLibraryEmpty();
+}
+
+function renderLibraryList(items) {
+  $("#libraryList").classList.toggle("empty", !items.length);
+  $("#libraryList").innerHTML = items.length ? items.map((item, index) => `
+    <button type="button" class="library-item ${selectedLibraryItem?.id === item.id ? "active" : ""}" data-index="${index}">
+      <span>${escapeHtml(item.subtitle || sectionNames[item.kind] || "档案")}</span>
+      <b>${escapeHtml(item.title || item.id)}</b>
+      <p>${escapeHtml(item.excerpt || "暂无摘要。")}</p>
+      <footer>${renderBadges(item.badges)}</footer>
+    </button>
+  `).join("") : "这个分类下还没有可展示内容。";
+}
+
+function renderLibraryEmpty() {
+  selectedLibraryItem = null;
+  $("#libraryDetail").className = "library-detail empty";
+  $("#libraryDetail").innerHTML = "这个分类暂时没有内容。";
+}
+
+function selectLibraryItem(item) {
+  selectedLibraryItem = item;
+  const items = librarySnapshot?.sections?.[activeLibraryKind] || [];
+  renderLibraryList(items);
+  const body = item.body ? renderBody(item.body) : `<p>${escapeHtml(item.excerpt || "暂无正文或详情。")}</p>`;
+  const facts = Array.isArray(item.facts) ? item.facts : [];
+  const metrics = item.metrics || {};
+  const options = Array.isArray(item.options) && item.options.length ? `
+    <div class="branch-options">
+      ${item.options.map((option) => `
+        <article class="${option.selected ? "selected" : ""}">
+          <b>${escapeHtml(option.label || option.id)}</b>
+          <p>${escapeHtml(option.summary || "暂无说明。")}</p>
+          ${option.risk ? `<small>${escapeHtml(option.risk)}</small>` : ""}
+        </article>
+      `).join("")}
+    </div>
+  ` : "";
+  $("#libraryDetail").className = "library-detail";
+  $("#libraryDetail").innerHTML = `
+    <article class="detail-head">
+      <span>${escapeHtml(item.subtitle || sectionNames[item.kind] || "档案")}</span>
+      <h3>${escapeHtml(item.title || item.id)}</h3>
+      <footer>${renderBadges(item.badges)}</footer>
+    </article>
+    ${item.user_note ? `<aside class="user-note">你的备注：${escapeHtml(item.user_note)}</aside>` : ""}
+    ${Object.keys(metrics).length ? renderMetricStrip(metrics) : ""}
+    ${facts.length ? `<div class="fact-grid">${facts.map(renderFact).join("")}</div>` : ""}
+    ${options}
+    <div class="reader-body">${body}</div>
+  `;
+  const editForm = $("#editForm");
+  editForm.target_type.value = item.kind || "";
+  editForm.target_id.value = item.id || "";
+  editForm.querySelector("[name=value]").value = "";
+  $("#editStatus").textContent = `正在标注：${item.title || item.id}`;
+}
+
+function renderBadges(badges = []) {
+  return (Array.isArray(badges) ? badges : []).filter(Boolean).slice(0, 5).map((badge) => `<span>${escapeHtml(badge)}</span>`).join("");
+}
+
+function renderFact(fact) {
+  return `
+    <article class="fact-card">
+      <span>${escapeHtml(fact.label || "信息")}</span>
+      <b>${escapeHtml(fact.value ?? "未填写")}</b>
+    </article>
+  `;
+}
+
+function renderMetricStrip(metrics) {
+  const items = [
+    ["中文内容字数", metrics.chinese_content_chars],
+    ["机器字符", metrics.machine_nonspace_chars],
+    ["目标字数", metrics.target_chinese_content_chars],
+  ].filter(([, value]) => value !== undefined && value !== "");
+  return `<div class="mini-metrics">${items.map(([label, value]) => `<span><b>${escapeHtml(value)}</b>${escapeHtml(label)}</span>`).join("")}</div>`;
+}
+
+function renderBody(text) {
+  return String(text || "")
+    .split(/\n{2,}/)
+    .filter((part) => part.trim())
+    .slice(0, 30)
+    .map((part) => `<p>${escapeHtml(part.trim()).replace(/\n/g, "<br />")}</p>`)
+    .join("");
+}
+
+async function loadChoices(root = "") {
+  const projectRoot = root || sharedProjectRoot();
+  if (!projectRoot) return;
+  const result = await api(`/workflow/current-choice?project_root=${encodeURIComponent(projectRoot)}`);
+  currentChoices = result.choices || [];
+  renderChoices(currentChoices, result.recent_choices || []);
+}
+
+function renderChoices(choices, recent = []) {
+  const list = $("#choiceList");
+  list.classList.toggle("empty", !choices.length && !recent.length);
+  if (!choices.length && !recent.length) {
+    list.innerHTML = "暂无等待用户选择的节点。正式流程需要你决定时，这里会出现分支卡、审批卡或扩纲方向卡。";
+    return;
+  }
+  const choiceCards = choices.map((choice, index) => `
+    <article class="choice-card" data-choice-index="${index}">
+      <span>${escapeHtml(routeName(choice.route))}</span>
+      <h3>${escapeHtml(choice.title || "等待选择")}</h3>
+      <p>${escapeHtml(choice.summary || choice.next_action || "请选择一个方向。")}</p>
+      ${choice.recommended ? `<div class="choice-recommended">建议关注：${escapeHtml(choice.recommended)}</div>` : ""}
+      <div class="choice-options">
+        ${(choice.options || []).map((option) => `
+          <button type="button" class="choice-option" data-selected="${escapeHtml(option.id)}">
+            <b>${escapeHtml(option.label || option.id)}</b>
+            <small>${escapeHtml(option.summary || "")}</small>
+          </button>
+        `).join("")}
+      </div>
+      <textarea class="choice-rationale" rows="3" placeholder="可选：写下你为什么这样选，平台 Agent 后续会读取这条理由。"></textarea>
+    </article>
+  `).join("");
+  const recentCards = recent.length ? `
+    <div class="recent-choice">
+      <b>最近记录</b>
+      ${recent.slice(-4).reverse().map((item) => `<p>${escapeHtml(item.decision_type || "选择")}：${escapeHtml(item.selected || item.decision || "")}</p>`).join("")}
+    </div>
+  ` : "";
+  list.innerHTML = choiceCards + recentCards;
+}
+
+async function submitHumanChoice(choice, selected, rationale) {
+  const root = sharedProjectRoot();
+  if (!root) throw new Error("请先填写当前项目目录。");
+  const payload = {
+    project_root: root,
+    choice_id: choice.choice_id,
+    route: choice.route,
+    task_id: choice.task_id || "",
+    decision_type: choice.decision_type,
+    target: choice.target || {},
+    options: choice.options || [],
+    selected,
+    rationale,
+    actor: "user-ui",
+    materialize: true,
+  };
+  const result = await api("/workflow/human-choice", { method: "POST", body: JSON.stringify(payload) });
+  $("#libraryStatus").textContent = result.materialized ? `已记录选择，并写入 ${shortPath(result.materialized)}` : "已记录选择。";
+  await loadLibrary();
+}
+
+async function saveDisplayField(event) {
+  event.preventDefault();
+  const root = sharedProjectRoot();
+  if (!root) throw new Error("请先填写当前项目目录。");
+  const data = formData($("#editForm"));
+  const payload = {
+    project_root: root,
+    target_type: data.target_type,
+    target_id: data.target_id,
+    field: data.field,
+    value: data.value,
+    actor: "user-ui",
+  };
+  await api("/project/display-field", { method: "PATCH", body: JSON.stringify(payload) });
+  $("#editStatus").textContent = "标注已保存。正式剧情改动仍需候选、审查和审批。";
+  await loadLibrary();
+}
+
+async function saveUiNote(event) {
+  event.preventDefault();
+  const root = sharedProjectRoot();
+  if (!root) throw new Error("请先填写当前项目目录。");
+  const data = formData($("#editForm"));
+  const payload = {
+    project_root: root,
+    target_type: data.target_type,
+    target_id: data.target_id,
+    note: data.value,
+    actor: "user-ui",
+  };
+  await api("/project/ui-note", { method: "POST", body: JSON.stringify(payload) });
+  $("#editStatus").textContent = "备注已追加。平台 Agent 可把它作为后续创作意图读取。";
+  $("#editForm").querySelector("[name=value]").value = "";
+  await loadLibrary();
+}
+
+function toggleLibraryPoll() {
+  const button = $("#toggleLibraryPoll");
+  if (libraryTimer) {
+    clearInterval(libraryTimer);
+    libraryTimer = null;
+    button.textContent = "开始流式观察";
+    $("#libraryStatus").textContent = "已停止观察";
+    return;
+  }
+  guarded(loadLibrary);
+  libraryTimer = setInterval(() => guarded(loadLibrary), 6000);
+  button.textContent = "停止流式观察";
+}
+
 async function loadStyleStatus() {
   const data = formData($("#styleForm"));
   const root = data.project_root || $("#configForm").project_root.value || $("#dashboardForm").project_root.value;
@@ -346,6 +607,7 @@ async function loadStyleStatus() {
   $("#styleStatusText").textContent = "正在检查";
   const result = await api(`/style-lab/mounts?project_root=${encodeURIComponent(root)}`);
   renderStyleStatus(result);
+  await loadStyleLibrary(data.style_library_root || $("#configForm").style_library_root.value || "");
 }
 
 function renderStyleStatus(result) {
@@ -363,6 +625,64 @@ function renderStyleStatus(result) {
     <div class="key-state ${ready ? "pass" : "warn"}">${ready ? "可用于正式生成" : "还需要补齐评测或提示词质量"}</div>
     <p>文风会作为表达层最高优先级约束进入场景生成、修订和审查。</p>
   `;
+}
+
+async function loadStyleLibrary(styleRoot = "") {
+  const query = styleRoot ? `?style_library_root=${encodeURIComponent(styleRoot)}` : "";
+  const result = await api(`/style-lab/library${query}`);
+  renderStyleLibrary(result.style_skills || {});
+}
+
+function renderStyleLibrary(styleSkills) {
+  const items = styleSkills.items || [];
+  const list = $("#styleLibrary");
+  list.classList.toggle("empty", !items.length);
+  if (!items.length) {
+    list.innerHTML = "暂未发现可挂载文风。可以先通过文风学习流程生成 Style Skill。";
+    return;
+  }
+  list.innerHTML = items.map((item) => `
+    <article class="style-skill-card">
+      <div>
+        <span>${escapeHtml(item.author || item.author_id || "未知作家")}</span>
+        <b>${escapeHtml(item.style_id)}</b>
+        <p>${escapeHtml(item.mode || "文风技能")}</p>
+      </div>
+      <button type="button" class="mount-style" data-style-id="${escapeHtml(item.style_id)}">挂载</button>
+    </article>
+  `).join("");
+}
+
+async function mountStyle(styleId) {
+  const data = formData($("#styleForm"));
+  const root = data.project_root || sharedProjectRoot();
+  if (!root) throw new Error("请先填写当前项目目录。");
+  const styleLibraryRoot = data.style_library_root || $("#configForm").style_library_root.value || "";
+  await api("/workflow/human-choice", {
+    method: "POST",
+    body: JSON.stringify({
+      project_root: root,
+      route: "style-engineering",
+      decision_type: "style_mount",
+      target: { style_id: styleId },
+      selected: styleId,
+      rationale: "用户在前端文风库中选择挂载此文风。",
+      actor: "user-ui",
+      materialize: false,
+    }),
+  });
+  const mounted = await api("/style-lab/mount", {
+    method: "POST",
+    body: JSON.stringify({
+      project_root: root,
+      style_library_root: styleLibraryRoot,
+      style_id: styleId,
+      allow_unreviewed: false,
+    }),
+  });
+  renderStyleStatus(mounted);
+  $("#styleStatusText").textContent = `已挂载 ${styleId}`;
+  if ($("#libraryForm").project_root.value) guarded(loadLibrary);
 }
 
 function toggleDashboardPoll() {
@@ -467,12 +787,49 @@ function bind() {
       button.classList.add("active");
       $(`#view-${button.dataset.view}`).classList.add("active");
       if (button.dataset.view === "dashboard" && sharedProjectRoot()) guarded(loadDashboard);
+      if (button.dataset.view === "library" && sharedProjectRoot()) guarded(loadLibrary);
       if (button.dataset.view === "style" && sharedProjectRoot()) guarded(loadStyleStatus);
     });
   });
   $("#refreshDashboard").addEventListener("click", () => guarded(loadDashboard));
   $("#toggleDashboardPoll").addEventListener("click", () => toggleDashboardPoll());
+  $("#refreshLibrary").addEventListener("click", () => guarded(loadLibrary));
+  $("#toggleLibraryPoll").addEventListener("click", () => toggleLibraryPoll());
+  $("#libraryForm").section.addEventListener("change", (event) => {
+    activeLibraryKind = event.target.value;
+    if (librarySnapshot) renderLibrary(librarySnapshot);
+  });
+  $("#libraryTabs").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-kind]");
+    if (!button) return;
+    activeLibraryKind = button.dataset.kind;
+    $("#libraryForm").section.value = activeLibraryKind;
+    if (librarySnapshot) renderLibrary(librarySnapshot);
+  });
+  $("#libraryList").addEventListener("click", (event) => {
+    const button = event.target.closest(".library-item");
+    if (!button || !librarySnapshot) return;
+    const items = librarySnapshot.sections?.[activeLibraryKind] || [];
+    const item = items[Number(button.dataset.index)];
+    if (item) selectLibraryItem(item);
+  });
+  $("#choiceList").addEventListener("click", (event) => {
+    const button = event.target.closest(".choice-option");
+    if (!button) return;
+    const card = button.closest(".choice-card");
+    const choice = currentChoices[Number(card.dataset.choiceIndex)];
+    if (!choice) return;
+    const rationale = card.querySelector(".choice-rationale")?.value || "";
+    guarded(() => submitHumanChoice(choice, button.dataset.selected, rationale));
+  });
+  $("#saveDisplayField").addEventListener("click", (event) => guarded(() => saveDisplayField(event)));
+  $("#saveUiNote").addEventListener("click", (event) => guarded(() => saveUiNote(event)));
   $("#loadStyleStatus").addEventListener("click", () => guarded(loadStyleStatus));
+  $("#styleLibrary").addEventListener("click", (event) => {
+    const button = event.target.closest(".mount-style");
+    if (!button) return;
+    guarded(() => mountStyle(button.dataset.styleId));
+  });
   $("#loadConfig").addEventListener("click", () => guarded(loadConfig));
   $("#saveConfig").addEventListener("click", () => guarded(saveConfig));
   $("#apiToken").value = localStorage.getItem("lewApiToken") || "";

@@ -17,8 +17,16 @@ from .director_agent import (
     run_director_turn,
 )
 from .init_project import InitOptions, init_work_project
-from .model_config import as_env_exports, config_path, default_config, load_config, redacted_effective_config, save_config
 from .approval import record_workflow_approval
+from .model_config import as_env_exports, config_path, default_config, load_config, redacted_effective_config, save_config
+from .project_interaction import (
+    build_current_human_choices,
+    build_editable_schema,
+    record_human_choice,
+    record_ui_note,
+    save_display_field,
+)
+from .project_library import build_project_library, find_project_library_item
 from .style_lab import (
     active_project_style,
     build_style_skill,
@@ -38,7 +46,7 @@ from .workflow_runner import run_workflow
 
 try:
     from fastapi import FastAPI, HTTPException, Request
-    from fastapi.responses import HTMLResponse, Response
+    from fastapi.responses import HTMLResponse, Response, StreamingResponse
     from pydantic import BaseModel
 except ImportError:  # pragma: no cover - exercised when optional deps are absent
     FastAPI = None
@@ -46,6 +54,7 @@ except ImportError:  # pragma: no cover - exercised when optional deps are absen
     Request = object
     HTMLResponse = None
     Response = None
+    StreamingResponse = None
     BaseModel = object
 
 
@@ -73,6 +82,37 @@ class ApprovalRequest(BaseModel):
     decision: str
     actor: str = "human"
     notes: str = ""
+
+
+class DisplayFieldRequest(BaseModel):
+    project_root: str
+    target_type: str
+    target_id: str
+    field: str
+    value: object = ""
+    actor: str = "user-ui"
+
+
+class UiNoteRequest(BaseModel):
+    project_root: str
+    target_type: str
+    target_id: str
+    note: str
+    actor: str = "user-ui"
+
+
+class HumanChoiceRequest(BaseModel):
+    project_root: str
+    choice_id: str = ""
+    route: str = ""
+    task_id: str = ""
+    decision_type: str = "general_project_choice"
+    target: dict = {}
+    options: list = []
+    selected: str
+    rationale: str = ""
+    actor: str = "user-ui"
+    materialize: bool = True
 
 
 class RunAgentRequest(BaseModel):
@@ -466,6 +506,75 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
         root = _safe_project_root(project_root, root_policy)
         return _project_summary(root)
 
+    @app.get("/project/library")
+    def project_library(project_root: str, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+        try:
+            return {"ok": True, **build_project_library(root)}
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/project/library/item")
+    def project_library_item(project_root: str, kind: str, item_id: str, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+        try:
+            return find_project_library_item(root, kind, item_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/project/library/stream")
+    def project_library_stream(project_root: str, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+
+        def stream():
+            payload = {"ok": True, **build_project_library(root)}
+            yield "event: library\n"
+            yield "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
+
+        return StreamingResponse(stream(), media_type="text/event-stream")
+
+    @app.get("/project/editable-schema")
+    def project_editable_schema(project_root: str, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+        return {"ok": True, **build_editable_schema(root)}
+
+    @app.patch("/project/display-field")
+    def project_display_field(payload: DisplayFieldRequest, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(payload.project_root, root_policy)
+        try:
+            return save_display_field(
+                root,
+                target_type=payload.target_type,
+                target_id=payload.target_id,
+                field=payload.field,
+                value=payload.value,
+                actor=payload.actor,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/project/ui-note")
+    def project_ui_note(payload: UiNoteRequest, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(payload.project_root, root_policy)
+        try:
+            return record_ui_note(
+                root,
+                target_type=payload.target_type,
+                target_id=payload.target_id,
+                note=payload.note,
+                actor=payload.actor,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.post("/project/init")
     def project_init(payload: InitProjectRequest, http_request: Request):
         _require_api_token(http_request, token)
@@ -559,6 +668,26 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
             },
             "rules": payload.get("rules", []),
         }
+
+    @app.get("/workflow/current-choice")
+    def workflow_current_choice(project_root: str, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+        try:
+            return {"ok": True, **build_current_human_choices(root)}
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/workflow/human-choice")
+    def workflow_human_choice(payload: HumanChoiceRequest, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(payload.project_root, root_policy)
+        try:
+            return record_human_choice(root, payload.model_dump() if hasattr(payload, "model_dump") else payload.dict())
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/agent/run")
     def agent_run(payload: RunAgentRequest, http_request: Request):

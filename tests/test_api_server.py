@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from literary_engineering_workbench.api_server import _director_conversation, _record_approval, create_app
 
-from helpers import TempProjectMixin, make_reviewed_passing_scene
+from helpers import TempProjectMixin, add_character, make_passing_scene, make_reviewed_passing_scene, prepare_formal_scene_flow
 
 
 class ApiServerTests(TempProjectMixin, unittest.TestCase):
@@ -98,6 +98,96 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue((project / payload["paths"]["markdown"]).exists())
         self.assertTrue((project / payload["paths"]["html"]).exists())
 
+    def test_fastapi_project_library_and_human_choice_endpoints(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi test client is not installed")
+
+        project = self.make_project()
+        add_character(project)
+        make_passing_scene(project)
+        prepare_formal_scene_flow(project)
+        selection = project / "branches" / "scene_0001" / "branch_selection.md"
+        selection.unlink()
+        app = create_app(allowed_roots=[project.parent])
+        client = TestClient(app)
+
+        library = client.get("/project/library", params={"project_root": str(project)})
+        self.assertEqual(library.status_code, 200)
+        payload = library.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["schema"], "literary-engineering-workbench/project-library/v0.1")
+        self.assertGreaterEqual(payload["counts"]["drafts"], 1)
+        self.assertGreaterEqual(payload["counts"]["characters"], 1)
+        draft_body = payload["sections"]["drafts"][0]["body"]
+        self.assertNotIn("scene_id", draft_body)
+        self.assertNotIn("状态变化候选", draft_body)
+        self.assertIn("林舟", draft_body)
+
+        item = client.get(
+            "/project/library/item",
+            params={"project_root": str(project), "kind": "characters", "item_id": "linzhou"},
+        )
+        self.assertEqual(item.status_code, 200)
+        self.assertEqual(item.json()["item"]["title"], "林舟")
+
+        schema = client.get("/project/editable-schema", params={"project_root": str(project)})
+        self.assertEqual(schema.status_code, 200)
+        self.assertIn("workflow/ui_overrides.json", json.dumps(schema.json(), ensure_ascii=False))
+
+        edited = client.patch(
+            "/project/display-field",
+            json={
+                "project_root": str(project),
+                "target_type": "characters",
+                "target_id": "linzhou",
+                "field": "display_summary",
+                "value": "前端包装后的角色摘要。",
+            },
+        )
+        self.assertEqual(edited.status_code, 200)
+        self.assertTrue((project / edited.json()["path"]).exists())
+
+        noted = client.post(
+            "/project/ui-note",
+            json={
+                "project_root": str(project),
+                "target_type": "characters",
+                "target_id": "linzhou",
+                "note": "后续让他的选择更谨慎。",
+            },
+        )
+        self.assertEqual(noted.status_code, 200)
+        self.assertTrue((project / noted.json()["note_path"]).exists())
+
+        choices = client.get("/workflow/current-choice", params={"project_root": str(project)})
+        self.assertEqual(choices.status_code, 200)
+        choice_payload = choices.json()
+        self.assertTrue(any(item["decision_type"] == "branch_selection" for item in choice_payload["choices"]))
+        branch_choice = next(item for item in choice_payload["choices"] if item["decision_type"] == "branch_selection")
+
+        recorded = client.post(
+            "/workflow/human-choice",
+            json={
+                "project_root": str(project),
+                "choice_id": branch_choice["choice_id"],
+                "route": branch_choice["route"],
+                "decision_type": "branch_selection",
+                "target": branch_choice["target"],
+                "options": branch_choice["options"],
+                "selected": branch_choice["options"][0]["id"],
+                "rationale": "测试中选择角色行为更稳的分支。",
+            },
+        )
+        self.assertEqual(recorded.status_code, 200)
+        self.assertEqual(recorded.json()["choice"]["decision_type"], "branch_selection")
+        self.assertEqual(recorded.json()["materialized"], "branches/scene_0001/branch_selection.md")
+        self.assertTrue(selection.exists())
+        selection_text = selection.read_text(encoding="utf-8")
+        self.assertIn("decision: selected", selection_text)
+        self.assertIn("selected_branch:", selection_text)
+
     def test_fastapi_agent_run_endpoint(self):
         try:
             from fastapi.testclient import TestClient
@@ -145,10 +235,14 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertEqual(ui.status_code, 200)
                 self.assertIn("文学工程控制台", ui.text)
                 self.assertIn("项目总控", ui.text)
+                self.assertIn("作品档案", ui.text)
                 self.assertIn("文风挂载", ui.text)
                 self.assertIn("连接设置", ui.text)
                 self.assertIn("这里不会裸露原始 JSON", ui.text)
                 self.assertIn("项目证据柜", ui.text)
+                self.assertIn("需要你决定的节点", ui.text)
+                self.assertIn("安全标注", ui.text)
+                self.assertIn("可挂载文风", ui.text)
                 self.assertNotIn('data-view="config"', ui.text)
                 self.assertNotIn("模型配置", ui.text)
                 self.assertIn("JSON 信息经过包装后展示", ui.text)
@@ -160,7 +254,14 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertEqual(script.status_code, 200)
                 self.assertIn("localStorage", script.text)
                 self.assertIn("/workflow/dashboard", script.text)
+                self.assertIn("/project/library", script.text)
+                self.assertIn("/workflow/current-choice", script.text)
+                self.assertIn("/workflow/human-choice", script.text)
+                self.assertIn("/project/display-field", script.text)
+                self.assertIn("/project/ui-note", script.text)
                 self.assertIn("/style-lab/mounts", script.text)
+                self.assertIn("/style-lab/library", script.text)
+                self.assertIn("/style-lab/mount", script.text)
                 self.assertIn("friendlyMessage", script.text)
                 self.assertNotIn("/director/chat", script.text)
                 self.assertNotIn("/style-lab/compile", script.text)
