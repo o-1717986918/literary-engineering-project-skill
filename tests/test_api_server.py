@@ -253,6 +253,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertIn("文风挂载", ui.text)
                 self.assertIn("连接设置", ui.text)
                 self.assertIn("已完成正文", ui.text)
+                self.assertIn("滑动阅览框", ui.text)
                 self.assertIn("这里不会裸露原始 JSON", ui.text)
                 self.assertIn("项目证据柜", ui.text)
                 self.assertIn("需要你决定的节点", ui.text)
@@ -286,6 +287,12 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertIn("api_key", script.text)
                 self.assertNotIn("addDirectorMessage", script.text)
                 self.assertNotIn("JSON.stringify(value, null, 2)", script.text)
+
+                style = client.get("/ui/styles.css")
+                self.assertEqual(style.status_code, 200)
+                self.assertIn(".completed-preview", style.text)
+                self.assertIn(".reader-body", style.text)
+                self.assertIn("overflow-y: auto", style.text)
 
                 cfg = client.get("/config")
                 self.assertEqual(cfg.status_code, 200)
