@@ -229,7 +229,7 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 质量门禁：
 
 1. `style_prompt.md` 必须是供 LLM 写作时直接使用的文风约束提示词，不是风格评论。
-2. 正文非空白 detail chars 必须在 500-2500 之间。
+2. 正文中文内容 detail chars 必须在 500-2500 之间，计入汉字和中文标点，不计入 Markdown 标记、英文路径、代码围栏或空白。
 3. 必须包含身份/边界、核心机制、叙述距离、句法节奏、标点、意象感官、心理/行为、对白、AI 腔控制、禁止倾向和输出自检。
 4. accepted eval 要求 `overall_score >= 45`，且 `risk_level` 不能是 `high_copy_risk` 或 `low_similarity`。
 

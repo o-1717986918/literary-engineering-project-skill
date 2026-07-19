@@ -9,7 +9,13 @@ from pathlib import Path
 import re
 
 from .agent_tasks import agent_task_completion_status, write_agent_tasks
-from .draft_text import count_delivery_chars, final_body_from_draft_path
+from .draft_text import (
+    count_delivery_chars,
+    count_delivery_chinese_content_chars,
+    delivery_char_count_mapping,
+    final_body_from_draft_path,
+)
+from .text_counts import CHINESE_CONTENT_COUNT_UNIT, MACHINE_NONSPACE_COUNT_UNIT
 
 
 GENRE_PRESETS = {
@@ -122,6 +128,8 @@ def build_word_budget(
     chapter_budgets = _chapter_budgets(volume_budgets)
     totals = {
         "target_words": resolved_target,
+        "target_chinese_chars": resolved_target,
+        "count_unit": CHINESE_CONTENT_COUNT_UNIT,
         "volume_count": volume_count,
         "chapter_count": sum(item["chapter_count"] for item in volume_budgets),
         "scene_count": sum(item["scene_count"] for item in volume_budgets),
@@ -157,6 +165,8 @@ def build_word_budget(
         "project_root": str(root),
         "target": {
             "target_words": resolved_target,
+            "target_chinese_chars": resolved_target,
+            "count_unit": CHINESE_CONTENT_COUNT_UNIT,
             "volumes": volume_count,
             "genre": preset_key,
             "genre_label": preset["label"],
@@ -164,6 +174,12 @@ def build_word_budget(
         },
         "preset": {key: value for key, value in preset.items() if key != "aliases"},
         "totals": totals,
+        "counting_policy": {
+            "formal_target_unit": CHINESE_CONTENT_COUNT_UNIT,
+            "machine_diagnostic_unit": MACHINE_NONSPACE_COUNT_UNIT,
+            "rule": "User-facing word budgets are interpreted as cleaned Chinese deliverable characters, including Chinese punctuation.",
+            "mapping": "Machine non-whitespace counts are retained only as diagnostics because markdown traces, paths, ASCII labels, and workflow residue can inflate them.",
+        },
         "volume_budgets": volume_budgets,
         "chapter_budgets": chapter_budgets,
         "outline_inventory": inventory,
@@ -243,11 +259,19 @@ def scene_word_budget_contract(root: Path, scene_path: Path) -> dict[str, object
         "budget_path": _rel(budget_path, root),
         "status": "not_required",
         "message": "word budget is not required for this project scale",
+        "count_unit": CHINESE_CONTENT_COUNT_UNIT,
+        "machine_count_unit": MACHINE_NONSPACE_COUNT_UNIT,
         "target_words": 0,
         "min_words": 0,
         "max_words": 0,
+        "target_chinese_chars": 0,
+        "min_chinese_chars": 0,
+        "max_chinese_chars": 0,
         "scene_yaml_target_words": scene_yaml_target,
+        "scene_yaml_target_chinese_chars": scene_yaml_target,
         "derived_target_words": 0,
+        "derived_target_chinese_chars": 0,
+        "machine_count_mapping": {},
         "source": "",
         "alignment_status": "",
         "warnings": [],
@@ -315,8 +339,12 @@ def scene_word_budget_contract(root: Path, scene_path: Path) -> dict[str, object
                     "target_words": target_words,
                     "min_words": min_words,
                     "max_words": max_words,
+                    "target_chinese_chars": target_words,
+                    "min_chinese_chars": min_words,
+                    "max_chinese_chars": max_words,
                     "source": "scene_yaml",
                     "derived_target_words": derived_target,
+                    "derived_target_chinese_chars": derived_target,
                 }
             )
             return base
@@ -350,8 +378,20 @@ def scene_word_budget_contract(root: Path, scene_path: Path) -> dict[str, object
             "target_words": target_words,
             "min_words": min_words,
             "max_words": max_words,
+            "target_chinese_chars": target_words,
+            "min_chinese_chars": min_words,
+            "max_chinese_chars": max_words,
             "scene_yaml_target_words": scene_yaml_target,
+            "scene_yaml_target_chinese_chars": scene_yaml_target,
             "derived_target_words": derived_target,
+            "derived_target_chinese_chars": derived_target,
+            "machine_count_mapping": {
+                "target_unit": CHINESE_CONTENT_COUNT_UNIT,
+                "machine_unit": MACHINE_NONSPACE_COUNT_UNIT,
+                "target_chinese_chars": target_words,
+                "rough_expected_machine_chars": target_words,
+                "note": "Formal gates use Chinese content chars; machine nonspace chars are diagnostic only.",
+            },
             "source": source,
             "alignment_status": alignment_status,
             "warnings": warnings,
@@ -395,8 +435,11 @@ def word_budget_adherence_for_body(root: Path, scene_path: Path, body: str) -> d
     """Return deterministic cleaned-body word-budget adherence for a scene draft/candidate."""
 
     contract = scene_word_budget_contract(root, scene_path)
-    clean_chars = count_delivery_chars(body)
+    clean_machine_chars = count_delivery_chars(body)
+    clean_chinese_chars = count_delivery_chinese_content_chars(body)
     status = str(contract.get("status") or "")
+    target_chinese_chars = _to_int(contract.get("target_chinese_chars") or contract.get("target_words"))
+    mapping = delivery_char_count_mapping(body, target_chinese_chars=target_chinese_chars)
     if status == "not_required":
         conclusion = "not_required"
         message = "word budget is not required for this project scale"
@@ -404,23 +447,31 @@ def word_budget_adherence_for_body(root: Path, scene_path: Path, body: str) -> d
         conclusion = "revise_required"
         message = str(contract.get("message") or "word budget contract is not ready")
     else:
-        min_words = _to_int(contract.get("min_words"))
-        max_words = _to_int(contract.get("max_words"))
-        if clean_chars < min_words:
+        min_words = _to_int(contract.get("min_chinese_chars") or contract.get("min_words"))
+        max_words = _to_int(contract.get("max_chinese_chars") or contract.get("max_words"))
+        if clean_chinese_chars < min_words:
             conclusion = "under_target"
-            message = f"cleaned body has {clean_chars} chars, below min_words={min_words}"
-        elif max_words and clean_chars > max_words:
+            message = f"cleaned body has {clean_chinese_chars} Chinese content chars, below min_chinese_chars={min_words}"
+        elif max_words and clean_chinese_chars > max_words:
             conclusion = "over_target"
-            message = f"cleaned body has {clean_chars} chars, above max_words={max_words}"
+            message = f"cleaned body has {clean_chinese_chars} Chinese content chars, above max_chinese_chars={max_words}"
         else:
             conclusion = "pass"
-            message = "cleaned body is within the scene word-budget range"
+            message = "cleaned body is within the scene Chinese-content word-budget range"
     return {
         "status": conclusion,
-        "clean_body_words": clean_chars,
+        "count_unit": CHINESE_CONTENT_COUNT_UNIT,
+        "machine_count_unit": MACHINE_NONSPACE_COUNT_UNIT,
+        "clean_body_words": clean_chinese_chars,
+        "clean_body_chinese_chars": clean_chinese_chars,
+        "clean_body_machine_chars": clean_machine_chars,
         "target_words": _to_int(contract.get("target_words")),
         "min_words": _to_int(contract.get("min_words")),
         "max_words": _to_int(contract.get("max_words")),
+        "target_chinese_chars": target_chinese_chars,
+        "min_chinese_chars": _to_int(contract.get("min_chinese_chars") or contract.get("min_words")),
+        "max_chinese_chars": _to_int(contract.get("max_chinese_chars") or contract.get("max_words")),
+        "machine_count_mapping": mapping,
         "narrative_load": contract.get("narrative_load", []),
         "budget_contract_status": status,
         "budget_path": contract.get("budget_path", ""),
@@ -445,13 +496,13 @@ def render_word_budget_generation_standard(root: Path) -> str:
 
 已加载 `{summary.get("path", "")}`。生成和扩写必须遵守以下预算，不得把大纲压缩成剧情摘要：
 
-- 目标字数：{target.get("target_words", 0)}
+- 目标中文内容字符：{target.get("target_chinese_chars", target.get("target_words", 0))}
 - 卷数：{target.get("volumes", 0)}
 - 类型：{target.get("genre_label", target.get("genre", ""))}
 - 目标章节数：{totals.get("chapter_count", 0)}
 - 目标场景数：{totals.get("scene_count", 0)}
-- 平均章字数：{totals.get("avg_chapter_words", 0)}
-- 平均场景字数：{totals.get("avg_scene_words", 0)}
+- 平均章中文内容字符：{totals.get("avg_chapter_words", 0)}
+- 平均场景中文内容字符：{totals.get("avg_scene_words", 0)}
 - 欠账章节数：{underbuilt}
 - 缺失场景数：{missing_scenes}
 - 正文缺口：{shortfall}
@@ -470,9 +521,10 @@ def render_scene_word_budget_contract(root: Path, scene_path: Path) -> str:
         [
             f"- 场景：{contract.get('scene_id')}",
             f"- 章节：{contract.get('chapter_id')}",
-            f"- 目标字数：{contract.get('target_words')}",
-            f"- 最低字数：{contract.get('min_words')}",
-            f"- 最高字数：{contract.get('max_words')}",
+            f"- 目标中文内容字符：{contract.get('target_chinese_chars')}",
+            f"- 最低中文内容字符：{contract.get('min_chinese_chars')}",
+            f"- 最高中文内容字符：{contract.get('max_chinese_chars')}",
+            f"- 机器非空白字符诊断：{contract.get('machine_count_mapping', {}).get('rough_expected_machine_chars', contract.get('target_words'))}",
             f"- 目标来源：{contract.get('source') or 'unknown'}",
             f"- scene.yaml 显式目标：{contract.get('scene_yaml_target_words') or 0}",
             f"- 预算推导目标：{contract.get('derived_target_words') or 0}",
@@ -637,7 +689,8 @@ def _scene_inventory_binding(root: Path, chapter_budgets: list[dict[str, object]
         target_words = int(chapter["target_words"])
         actual = by_chapter.get(chapter_id, [])
         actual_scene_count = len(actual)
-        actual_chars = sum(int(scene["draft_chars"]) for scene in actual)
+        actual_chars = sum(int(scene["draft_chinese_chars"]) for scene in actual)
+        actual_machine_chars = sum(int(scene["draft_machine_chars"]) for scene in actual)
         missing_scene_count = max(expected_scenes - actual_scene_count, 0)
         word_shortfall = max(target_words - actual_chars, 0)
         if missing_scene_count:
@@ -655,6 +708,8 @@ def _scene_inventory_binding(root: Path, chapter_budgets: list[dict[str, object]
                 "avg_scene_words": chapter["avg_scene_words"],
                 "actual_scene_count": actual_scene_count,
                 "actual_draft_chars": actual_chars,
+                "actual_draft_chinese_chars": actual_chars,
+                "actual_draft_machine_chars": actual_machine_chars,
                 "missing_scene_count": missing_scene_count,
                 "word_shortfall": word_shortfall,
                 "status": status,
@@ -668,6 +723,8 @@ def _scene_inventory_binding(root: Path, chapter_budgets: list[dict[str, object]
         "word_shortfall": sum(int(row["word_shortfall"]) for row in rows),
         "actual_scene_count": len(scenes),
         "actual_draft_chars": sum(int(scene["draft_chars"]) for scene in scenes),
+        "actual_draft_chinese_chars": sum(int(scene["draft_chinese_chars"]) for scene in scenes),
+        "actual_draft_machine_chars": sum(int(scene["draft_machine_chars"]) for scene in scenes),
     }
 
 
@@ -690,7 +747,9 @@ def _scan_scene_files(root: Path) -> list[dict[str, object]]:
                 "chapter_id": chapter_id,
                 "scene_path": _rel(path, root),
                 "draft_path": _rel(draft_path, root) if draft_path.exists() else "",
-                "draft_chars": count_delivery_chars(body),
+                "draft_chars": count_delivery_chinese_content_chars(body),
+                "draft_chinese_chars": count_delivery_chinese_content_chars(body),
+                "draft_machine_chars": count_delivery_chars(body),
             }
         )
     return rows
@@ -818,18 +877,19 @@ def _render_markdown(root: Path, payload: dict, json_path: Path) -> str:
         "",
         f"- JSON：`{_rel(json_path, root)}`",
         f"- 状态：`{payload['status']}`",
-        f"- 目标字数：{target['target_words']}",
+        f"- 目标中文内容字符：{target['target_chinese_chars']}",
+        "- 计数口径：清洗后中文正文字符，计入汉字和中文标点；机器非空白字符仅作为诊断映射。",
         f"- 卷数：{target['volumes']}",
         f"- 类型：{target['genre_label']}",
         f"- 时间跨度：{target.get('time_span') or '未指定'}",
         f"- 预算章节：{totals['chapter_count']}",
         f"- 预算场景：{totals['scene_count']}",
-        f"- 平均章字数：{totals['avg_chapter_words']}",
-        f"- 平均场景字数：{totals['avg_scene_words']}",
+        f"- 平均章中文内容字符：{totals['avg_chapter_words']}",
+        f"- 平均场景中文内容字符：{totals['avg_scene_words']}",
         "",
         "## 卷级预算",
         "",
-        "| 卷 | 目标字数 | 章节 | 场景 | 章均字数 | 场景均字数 |",
+        "| 卷 | 目标中文内容字符 | 章节 | 场景 | 章均中文内容字符 | 场景均中文内容字符 |",
         "| --- | ---: | ---: | ---: | ---: | ---: |",
     ]
     for item in payload["volume_budgets"]:
@@ -847,7 +907,7 @@ def _render_markdown(root: Path, payload: dict, json_path: Path) -> str:
             f"- 已有 scene 文件：{payload['scene_inventory_binding']['actual_scene_count']}",
             f"- 已有清洗后正文字符：{payload['scene_inventory_binding']['actual_draft_chars']}",
             "",
-            "| 章节 | 卷 | 目标字数 | 目标场景 | 已有场景 | 已有正文 | 缺场景 | 正文缺口 | 状态 |",
+            "| 章节 | 卷 | 目标中文内容字符 | 目标场景 | 已有场景 | 已有正文中文内容字符 | 缺场景 | 正文缺口 | 状态 |",
             "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
         ]
     )

@@ -12,6 +12,7 @@ from urllib import error, request
 from .anti_ai_style import ANTI_AI_STYLE_PROMPT
 from .model_config import MODEL_PROVIDER_CHOICES, get_model_settings, resolve_model_provider
 from .punctuation_standard import PUNCTUATION_STANDARD_PROMPT
+from .text_counts import CHINESE_CONTENT_COUNT_UNIT, count_chinese_content_chars
 
 
 STYLE_PROMPT_PROVIDERS = MODEL_PROVIDER_CHOICES
@@ -19,7 +20,8 @@ STYLE_PROMPT_MIN_DETAIL_CHARS = 500
 STYLE_PROMPT_MAX_DETAIL_CHARS = 2500
 STYLE_PROMPT_LENGTH_RULE = (
     "可靠且可挂载的 LLM 文风约束提示词必须足够详细但可执行："
-    f"按正文非空白内容计算为 {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} 字。"
+    f"按中文内容字符计算为 {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} 字，"
+    "计入汉字和中文标点，不计入 Markdown 标记、代码围栏、英文路径或空白。"
 )
 STYLE_PROMPT_REQUIRED_BLOCKS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("使用身份与适用边界", ("使用身份", "使用边界", "适用边界", "优先级", "适用范围")),
@@ -104,7 +106,7 @@ def build_style_prompt(
         output_path=output_path,
         manifest_path=prompt_manifest_path,
         provider=resolved_provider,
-        generated_chars=len(rendered),
+        generated_chars=count_style_prompt_detail_chars(rendered),
     )
 
 
@@ -119,7 +121,7 @@ def _messages(profile_path: Path, metrics_path: Path, manifest_path: Path) -> li
 要求：
 
 - 把 profile 和 metrics 转译成可执行的写作约束。
-- 提示词正文必须足够详细但可执行，按正文非空白内容计算控制在 500-2500 字之间；低于 500 字通常无法稳定约束文风，高于 2500 字容易稀释优先级和造成执行漂移。
+- 提示词正文必须足够详细但可执行，按中文内容字符计算控制在 500-2500 字之间；计入汉字和中文标点，不计入 Markdown 标记、代码围栏、英文路径或空白。低于 500 字通常无法稳定约束文风，高于 2500 字容易稀释优先级和造成执行漂移。
 - 按优秀系统提示词标准写作：先定义使用身份、适用边界和优先级，再给出证据导向的可执行规则；每条规则应说明“做什么、为什么、何时例外、如何自检”，避免空泛形容词。
 - 约束必须覆盖叙述距离、句法节奏、标点节奏、感官意象、心理描写、对白比例、AI 腔控制、禁忌倾向和自检规则。
 - 标点部分必须区分“风格节奏”和“基础规范”：可以学习密度、停顿和句式，但不得输出中英标点混用、错误省略号、错误破折号、密集碎句、长逗号链、破折号滥用或机械转折词堆叠。
@@ -131,7 +133,7 @@ def _messages(profile_path: Path, metrics_path: Path, manifest_path: Path) -> li
 """
     user = f"""请根据以下风格 profile、统计指标和语料 manifest，生成一份可直接注入 LLM 的文风约束提示词。
 
-字数要求：提示词正文必须在 500-2500 字之间，宁可压缩空泛说明，也不能省略可执行约束。
+字数要求：提示词正文必须在 500-2500 中文内容字符之间，计入汉字和中文标点，不计入 Markdown 标记、代码围栏、英文路径或空白；宁可压缩空泛说明，也不能省略可执行约束。
 
 质量要求：必须像正式 system prompt 一样清楚、可执行、可审查。至少覆盖使用身份/适用边界、核心风格机制、叙述距离与视角、句法与节奏、标点节奏、意象与感官、心理呈现与行为因果、对白与语气、AI 腔控制、禁止倾向、输出自检。避免“优美、克制、文学性强”等不能执行的空泛评价，改写成具体动作和判断标准。
 
@@ -295,7 +297,7 @@ def _render_style_prompt(provider: str, body: str) -> str:
 
 - 本文件是供 LLM 写作时注入的文风约束提示词。
 - 它约束叙事机制、句法节奏、意象系统和心理呈现，不负责确认 canon。
-- 可靠可挂载版本的正文非空白内容应保持在 {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} 字之间。
+- 可靠可挂载版本的正文中文内容字符应保持在 {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} 字之间，计入汉字和中文标点，不计入 Markdown 标记、代码围栏、英文路径或空白。
 - 回译、扩写和盲评评测应审查“本提示词是否有效”，而不是只审查统计报告。
 
 {body.strip()}
@@ -337,7 +339,7 @@ def _read(path: Path) -> str:
 
 
 def count_style_prompt_detail_chars(text: str) -> int:
-    """Count executable prompt detail, ignoring Markdown scaffolding and whitespace."""
+    """Count executable prompt detail as Chinese content characters."""
 
     total = 0
     in_fence = False
@@ -354,7 +356,7 @@ def count_style_prompt_detail_chars(text: str) -> int:
         line = re.sub(r"^[-*+]\s+", "", line)
         line = re.sub(r"^\d+[.)]\s+", "", line)
         line = line.replace("`", "")
-        total += len(re.sub(r"\s+", "", line))
+        total += count_chinese_content_chars(line)
     return total
 
 
@@ -370,6 +372,8 @@ def style_prompt_quality_report(text: str) -> dict[str, object]:
     detail_chars = count_style_prompt_detail_chars(text)
     return {
         "detail_chars": detail_chars,
+        "detail_count_unit": CHINESE_CONTENT_COUNT_UNIT,
+        "count_note": "detail_chars counts Han characters and Chinese punctuation after stripping Markdown scaffolding.",
         "length_range": [STYLE_PROMPT_MIN_DETAIL_CHARS, STYLE_PROMPT_MAX_DETAIL_CHARS],
         "length_ok": STYLE_PROMPT_MIN_DETAIL_CHARS <= detail_chars <= STYLE_PROMPT_MAX_DETAIL_CHARS,
         "required_blocks": [label for label, _ in STYLE_PROMPT_REQUIRED_BLOCKS],

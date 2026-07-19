@@ -137,6 +137,11 @@ def write_platform_scene_review_task(
     "min_words": {word_budget_adherence.get("min_words", 0)},
     "max_words": {word_budget_adherence.get("max_words", 0)},
     "clean_body_words": {word_budget_adherence.get("clean_body_words", 0)},
+    "target_chinese_chars": {word_budget_adherence.get("target_chinese_chars", 0)},
+    "min_chinese_chars": {word_budget_adherence.get("min_chinese_chars", 0)},
+    "max_chinese_chars": {word_budget_adherence.get("max_chinese_chars", 0)},
+    "clean_body_chinese_chars": {word_budget_adherence.get("clean_body_chinese_chars", 0)},
+    "clean_body_machine_chars": {word_budget_adherence.get("clean_body_machine_chars", 0)},
     "narrative_load_satisfied": true,
     "message": "{str(word_budget_adherence.get("message") or "").replace('"', "'")}"
   }},
@@ -226,7 +231,7 @@ def write_platform_scene_generation_task(
                 "执行生成前字数预算标准",
                 f"""在写候选正文前，检查 prompt manifest 的 generation_standards.word_budget 和 scene_word_budget_contract。本场景预算硬属性如下：
 {json.dumps(word_budget_contract, ensure_ascii=False, indent=2)}
-若 status 不是 pass 或 not_required，停止正文生成并回到 longform-planning。若 status=pass，正文清洗后的可交付部分必须落在 min_words 到 max_words 之间，同时满足 narrative_load；不得靠水化描写拉长，也不得把预算需要的剧情量压缩为摘要。""",
+若 status 不是 pass 或 not_required，停止正文生成并回到 longform-planning。若 status=pass，正文清洗后的可交付部分必须落在 min_chinese_chars 到 max_chinese_chars 之间；计入汉字和中文标点，机器非空白字符只作为诊断映射。同时满足 narrative_load；不得靠水化描写拉长，也不得把预算需要的剧情量压缩为摘要。""",
             ),
             (
                 "执行 AgentReview 小修约束",
@@ -238,7 +243,7 @@ def write_platform_scene_generation_task(
             ),
             (
                 "生成候选 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false、word_budget_contract、clean_body_words、word_budget_adherence.status、new_character_register 和待审查事项。
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false、word_budget_contract、clean_body_chinese_chars、clean_body_machine_chars、word_budget_adherence.status、new_character_register 和待审查事项。
 
 {new_character_contract}
 
@@ -564,11 +569,11 @@ def write_platform_style_prompt_task(
             ),
             (
                 "写入文风提示词",
-                f"""创建或覆盖 `{_rel(prompt, profile)}`。必须包含使用身份与适用边界、核心风格机制、叙述距离与视角、句法与节奏、标点节奏与标准标点边界、意象与感官调度、心理呈现与行为因果、对白与语气、禁止倾向、输出自检。正文必须控制在 500-2500 字之间：低于 500 字视为文风约束不足，高于 2500 字视为过度扩散。每个模块都要写成可执行规则，说明做什么、为什么、何时例外、如何自检；不要使用“优美、克制、文学性强”等空泛形容词替代规则。AI 腔边界必须保留：机械“不是……而是……”及其破折号/句号变体不判断为合理修辞；器官轮岗、万能占位、比喻依赖、抽象总结、模板转折和景物强制同步按约 2% 叙事单元密度门禁控制。标点边界必须保留：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+                f"""创建或覆盖 `{_rel(prompt, profile)}`。必须包含使用身份与适用边界、核心风格机制、叙述距离与视角、句法与节奏、标点节奏与标准标点边界、意象与感官调度、心理呈现与行为因果、对白与语气、禁止倾向、输出自检。正文必须控制在 500-2500 中文内容字符之间：计入汉字和中文标点，不计入 Markdown 标记、英文路径、代码围栏或空白；低于 500 视为文风约束不足，高于 2500 视为过度扩散。每个模块都要写成可执行规则，说明做什么、为什么、何时例外、如何自检；不要使用“优美、克制、文学性强”等空泛形容词替代规则。AI 腔边界必须保留：机械“不是……而是……”及其破折号/句号变体不判断为合理修辞；器官轮岗、万能占位、比喻依赖、抽象总结、模板转折和景物强制同步按约 2% 叙事单元密度门禁控制。标点边界必须保留：{PUNCTUATION_STANDARD_SHORT_RULE}""",
             ),
             (
                 "写入 schema JSON",
-                f"""创建或覆盖 `{_rel(json_output, profile)}`，按 `style_prompt.v1` 记录 prompt_markdown、constraints、avoid、source_paths、evaluation_plan 和 risk_notes；risk_notes 中注明本提示词已按 500-2500 字可靠挂载范围、高质量 prompt 模块完整性和 2% AI 腔密度门禁完成自检。""",
+                f"""创建或覆盖 `{_rel(json_output, profile)}`，按 `style_prompt.v1` 记录 prompt_markdown、constraints、avoid、source_paths、evaluation_plan 和 risk_notes；risk_notes 中注明本提示词已按 500-2500 中文内容字符可靠挂载范围、高质量 prompt 模块完整性和 2% AI 腔密度门禁完成自检。""",
             ),
         ],
     )

@@ -28,6 +28,17 @@ python -m literary_engineering_workbench word-budget "<work-dir>" --target-words
 9. 后续 context packet、`compose-scene`、`generate-scene` 的 prompt manifest 和 `.agent_tasks.md` 自动加载本场景预算契约。
 10. AgentReview、`promote-candidate`、`route-audit`、`chapter-workspace`、`longform-audit` 和正式导出都会用清洗后的可交付正文复核字数和叙事负载。
 
+## 计数口径
+
+用户说“50 万字”“每场 1400 字”时，正式门禁解释为清洗后中文正文字符：
+
+- 计入汉字和中文标点。
+- 不计入 Markdown 标记、英文路径、代码围栏、workflow 说明、scene/chapter 编号、canon 注释、review notes、状态变化候选、写回候选或 `[AGENT_TASK: ...]`。
+- 机器非空白字符数只作为诊断映射，记录在 `machine_count_mapping`、`clean_body_machine_chars` 等字段中。
+- 若机器非空白字符数与中文内容字符数不一致，正式 pass/fail 使用中文内容字符数。
+
+粗略映射原则：中文文学正文通常机器非空白字符数接近中文内容字符数；但一旦正文混入英文标签、路径、JSON key、Markdown 标记或工作流痕迹，机器数会被抬高。因此预算审查要同时看 `clean_body_chinese_chars` 和 `clean_body_machine_chars`，并优先追问差异来源。
+
 ## 文学理论约束
 
 长篇字数由叙事单位累积而来。一个有效叙事单位通常至少完成以下一种功能：

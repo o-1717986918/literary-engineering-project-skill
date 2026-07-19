@@ -397,7 +397,7 @@ class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
 
     def test_cli_exposes_task_registry_commands(self):
         help_text = build_parser().format_help()
-        for command in ("task-next", "task-open", "task-submit", "task-complete", "workflow-advance", "workflow-events"):
+        for command in ("task-next", "task-open", "task-submit", "task-complete", "workflow-advance", "workflow-events", "workflow-validate"):
             self.assertIn(command, help_text)
 
     def test_cli_task_next_runs(self):

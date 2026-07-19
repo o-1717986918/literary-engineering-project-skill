@@ -195,7 +195,7 @@ CLI 只负责：
 1. `style-profile.md` 与 `style_metrics.json` 必须存在。
 2. `style_prompt.agent_tasks.md` 必须由 `style-prompt` 或等价正式任务生成。
 3. 平台 Agent 必须写出 `style_prompt.md` 与 `style_prompt.agent.json`，并创建 `style_prompt.agent_completion.json`。
-4. `style_prompt.md` 必须通过 `style_prompt_quality_report()`：500-2500 非空白 detail chars，且包含身份/边界、核心风格机制、叙述距离、句法/节奏、标点、意象/感官、心理/行为、对白、AI 腔控制、禁止倾向和输出自检。
+4. `style_prompt.md` 必须通过 `style_prompt_quality_report()`：500-2500 中文内容 detail chars，计入汉字和中文标点，不计入 Markdown 标记、英文路径、代码围栏或空白，且包含身份/边界、核心风格机制、叙述距离、句法/节奏、标点、意象/感官、心理/行为、对白、AI 腔控制、禁止倾向和输出自检。
 5. 至少一个 `evaluation_results/*/style_eval_*.json` 被接受：`overall_score >= 45`，且 `risk_level` 不是 `high_copy_risk` 或 `low_similarity`。
 
 这一步修复“文风 profile 已生成，但实际挂载的 prompt 过短、过泛或未评测”的漏洞。统计 profile、style_metrics 和 dry-run 文档都不能代替可执行的 LLM-facing style prompt。

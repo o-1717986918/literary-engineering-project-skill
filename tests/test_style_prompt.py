@@ -35,6 +35,19 @@ class StylePromptTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(manifest["messages"][0]["role"], "system")
         self.assertIn("供另一个 LLM 写作时直接使用", manifest["messages"][0]["content"])
 
+    def test_detail_count_uses_chinese_content_chars(self):
+        text = """# English Header
+
+- abc/def/path
+- 汉字，标点。
+
+```json
+{"ignored": "中文不计入"}
+```
+"""
+
+        self.assertEqual(count_style_prompt_detail_chars(text), 6)
+
     def test_cli_exposes_and_runs_style_prompt(self):
         project = self.make_project()
         profile_dir = self._compile_profile(project)

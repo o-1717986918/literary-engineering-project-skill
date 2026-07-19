@@ -805,13 +805,16 @@ def _style_prompt_quality_step(root: Path, prompt_path: Path) -> dict[str, objec
     report = style_prompt_quality_report(_read(prompt_path))
     passed = bool(report.get("length_ok")) and bool(report.get("structure_ok"))
     missing = ", ".join(str(item) for item in report.get("missing_blocks", []))
-    message = f"detail_chars={report.get('detail_chars')}; missing_blocks={missing or 'none'}"
+    message = (
+        f"detail_chars={report.get('detail_chars')} "
+        f"({report.get('detail_count_unit')}); missing_blocks={missing or 'none'}"
+    )
     return {
         "key": "style-prompt-quality",
         "status": "pass" if passed else "blocked",
         "path": _rel(prompt_path, root),
         "message": message,
-        "next_action": "" if passed else "revise style_prompt.md to 500-2500 detail chars with all required prompt blocks",
+        "next_action": "" if passed else "revise style_prompt.md to 500-2500 Chinese-content detail chars with all required prompt blocks",
     }
 
 

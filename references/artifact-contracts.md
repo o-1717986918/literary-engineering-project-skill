@@ -182,7 +182,7 @@ style/{profile}/style_prompt.agent.json
 style/{profile}/style_prompt.agent_tasks.md
 ```
 
-`style_prompt.md` is the LLM-facing style constraint prompt. It is the final style-learning asset for generation, while `style_metrics.json` and `style-profile.md` are evidence and intermediate artifacts. A reliable mountable `style_prompt.md` must be detailed enough to guide another LLM but short enough to remain executable: 500-2500 non-whitespace content characters after Markdown scaffolding is ignored. Shorter prompts are under-specified; longer prompts are treated as diffuse and must be condensed before default mounting.
+`style_prompt.md` is the LLM-facing style constraint prompt. It is the final style-learning asset for generation, while `style_metrics.json` and `style-profile.md` are evidence and intermediate artifacts. A reliable mountable `style_prompt.md` must be detailed enough to guide another LLM but short enough to remain executable: 500-2500 Chinese-content characters after Markdown scaffolding is ignored, counting Han characters and Chinese punctuation rather than English paths or markup. Shorter prompts are under-specified; longer prompts are treated as diffuse and must be condensed before default mounting.
 
 Content requirements for a mountable style prompt:
 
@@ -280,7 +280,7 @@ style/candidates/{work_id}_style_generation_notes.md
 reviews/source_ingest/{work_id}_extraction_review.md
 ```
 
-Each extracted claim should carry evidence references, confidence, unknowns, and contradiction notes when relevant. Use chunk ids or raw source labels as evidence references; do not copy long source passages into project files. Source-derived style notes are not a mountable Style Skill until converted into a reviewed 500-2500 character LLM-facing prompt.
+Each extracted claim should carry evidence references, confidence, unknowns, and contradiction notes when relevant. Use chunk ids or raw source labels as evidence references; do not copy long source passages into project files. Source-derived style notes are not a mountable Style Skill until converted into a reviewed 500-2500 Chinese-content-character LLM-facing prompt.
 
 None of these outputs may directly overwrite:
 

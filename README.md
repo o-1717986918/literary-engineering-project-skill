@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.86.1`
+- 当前版本：`0.87.0`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -132,7 +132,7 @@ context packet
 
 `v0.84.3` 起，`source-ingest` 也接入 CLI-mediated task loop。导入已有作品后，`task-next --route source-ingest` 会派发反推项目文件任务，要求平台 Agent 读取 source manifest、chunk 和 `extract_project_files.agent_tasks.md`，写出项目简报、人物/隐藏背景、世界观、大纲、时间线、伏笔、文风 notes 等候选文件，并写 clean `pass` 的 extraction review。只完成导入、只写 completion marker、缺候选文件或 review 为 `pass_with_notes` 都不能让路线 ready。
 
-`v0.84.4` 起，`style-engineering` 接入 CLI-mediated task loop。项目内 `style/*/style-profile.md` profile 会被状态机追踪：先由 `style-prompt` 生成平台 Agent 任务，再由平台 Agent 写出 500-2500 字、结构完整的 `style_prompt.md` 与 `style_prompt.agent.json`，最后必须有至少一个通过 copy-risk/相似度门禁的 `style_eval_*.json`。统计 profile、短 prompt、未完成 sidecar、未评测 style prompt 都不能进入正式挂载。
+`v0.84.4` 起，`style-engineering` 接入 CLI-mediated task loop。项目内 `style/*/style-profile.md` profile 会被状态机追踪：先由 `style-prompt` 生成平台 Agent 任务，再由平台 Agent 写出 500-2500 中文内容字符、结构完整的 `style_prompt.md` 与 `style_prompt.agent.json`，最后必须有至少一个通过 copy-risk/相似度门禁的 `style_eval_*.json`。统计 profile、短 prompt、未完成 sidecar、未评测 style prompt 都不能进入正式挂载。
 
 `v0.84.5` 起，`character-and-world-assets` 接入 CLI-mediated task loop。角色、隐藏背景故事、关系、世界规则、地点、组织和大纲类候选资产现在会被状态机追踪：`asset-create` / `agent-create-*` 只生成平台 Agent 创建 sidecar，平台 Agent 必须写候选 JSON/报告，完成 review sidecar，得到 clean `pass` 审查，取得用户 approve 记录，再用 `promote-candidate-asset` 晋升。`route-audit --route character-and-world-assets` 会阻塞缺 review、缺 approval、使用 `allow_unapproved` 或晋升输出缺失的资产。
 
@@ -143,6 +143,8 @@ context packet
 `v0.86.0` 起，场景上下文升级为 Context Broker 双产物：`context` 同时生成 `memory/context_packets/{scene_id}.md` 和 `memory/context_packets/{scene_id}.trace.json`。trace 会记录本次上下文实际加载的 project、scene、canon、character、plot、style、word-budget 与 retrieval 来源。`task-next`、`task-complete`、`workflow-state`、`route-audit`、`chapter-workspace`、`generate-scene`、`compose-scene` 和 AgentReview 都会把缺失或无效 trace 视为正式链路问题；只有 context md 而没有 trace 的场景不能进入正式生成、审查、章节 ready 或导出。
 
 `v0.86.1` 起，场景中新出现的人物进入 New Character Register 门禁。`generate-scene` prompt manifest、候选 manifest、AgentReview JSON、promotion gate、route-audit、chapter/export readiness 都会检查 `new_character_register`：一次性路人必须写豁免理由；命名、复用、掌握线索、影响关系或推动主线的新角色必须进入 `characters/candidates/`，完成候选审查、用户 approval 或 promotion 后才能 clean pass。这样正文不能再偷偷发明持久角色而绕过角色库。
+
+`v0.87.0` 起，CLI-mediated workflow 增加 `workflow-validate` 合同校验：它会只读检查 `workflow-state`、task record、submission、completion marker 和 event log，抓出下游已 pass 但上游仍 blocking、ready 状态不一致、事件引用缺失 task、completion marker 未确认 expected artifacts 等问题。这个版本还统一了两个关键计数口径：文风提示词的 500-2500 门禁按中文内容字符计算；长篇预算和场景 `word_count_target/min/max` 按清洗后中文正文字符判断，计入汉字和中文标点，机器非空白字符只作为诊断映射。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 

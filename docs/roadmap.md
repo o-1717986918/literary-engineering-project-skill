@@ -262,7 +262,7 @@
 
 `v0.84.3` 已接入 `source-ingest`。已有作品导入后，状态机会要求平台 Agent 完成 source extraction sidecar、项目简报/人物背景/世界观/大纲/时间线/伏笔/文风 notes 候选、completion marker 和 clean `pass` extraction review。这样“导入了文本但没有真正反推标准项目文件”的问题进入正式闭环。
 
-`v0.84.4` 已接入 `style-engineering`。项目内文风 profile 会进入状态机：`style-prompt` sidecar、平台 Agent 写出的 500-2500 字结构化 `style_prompt.md`、`style_prompt.agent.json`、completion marker 和 accepted `style_eval_*.json` 缺一项都不能 ready。这样“有统计 profile 但没有可靠可挂载文风提示词”的问题进入正式闭环。
+`v0.84.4` 已接入 `style-engineering`。项目内文风 profile 会进入状态机：`style-prompt` sidecar、平台 Agent 写出的 500-2500 中文内容字符结构化 `style_prompt.md`、`style_prompt.agent.json`、completion marker 和 accepted `style_eval_*.json` 缺一项都不能 ready。这样“有统计 profile 但没有可靠可挂载文风提示词”的问题进入正式闭环。
 
 `v0.84.5` 已接入 `character-and-world-assets`。角色、隐藏背景故事、关系、世界规则、地点、组织、大纲、章节计划和场景列表等候选资产会进入状态机：创建 sidecar、候选 JSON/报告、资产 review sidecar、clean `pass` 审查、用户 approval、promotion manifest 和晋升输出缺一项都不能 ready。这样“上游设定资产跳过审查或 approval 直接写回”的问题进入正式闭环。
 
@@ -274,4 +274,6 @@
 
 `v0.86.1` 已实现 New Character Register。正式正文候选和修订候选必须在 manifest 中声明是否引入新角色；AgentReview 必须审查 `new_character_register`。一次性路人需要 waiver reason；持久新角色必须进入 `characters/candidates/`，并完成候选审查、用户 approval 或 promotion 后才能 clean pass。`candidate_generation_gate`、`candidate_review_gate`、`scene_readiness`、`route-audit`、`state-evolve` 和正文清洗均已接入，防止新角色从正文旁路进入长篇人物库。
 
-下一步规划：Phase 87-90 将继续推进持续状态机增强、Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。
+`v0.87.0` 已实现 Workflow Contract Validation。新增 `workflow-validate`，只读校验 `workflow-state`、task record、submission、completion marker 和 event log，阻塞下游 pass / 上游 blocking、ready 状态不一致、事件引用缺失 task、completion marker 未确认 expected artifacts 等问题。文风提示词质量门禁和长篇字数预算也统一为中文内容字符口径：计入汉字和中文标点，机器非空白字符保留为诊断映射，不再作为正式 pass/fail 基准。
+
+下一步规划：Phase 88-90 将继续推进 Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。

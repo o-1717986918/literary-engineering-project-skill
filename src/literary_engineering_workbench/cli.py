@@ -92,6 +92,7 @@ from .task_registry import (
     submit_task,
 )
 from .workflow_runner import WORKFLOW_MODES, run_workflow
+from .workflow_contract import validate_workflow_contract
 from .workflow_state import build_workflow_state
 from .word_budget import build_word_budget
 
@@ -355,6 +356,13 @@ def build_parser() -> argparse.ArgumentParser:
     workflow_events = sub.add_parser("workflow-events", help="Render CLI-mediated task event history.")
     workflow_events.add_argument("project", help="Work project directory.")
     workflow_events.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/events.md.")
+
+    workflow_validate = sub.add_parser("workflow-validate", help="Validate workflow state, task, submission, completion, and event ledgers.")
+    workflow_validate.add_argument("project", help="Work project directory.")
+    workflow_validate.add_argument("--route", default="scene-development", help="Route key used when refreshing state before validation.")
+    workflow_validate.add_argument("--state", default="", help="Existing workflow state JSON. Defaults to rebuilding workflow/route_state.json.")
+    workflow_validate.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/workflow_contract.md.")
+    workflow_validate.add_argument("--json-out", default="", help="Output JSON path. Defaults to workflow/workflow_contract.json.")
 
     prompt_list = sub.add_parser("prompt-registry-list", help="List registered file-backed prompt assets.")
     prompt_list.add_argument("--skill-root", default="", help="Skill root containing templates/prompt_assets. Defaults to auto-detect.")
@@ -1325,6 +1333,29 @@ def main(argv=None) -> int:
         print(f"events: {result.events_path}")
         print(f"report: {result.markdown_path}")
         print(f"count: {result.event_count}")
+        return 0
+
+    if args.command == "workflow-validate":
+        out = Path(args.out) if args.out else None
+        json_out = Path(args.json_out) if args.json_out else None
+        state_path = Path(args.state) if args.state else None
+        try:
+            result = validate_workflow_contract(
+                Path(args.project),
+                route=args.route,
+                state_path=state_path,
+                output=out,
+                json_output=json_out,
+            )
+        except FileNotFoundError as exc:
+            parser.error(str(exc))
+        print(f"status: {result.status}")
+        print(f"workflow_contract: {result.markdown_path}")
+        print(f"json: {result.json_path}")
+        print(f"state: {result.state_path}")
+        print(f"events: {result.events_path}")
+        print(f"errors: {result.error_count}")
+        print(f"warnings: {result.warning_count}")
         return 0
 
     if args.command == "prompt-registry-list":

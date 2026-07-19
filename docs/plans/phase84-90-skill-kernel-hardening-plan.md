@@ -6,7 +6,7 @@
 目标读者：维护本 Skill 的平台 Agent、项目开发者、后续代码实现者  
 生成背景：基于当前 Skill 架构复盘，以及对 ProseForge、ai-novel-writer、AI-Novel-Writing-Assistant 三个外部项目的互补性分析。
 
-执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`；`v0.86.0` 已完成 Context Broker / Context Trace，详见 `docs/implementation/phase86-context-broker.md`；`v0.86.1` 已完成 New Character Register，详见 `docs/implementation/phase86-1-new-character-register.md`。Phase 87-90 仍按本计划继续推进。
+执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`；`v0.86.0` 已完成 Context Broker / Context Trace，详见 `docs/implementation/phase86-context-broker.md`；`v0.86.1` 已完成 New Character Register，详见 `docs/implementation/phase86-1-new-character-register.md`；`v0.87.0` 已完成 Workflow Contract Validation 与中文内容字符计数口径修正，详见 `docs/implementation/phase87-workflow-contract-validation.md`。Phase 88-90 仍按本计划继续推进。
 
 ## 1. 背景与判断
 
@@ -373,63 +373,56 @@ Phase 84 后续横向接入顺序：
 6. `build_scene_prompt_pack` 在外部传入 context packet 时要求相邻 trace 存在，防止手写 context packet 绕过正式来源证明。
 7. 文档层新增 `docs/modules/context-broker.md`，并更新 `SKILL.md`、`AGENTS.md`、`agentread.yaml`、`references/workflows.md`、`references/artifact-contracts.md` 和 CLI run protocol。
 
-## 9. Phase 87：持续工作流状态机
+## 9. Phase 87：Workflow Contract Validation
 
 ### 9.1 目标
 
-把 scene-development、longform-planning、export-release 变成显式状态机，减少 Agent 因速度优化跳过流程的空间。
+在已有 `workflow-state`、`task-next`、`task-submit`、`task-complete` 和 `route-audit` 之上增加只读合同校验层。目标不是替代 route gate，而是检查状态、任务、提交、completion marker 和事件流之间是否自洽，减少 Agent 因速度优化、手写同名文件或漏 sidecar 造成的“假完成”。
 
-### 9.2 计划新增或更新文件
+### 9.2 已新增或更新文件
 
-1. `src/literary_engineering_workbench/workflow_state.py`
+1. `src/literary_engineering_workbench/workflow_contract.py`
 2. `schemas/workflow_state.v1.json`
 3. `schemas/workflow_event.v1.json`
-4. `templates/work-project/workflow/state.json`
-5. `docs/modules/workflow-state-machine.md`
+4. `docs/modules/workflow-state-machine.md`
+5. `docs/implementation/phase87-workflow-contract-validation.md`
+6. `src/literary_engineering_workbench/text_counts.py`
 
-### 9.3 计划新增 CLI
+### 9.3 已新增 CLI
 
-1. `workflow-state`
-2. `workflow-advance`
-3. `workflow-events`
-4. `route-audit` 增强：读取状态机并报告非法跃迁。
+1. `workflow-validate`
 
-### 9.4 场景路线状态
+### 9.4 合同校验内容
 
-建议初始状态：
+1. `workflow/route_state.json` schema、summary、route item 列表和 rules。
+2. 下游 step 已 `pass` 但上游非 order-neutral gate 仍 blocking 的异常。
+3. route item 标记 `ready` 但仍存在未 pass step 的异常。
+4. `workflow/tasks/*.task.json` 的 schema、task id、route、current state、expected outputs、status。
+5. submitted task 的 submission JSON 与 artifact 路径存在性。
+6. completed task 的 completion marker 与 `expected_artifacts_checked=true`。
+7. `workflow/events/task_events.jsonl` 的 event schema 和 task id 引用。
 
-1. `scene_registered`
-2. `context_ready`
-3. `roleplay_tasks_ready`
-4. `roleplay_completed`
-5. `branch_manifest_ready`
-6. `branch_selection_completed`
-7. `composition_ready`
-8. `prose_candidate_ready`
-9. `agent_review_completed`
-10. `revision_required`
-11. `revision_completed`
-12. `promoted`
-13. `state_patch_ready`
-14. `state_patch_applied`
-15. `chapter_ready`
-16. `export_ready`
+### 9.5 字数与文风计数修正
 
-### 9.5 状态跃迁规则
+1. `style_prompt.md` 的 500-2500 质量门禁改为中文内容字符：计入汉字和中文标点，不计入 Markdown 标记、代码围栏、英文路径或空白。
+2. 长篇预算和场景 `word_count_target/min/max` 改为清洗后中文正文字符：计入汉字和中文标点。
+3. 机器非空白字符保留为 `machine_count_mapping` 诊断，不作为正式 pass/fail 基准。
+4. `count_delivery_chars()` 现在会先抽取工作台文档中的可交付正文段，避免标题、流程段和工程痕迹混入统计。
 
-1. 不能从 `context_ready` 直接进入 `prose_candidate_ready`。
-2. `branch_selection_completed` 之前不能 compose。
-3. `composition_ready` 之前不能正式生成正文。
-4. `agent_review_completed` 必须引用 exact candidate。
-5. `pass_with_notes` 只能进入 `revision_required`，不能进入 `promoted`。
-6. `promoted` 之前必须满足 Style Lint Gate、word target gate、style adherence gate。
-7. 缺少 `.agent_completion.json` 时不能推进下一状态。
+### 9.6 使用规则
 
-### 9.6 验收标准
+1. `workflow-validate` 是只读命令，不推进剧情、不写候选、不批准产物。
+2. `workflow-validate` fail 时，平台 Agent 必须先修复 contract 错误，再继续批量 generation、promotion、export 或 release。
+3. `workflow-state`、`agent-task-status`、`workflow-validate`、`route-audit` 四者组合使用：一个看当前状态，一个看 sidecar，一个看账本结构，一个看路线语义门禁。
 
-1. `route-audit --route scene-development` 能报告每个场景的当前状态和下一步。
-2. 使用 debug/bypass flag 无法把 formal work project 标记为完成。
-3. Agent 手写关键文件但缺 CLI provenance 时，状态机不承认完成。
+### 9.7 验收标准
+
+1. `workflow-validate` 能在完成任务后输出 `status=pass`。已完成。
+2. 下游 pass 但上游 blocking 时输出 `status=fail`。已完成。
+3. event log 引用不存在 task 时输出 `status=fail`。已完成。
+4. submitted / complete task 必须有 submission / completion marker。已完成。
+5. 文风提示词测试确认英文、路径、Markdown 和代码围栏不计入 500-2500 门禁。已完成。
+6. 字数预算测试确认正式 pass/fail 使用中文内容字符，机器非空白字符仅作为诊断映射。已完成。
 
 ## 10. Phase 88：Reader Experience 与 Chapter Obligation Contract
 

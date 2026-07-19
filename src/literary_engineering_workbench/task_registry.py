@@ -1310,7 +1310,7 @@ def _style_engineering_blueprint_for_state(root: Path, profile_id: str, profile_
             "expected_outputs": [prompt, agent_json, completion],
             "hard_constraints": [
                 "Read style_prompt.agent_tasks.md and write a detailed executable LLM-facing style prompt.",
-                "style_prompt.md must be 500-2500 non-whitespace detail characters.",
+                "style_prompt.md must be 500-2500 Chinese-content detail characters, counting Han characters and Chinese punctuation after Markdown scaffolding is stripped.",
                 "style_prompt.md must include all required blocks: identity/boundary, mechanism, narrative distance, rhythm, punctuation, imagery, psychology/behavior, dialogue, AI-trace controls, forbidden tendencies, and self-check.",
             ],
             "style_constraints": [
@@ -2554,8 +2554,8 @@ def _style_prompt_gate_errors(root: Path, profile_dir: Path) -> list[str]:
         report = style_prompt_quality_report(_read_text(prompt_path))
         if not report.get("length_ok"):
             errors.append(
-                "style_prompt.md detail length must be 500-2500 non-whitespace characters; "
-                f"got {report.get('detail_chars')}"
+                "style_prompt.md detail length must be 500-2500 Chinese-content characters; "
+                f"got {report.get('detail_chars')} ({report.get('detail_count_unit')})"
             )
         if not report.get("structure_ok"):
             missing = ", ".join(str(item) for item in report.get("missing_blocks", []))

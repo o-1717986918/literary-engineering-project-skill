@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .text_counts import chinese_machine_count_mapping, count_chinese_content_chars, count_nonspace_chars
+
 INTERNAL_HEADING_RE = re.compile(
     r"(?im)^\s{0,3}#{1,6}\s*(状态变化|状态变化候选|世界状态变化|角色状态变化|场景状态变化|世界线变化|"
     r"写回|写回清单|写回候选|写回候选汇总|状态写回|自检|创作说明|工作流程|"
@@ -84,4 +86,16 @@ def clean_final_body(text: str) -> str:
 def count_delivery_chars(text: str) -> int:
     """Count cleaned deliverable body characters without whitespace."""
 
-    return len(re.sub(r"\s+", "", clean_final_body(text)))
+    return count_nonspace_chars(final_body_from_workbench_text(text))
+
+
+def count_delivery_chinese_content_chars(text: str) -> int:
+    """Count cleaned Chinese deliverable body characters, including Chinese punctuation."""
+
+    return count_chinese_content_chars(final_body_from_workbench_text(text))
+
+
+def delivery_char_count_mapping(text: str, *, target_chinese_chars: int = 0) -> dict[str, object]:
+    """Map cleaned Chinese body counts to the machine non-whitespace diagnostic count."""
+
+    return chinese_machine_count_mapping(final_body_from_workbench_text(text), target_chinese_chars=target_chinese_chars)

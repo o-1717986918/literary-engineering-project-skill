@@ -189,7 +189,7 @@ task_routes:
       - formal project-local style profile work uses task-next/task-open/task-submit/task-complete with route style-engineering until ready
       - style_prompt.agent_tasks.md exists and has style_prompt.agent_completion.json
       - platform agent wrote style_prompt.md and style_prompt.agent.json
-      - style_prompt.md is 500-2500 non-whitespace detail characters and includes all required high-quality prompt blocks
+      - style_prompt.md is 500-2500 Chinese-content detail characters, counting Han characters and Chinese punctuation after Markdown scaffolding is stripped, and includes all required high-quality prompt blocks
       - at least one style_eval_*.json is accepted before building or mounting as priority style
       - style skill mount does not use allow_unreviewed in formal Skill-host work
 
@@ -243,6 +243,7 @@ task_routes:
       - references/workflows.md
       - docs/modules/longform-word-budget.md
       - docs/modules/cli-mediated-agent-workflow.md
+      - docs/modules/workflow-state-machine.md
       - docs/implementation/phase65-longform-word-budget.md
       - docs/implementation/phase83-sidecar-state-machine-word-budget-chain.md
       - docs/implementation/phase84-cli-mediated-agent-workflow.md
@@ -275,7 +276,7 @@ task_routes:
       - reviews/word_budget/word_budget_review.md conclusion is pass
       - reviews/word_budget/scene_inventory_review.md conclusion is pass
       - budgeted outline remains candidate until review and user approval
-      - chapter target words, cleaned actual body words, missing scenes, and expansion tasks are reviewed before bulk generation
+      - chapter target Chinese-content characters, cleaned actual Chinese-content characters, machine diagnostic mapping, missing scenes, and expansion tasks are reviewed before bulk generation
 
   character_and_world_assets:
     protocol: character-and-world-assets
@@ -315,6 +316,7 @@ task_routes:
       - docs/modules/plot-scene-engine.md
       - docs/modules/character-engine.md
       - docs/modules/cli-mediated-agent-workflow.md
+      - docs/modules/workflow-state-machine.md
       - docs/implementation/phase20-branch-simulation.md
       - docs/implementation/phase22-scene-composer.md
       - docs/implementation/phase23-model-provider-prompt-pack.md
@@ -339,7 +341,7 @@ task_routes:
       - simulate-scene --agent roleplay, branch-simulate --agent branch manifest, formal branch_selection, and compose-scene --agent-tasks ready composition completed before generation
       - roleplay/branch/composition platform-agent tasks handled before generation; hand-written files are exploratory/debug-only unless command failure and workaround provenance are recorded
       - each handled .agent_tasks.md sidecar has an adjacent .agent_completion.json marker before the next formal step
-      - for longform projects, scene chapter_id maps to word_budget and word_count_target/min/max constraints are injected into generation and review
+      - for longform projects, scene chapter_id maps to word_budget and word_count_target/min/max Chinese-content character constraints are injected into generation and review
       - prose candidate reviewed for canon, character, style, and punctuation
       - exact prose candidate passed scene_review.v1 before promote-candidate; stale or missing candidate review blocks promotion
       - mounted Style Skill reviewed through scene_review.v1 style_adherence before promotion, readiness, export, or writeback

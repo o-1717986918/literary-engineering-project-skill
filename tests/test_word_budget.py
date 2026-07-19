@@ -10,7 +10,7 @@ from literary_engineering_workbench.cli import main
 from literary_engineering_workbench.generation_provider import generate_scene_candidate
 from literary_engineering_workbench.longform_audit import build_longform_audit
 from literary_engineering_workbench.scene_composer import build_scene_composition
-from literary_engineering_workbench.word_budget import build_word_budget
+from literary_engineering_workbench.word_budget import build_word_budget, word_budget_adherence_for_body
 
 from helpers import TempProjectMixin, make_reviewed_passing_scene
 
@@ -39,6 +39,8 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
 
         payload = json.loads(result.json_path.read_text(encoding="utf-8"))
         self.assertEqual(payload["target"]["target_words"], 500000)
+        self.assertEqual(payload["target"]["target_chinese_chars"], 500000)
+        self.assertEqual(payload["counting_policy"]["formal_target_unit"], "chinese_content_chars_including_chinese_punctuation")
         self.assertEqual(payload["totals"]["target_words"], 500000)
         self.assertEqual(len(payload["volume_budgets"]), 5)
         self.assertGreater(len(payload["chapter_budgets"]), 80)
@@ -122,6 +124,34 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(payload["summary"]["word_budget_status"], "needs_expansion")
         self.assertGreater(payload["summary"]["word_budget_scene_count"], 0)
         self.assertTrue(any(issue["category"] == "scene_inventory" for issue in payload["issues"]))
+
+    def test_word_budget_adherence_uses_chinese_content_chars_not_machine_chars(self):
+        project = self.make_project()
+        scene_path = project / "scenes" / "scene_0001.yaml"
+        scene_path.write_text(
+            scene_path.read_text(encoding="utf-8").replace(
+                'chapter_id: ""',
+                "chapter_id: chapter_0001\nword_count_target: 6\nword_count_min: 5\nword_count_max: 6",
+            ),
+            encoding="utf-8",
+        )
+        budget = build_word_budget(project, target_words=120000, volumes=2, genre="general")
+        payload = json.loads(budget.json_path.read_text(encoding="utf-8"))
+        payload["status"] = "pass"
+        payload["issues"] = []
+        budget.json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        adherence = word_budget_adherence_for_body(
+            project,
+            scene_path,
+            "## 正文草稿\n\n汉字，标点。ASCIIEXTRA",
+        )
+
+        self.assertEqual(adherence["status"], "pass")
+        self.assertEqual(adherence["clean_body_chinese_chars"], 6)
+        self.assertGreater(adherence["clean_body_machine_chars"], 6)
+        self.assertEqual(adherence["target_chinese_chars"], 6)
+        self.assertEqual(adherence["machine_count_mapping"]["target_unit"], "chinese_content_chars_including_chinese_punctuation")
 
 
 def _prepare_generation_ready(project: Path):

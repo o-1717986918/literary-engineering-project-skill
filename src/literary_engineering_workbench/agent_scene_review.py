@@ -121,7 +121,7 @@ def _user_prompt(
 
 ## Word Budget Gate
 
-以下是用清洗后的可交付正文统计出的确定性字数门禁。不得统计状态变化候选、canon 说明、workflow 痕迹、scene 编号或文件路径：
+以下是用清洗后的可交付正文统计出的确定性字数门禁。正式门禁按中文内容字符判断，计入汉字和中文标点；机器非空白字符只作为诊断映射。不得统计状态变化候选、canon 说明、workflow 痕迹、scene 编号或文件路径：
 
 ```json
 {json.dumps(word_budget_adherence, ensure_ascii=False, indent=2)}
@@ -241,7 +241,8 @@ def _render_report(payload: dict[str, object], validation_status: str) -> str:
         "## 字数预算门禁",
         "",
         f"- 状态：`{(payload.get('word_budget_adherence') if isinstance(payload.get('word_budget_adherence'), dict) else {}).get('status', '')}`",
-        f"- 清洗后正文字符数：`{(payload.get('word_budget_adherence') if isinstance(payload.get('word_budget_adherence'), dict) else {}).get('clean_body_words', '')}`",
+        f"- 清洗后正文中文内容字符：`{(payload.get('word_budget_adherence') if isinstance(payload.get('word_budget_adherence'), dict) else {}).get('clean_body_chinese_chars', '')}`",
+        f"- 机器非空白字符诊断：`{(payload.get('word_budget_adherence') if isinstance(payload.get('word_budget_adherence'), dict) else {}).get('clean_body_machine_chars', '')}`",
         "",
         "## 摘要",
         "",

@@ -169,7 +169,7 @@ The platform agent must read the task sidecar and write:
 - `plot/candidates/scenes/word_budget_scene_inventory.md`
 - `reviews/word_budget/scene_inventory_review.md`
 
-The budgeted outline candidate should map word count to narrative inventory: volumes, chapters, scenes, relationship turns, world-pressure events, consequences, setup/payoff, and pacing relief. The scene-inventory candidate should bind each chapter to target words, actual cleaned-body words, missing scene counts, and expansion tasks. Do not overwrite `plot/outline.md` or formal `scenes/*.yaml` until the candidate passes review and the user approves it.
+The budgeted outline candidate should map Chinese-content target length to narrative inventory: volumes, chapters, scenes, relationship turns, world-pressure events, consequences, setup/payoff, and pacing relief. The scene-inventory candidate should bind each chapter to target Chinese-content characters, actual cleaned-body Chinese-content characters, machine count diagnostics, missing scene counts, and expansion tasks. Do not overwrite `plot/outline.md` or formal `scenes/*.yaml` until the candidate passes review and the user approves it.
 
 Then audit:
 
@@ -177,7 +177,7 @@ Then audit:
 python -m literary_engineering_workbench longform-audit "<work-dir>" --target-length 500000
 ```
 
-If the budget status is `needs_expansion`, resolve the outline and scene inventory before bulk scene generation. Later `generate-scene` prompt manifests automatically include the word-budget standard when `plot/word_budget/word_budget.json` exists. For formal longform work, each `scenes/*.yaml` should carry a real `chapter_id` that maps to the budget row, and may carry `word_count_target`, `word_count_min`, and `word_count_max` overrides. The scene word-budget contract is injected into context packets, `compose-scene` output, prompt manifests, and generation sidecars; AgentReview, `promote-candidate`, `route-audit`, `chapter-workspace`, and export readiness recompute cleaned-body length before passing the scene.
+If the budget status is `needs_expansion`, resolve the outline and scene inventory before bulk scene generation. Later `generate-scene` prompt manifests automatically include the word-budget standard when `plot/word_budget/word_budget.json` exists. For formal longform work, each `scenes/*.yaml` should carry a real `chapter_id` that maps to the budget row, and may carry `word_count_target`, `word_count_min`, and `word_count_max` overrides. These are Chinese-content-character targets, counting Han characters and Chinese punctuation. The scene word-budget contract is injected into context packets, `compose-scene` output, prompt manifests, and generation sidecars; AgentReview, `promote-candidate`, `route-audit`, `chapter-workspace`, and export readiness recompute cleaned-body Chinese-content length before passing the scene, while machine nonspace counts remain diagnostics.
 
 Before bulk scene generation, check:
 
@@ -253,11 +253,11 @@ python -m literary_engineering_workbench style-lab-build-skill --author-id "<aut
 python -m literary_engineering_workbench style-lab-mount "<work-dir>" --style-id "<style-id>"
 ```
 
-`style-lab-compile` and the front-end `/style-lab/compile` endpoint compile deterministic profile/metrics, then write a platform-agent task sidecar for `style_prompt.md` and `style_prompt.agent.json`. They do not call a local provider for the LLM-facing prompt. The platform agent must read the task, write both expected artifacts, and inspect them before building a Style Skill. A release-grade prompt must be 500-2500 non-whitespace content characters: under 500 is too thin to constrain style, while over 2500 is too diffuse for stable mounting. It must also satisfy high-quality prompt structure: identity/boundary, priority, core mechanism, narrative distance, syntax/rhythm, punctuation, imagery/sensory, psychology/behavior, dialogue/tone, forbidden tendencies, and output self-check.
+`style-lab-compile` and the front-end `/style-lab/compile` endpoint compile deterministic profile/metrics, then write a platform-agent task sidecar for `style_prompt.md` and `style_prompt.agent.json`. They do not call a local provider for the LLM-facing prompt. The platform agent must read the task, write both expected artifacts, and inspect them before building a Style Skill. A release-grade prompt must be 500-2500 Chinese-content characters, counting Han characters and Chinese punctuation after Markdown scaffolding is stripped: under 500 is too thin to constrain style, while over 2500 is too diffuse for stable mounting. It must also satisfy high-quality prompt structure: identity/boundary, priority, core mechanism, narrative distance, syntax/rhythm, punctuation, imagery/sensory, psychology/behavior, dialogue/tone, forbidden tendencies, and output self-check.
 
 `style-prompt-eval` and `/style-lab/evaluate` likewise write a platform-agent task for the back-translation / outline-expansion candidate. After the platform agent writes the expected candidate and manifest, run deterministic `style-eval` or provide an equivalent `style_eval_*.json` review before mounting.
 
-`style-lab-mount` requires readiness evidence by default: `prompt.md`, a prompt detail length of 500-2500 non-whitespace content characters, required style-prompt content blocks, `style_prompt.agent.json`, and at least one accepted `evaluation_results/*/style_eval_*.json`. Formal Skill hosts must not use `--allow-unreviewed`; complete style readiness instead.
+`style-lab-mount` requires readiness evidence by default: `prompt.md`, a prompt detail length of 500-2500 Chinese-content characters, required style-prompt content blocks, `style_prompt.agent.json`, and at least one accepted `evaluation_results/*/style_eval_*.json`. Formal Skill hosts must not use `--allow-unreviewed`; complete style readiness instead.
 
 Mounted style skills are stored in the creative project under `style/mounted/{style_id}/` with `style/active_style_skill.json` as the active pointer. During generation, the mounted `prompt.md` is the highest-priority expression constraint, while canon, character facts, plot causality, safety boundaries, and explicit user constraints still take precedence.
 

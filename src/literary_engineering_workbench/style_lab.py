@@ -455,7 +455,7 @@ def build_style_skill(
         "created_at": _now(),
         "guardrails": [
             "文风约束优先影响表达、叙述距离、句法节奏、意象系统和心理呈现。",
-            f"可靠可挂载的 prompt.md 必须足够详细但可执行，正文非空白内容为 {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} 字。",
+            f"可靠可挂载的 prompt.md 必须足够详细但可执行，正文中文内容字符为 {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} 字，计入汉字和中文标点。",
             "文风标点节奏必须建立在标准中文标点约束之上，不得无理由混用中英标点。",
             "文风不得覆盖 canon、人物事实、剧情因果或用户明确约束。",
             "不直接复刻原文连续片段；精确模仿仅限公版或授权语料。",
@@ -628,7 +628,7 @@ def _style_skill_readiness(skill_dir: Path) -> dict[str, Any]:
         "blocking_risks": blocking_risks,
         "rules": [
             "style prompt must be written by the platform agent into style_prompt.md",
-            f"style prompt detail must be {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} non-whitespace content characters",
+            f"style prompt detail must be {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} Chinese-content characters, counting Han characters and Chinese punctuation",
             "style prompt must include identity/boundary, mechanism, narrative distance, syntax/rhythm, punctuation, imagery/sensory, psychology/behavior, dialogue, avoid rules, and self-check blocks",
             "style_prompt.agent.json must record the platform-agent prompt contract",
             "at least one deterministic style_eval JSON must pass copy-risk and similarity gates",
@@ -660,7 +660,7 @@ It does not override canon, character facts, plot causality, legal/safety bounda
 
 ## Readiness
 
-`prompt.md` must be a reliable LLM-facing style constraint prompt with {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} non-whitespace content characters. Shorter prompts are treated as under-specified; longer prompts are treated as too diffuse for stable mounting.
+`prompt.md` must be a reliable LLM-facing style constraint prompt with {STYLE_PROMPT_MIN_DETAIL_CHARS}-{STYLE_PROMPT_MAX_DETAIL_CHARS} Chinese-content characters, counting Han characters and Chinese punctuation after Markdown scaffolding is stripped. Shorter prompts are treated as under-specified; longer prompts are treated as too diffuse for stable mounting.
 """
 
 
