@@ -144,25 +144,30 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 ui = client.get("/")
                 self.assertEqual(ui.status_code, 200)
                 self.assertIn("文学工程控制台", ui.text)
-                self.assertIn('value="auto"', ui.text)
-                self.assertIn("创作总监", ui.text)
-                self.assertIn("文风学习", ui.text)
                 self.assertIn("项目总控", ui.text)
-                self.assertIn("全局配置", ui.text)
-                self.assertIn("高级设置", ui.text)
-                self.assertIn("留空可从一句话新建项目", ui.text)
+                self.assertIn("文风挂载", ui.text)
+                self.assertIn("连接设置", ui.text)
+                self.assertIn("这里不会裸露原始 JSON", ui.text)
+                self.assertIn("项目证据柜", ui.text)
+                self.assertNotIn('data-view="config"', ui.text)
+                self.assertNotIn("模型配置", ui.text)
+                self.assertIn("JSON 信息经过包装后展示", ui.text)
+                self.assertNotIn("创作总监", ui.text)
+                self.assertNotIn("Dashboard JSON", ui.text)
                 self.assertNotIn("设定工坊", ui.text)
 
                 script = client.get("/ui/app.js")
                 self.assertEqual(script.status_code, 200)
                 self.assertIn("localStorage", script.text)
-                self.assertIn("/director/chat", script.text)
-                self.assertIn("/style-lab/compile", script.text)
                 self.assertIn("/workflow/dashboard", script.text)
+                self.assertIn("/style-lab/mounts", script.text)
+                self.assertIn("friendlyMessage", script.text)
+                self.assertNotIn("/director/chat", script.text)
+                self.assertNotIn("/style-lab/compile", script.text)
                 self.assertNotIn("/asset/create", script.text)
                 self.assertIn("api_key", script.text)
-                self.assertIn("addDirectorMessage", script.text)
-                self.assertIn("conversation", script.text)
+                self.assertNotIn("addDirectorMessage", script.text)
+                self.assertNotIn("JSON.stringify(value, null, 2)", script.text)
 
                 cfg = client.get("/config")
                 self.assertEqual(cfg.status_code, 200)
@@ -178,7 +183,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                                 "api_base": "https://api.deepseek.com",
                                 "model": "deepseek-v4-flash",
                                 "api_key_env": "DEEPSEEK_API_KEY",
-                                "api_key": "front-end-secret",
+                                "api_key": "dummy-front-end-key",
                                 "temperature": 0.2,
                                 "max_tokens": 3000,
                                 "timeout": 90,
@@ -192,9 +197,9 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertEqual(saved.json()["effective"]["defaults"]["style_library_root"], str(Path(tmp) / "styles"))
                 self.assertTrue(saved.json()["effective"]["api_key_available"])
                 self.assertTrue(saved.json()["effective"]["profiles"]["deepseek"]["api_key_set"])
-                self.assertNotIn("front-end-secret", json.dumps(saved.json(), ensure_ascii=False))
+                self.assertNotIn("dummy-front-end-key", json.dumps(saved.json(), ensure_ascii=False))
                 stored = json.loads(config.read_text(encoding="utf-8"))
-                self.assertEqual(stored["profiles"]["deepseek"]["api_key"], "front-end-secret")
+                self.assertEqual(stored["profiles"]["deepseek"]["api_key"], "dummy-front-end-key")
 
                 preserved = client.post(
                     "/config",
@@ -217,7 +222,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 )
                 self.assertEqual(preserved.status_code, 200)
                 stored_after_blank = json.loads(config.read_text(encoding="utf-8"))
-                self.assertEqual(stored_after_blank["profiles"]["deepseek"]["api_key"], "front-end-secret")
+                self.assertEqual(stored_after_blank["profiles"]["deepseek"]["api_key"], "dummy-front-end-key")
 
                 connection_without_root = client.post(
                     "/assistant/chat",

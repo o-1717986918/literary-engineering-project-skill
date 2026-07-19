@@ -3,206 +3,163 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Literary Engineering Workbench Console</title>
+    <title>文学工程控制台</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/ui/styles.css" />
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="mark">LEW</div>
+          <div class="mark">文</div>
           <div>
             <h1>文学工程控制台</h1>
-            <p>创作总监、项目总控、文风学习、全局配置</p>
+            <p>把长篇创作当作可审查、可推进、可交付的项目。</p>
           </div>
         </div>
-        <nav class="nav">
-          <button data-view="chat" class="active">创作总监</button>
-          <button data-view="dashboard">项目总控</button>
-          <button data-view="style">文风学习</button>
-          <button data-view="config">全局配置</button>
+        <nav class="nav" aria-label="主导航">
+          <button data-view="dashboard" class="active">项目总控</button>
+          <button data-view="style">文风挂载</button>
         </nav>
-        <div class="status-block">
+        <div class="side-note">
           <span id="healthDot" class="dot"></span>
           <span id="healthText">连接中</span>
         </div>
-        <label class="token-box">API Token<input id="apiToken" type="password" placeholder="可选" /></label>
+        <form class="token-box" autocomplete="off">
+          <label>访问口令<input id="apiToken" type="password" autocomplete="current-password" placeholder="未设置可留空" /></label>
+        </form>
       </aside>
 
       <main class="workspace">
-        <section id="view-chat" class="view active">
-          <header class="view-header">
+        <section id="view-dashboard" class="view active">
+          <header class="view-header hero-panel">
             <div>
-              <h2>创作总监</h2>
-              <p class="muted">你只决定创作大方向；设定、审查、工具循环和写作推进由总监处理。</p>
+              <span class="eyebrow">项目驾驶舱</span>
+              <h2>今天项目卡在哪里，一眼看懂。</h2>
+              <p class="muted">这里不会裸露原始 JSON。系统会把状态机、审查门禁、待办任务、产物路径和导出链路翻译成可行动的中文说明。</p>
             </div>
-            <div class="toolbar">
-              <button id="sendChat" class="primary">发送</button>
-            </div>
-          </header>
-          <div class="chat-layout">
-            <div id="chatLog" class="chat-log"></div>
-            <form id="chatForm" class="chat-box">
-              <textarea name="message" rows="4" placeholder="告诉创作总监你的创作方向、人物关系、题材气质、剧情推进目标，或直接说继续。"></textarea>
-              <details class="advanced-settings">
-                <summary>高级设置</summary>
-                <div class="advanced-grid">
-                  <label>当前项目<input name="project_root" placeholder="留空可从一句话新建项目" /></label>
-                  <label>模型通道<select name="provider"><option value="auto">auto</option><option value="http-chat">http-chat</option><option value="dry-run">dry-run</option></select></label>
-                  <label class="inline-check"><input name="auto_execute" type="checkbox" checked /> 允许总监自动执行内部工具循环</label>
-                </div>
-              </details>
-            </form>
-          </div>
-        </section>
-
-        <section id="view-dashboard" class="view">
-          <header class="view-header">
-            <div>
-              <h2>项目总控</h2>
-              <p class="muted">只读查看状态机、sidecar、route gate、字数预算和发布链路。</p>
-            </div>
-            <div class="toolbar">
-              <button id="refreshDashboard">刷新</button>
-              <button id="toggleDashboardPoll" class="primary">开始轮询</button>
+            <div class="hero-actions">
+              <button id="refreshDashboard" class="primary">刷新状态</button>
+              <button id="toggleDashboardPoll">开始实时观察</button>
             </div>
           </header>
 
-          <form id="dashboardForm" class="panel dashboard-controls">
-            <label>当前项目<input name="project_root" placeholder="C:\path\to\work" /></label>
-            <label>轮询间隔<input name="refresh_seconds" type="number" min="3" max="60" value="8" /></label>
-            <div class="dashboard-status" id="dashboardStatus">未加载</div>
+          <form id="dashboardForm" class="control-strip">
+            <label>当前项目<input name="project_root" placeholder="选择或粘贴文学项目目录" /></label>
+            <label>刷新间隔<input name="refresh_seconds" type="number" min="3" max="60" value="8" /></label>
+            <div class="dashboard-status" id="dashboardStatus">等待刷新</div>
           </form>
+
+          <section class="status-brief" aria-live="polite">
+            <div class="brief-spine">当前判断</div>
+            <div>
+              <h3 id="dashboardHeadline">还没有读取项目状态</h3>
+              <p id="dashboardNarrative">填写项目目录后刷新，总控面板会告诉你：哪些流程已经就绪，哪些地方需要平台 Agent 继续处理。</p>
+            </div>
+          </section>
 
           <div class="metric-grid" id="dashboardSummary"></div>
 
-          <div class="grid two dashboard-grid">
-            <div class="panel">
-              <h3>Route Gates</h3>
-              <div class="table-wrap">
-                <table class="route-table">
-                  <thead><tr><th>Route</th><th>Blocking</th><th>Warning</th><th>Pending</th></tr></thead>
-                  <tbody id="dashboardRoutes"><tr><td colspan="4">暂无数据</td></tr></tbody>
-                </table>
+          <div class="dashboard-layout">
+            <section class="panel route-panel">
+              <div class="panel-title">
+                <span>流程健康度</span>
+                <small>按正式路线汇总</small>
               </div>
-            </div>
-            <div class="panel">
-              <h3>Next Actions</h3>
-              <div id="dashboardNextActions" class="action-list empty">暂无数据</div>
-            </div>
+              <div id="dashboardRoutes" class="route-board empty">暂无流程数据</div>
+            </section>
+
+            <section class="panel action-panel">
+              <div class="panel-title">
+                <span>下一步建议</span>
+                <small>优先处理前几项</small>
+              </div>
+              <div id="dashboardNextActions" class="action-list empty">暂无下一步</div>
+            </section>
           </div>
 
-          <div class="grid two dashboard-grid">
-            <div class="panel">
-              <h3>Recent Events</h3>
-              <div id="dashboardEvents" class="event-list empty">暂无数据</div>
-            </div>
-            <div class="panel">
-              <h3>Dashboard JSON</h3>
-              <pre id="dashboardPreview"></pre>
-            </div>
+          <div class="dashboard-layout lower">
+            <section class="panel">
+              <div class="panel-title">
+                <span>最近推进记录</span>
+                <small>来自状态机事件</small>
+              </div>
+              <div id="dashboardEvents" class="event-list empty">暂无事件</div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-title">
+                <span>项目证据柜</span>
+                <small>JSON 信息经过包装后展示</small>
+              </div>
+              <div id="dashboardEvidence" class="evidence-grid">
+                <article class="evidence-card empty">等待刷新。刷新后会把路线状态、平台任务、报告路径和使用边界整理成可读证据。</article>
+              </div>
+            </section>
           </div>
+
+          <details class="panel connection-drawer">
+            <summary>
+              <span>连接设置</span>
+              <small>高级项：仅用于本地 API、Dify/LangGraph 或非平台宿主测试</small>
+            </summary>
+            <div class="connection-intro">
+              <p>当前正式创作由平台 Agent 与 CLI 状态机承接。这里保留模型连接能力，是为了需要本地真实 LLM provider 时能显式填写 API Key。</p>
+              <div class="hero-actions">
+                <button id="loadConfig">读取连接</button>
+                <button id="saveConfig" class="primary">保存连接</button>
+              </div>
+            </div>
+
+            <div class="config-layout">
+              <form id="configForm" class="config-form">
+                <label>连接名称<input name="active_profile" value="deepseek" /></label>
+                <label>API 地址<input name="api_base" value="https://api.deepseek.com" /></label>
+                <label>模型名称<input name="model" value="deepseek-v4-flash" /></label>
+                <label>密钥环境变量<input name="api_key_env" value="DEEPSEEK_API_KEY" /></label>
+                <label>API Key<input name="api_key" type="password" autocomplete="off" placeholder="留空则保留已保存密钥" /></label>
+                <label>创造性温度<input name="temperature" type="number" step="0.1" value="0.4" /></label>
+                <label>最大输出 Tokens<input name="max_tokens" type="number" value="4000" /></label>
+                <label>超时时间<input name="timeout" type="number" value="120" /></label>
+                <label>默认项目目录<input name="project_root" placeholder="C:\path\to\work" /></label>
+                <label>默认文风库<input name="style_library_root" placeholder="C:\path\to\style-library" /></label>
+              </form>
+
+              <section class="config-summary">
+                <div class="panel-title">
+                  <span>当前连接画像</span>
+                  <small>脱敏展示</small>
+                </div>
+                <div id="configPreview" class="summary-card empty">等待读取连接。</div>
+                <div id="envPreview" class="summary-card secondary">密钥状态会显示为“已设置”或“未设置”。</div>
+              </section>
+            </div>
+          </details>
         </section>
 
         <section id="view-style" class="view">
-          <header class="view-header">
+          <header class="view-header hero-panel compact-hero">
             <div>
-              <h2>文风学习</h2>
-              <p class="muted">以作家为项目、作品为子项目，学习后输出可挂载到创作项目的 Style Skill。</p>
-              <p class="muted">可靠可挂载的文风提示词需保持 500-2500 字，并包含身份边界、核心机制、叙事距离、句法节奏、标点、意象、心理行为、对白语气、AI 腔控制、禁止倾向和自检。</p>
+              <span class="eyebrow">文风挂载</span>
+              <h2>确认创作是否已经带着正确的文风出发。</h2>
+              <p class="muted">这里只展示挂载结果和风险提示；作家项目、语料导入和提示词生成仍建议走 CLI 状态机。</p>
             </div>
-            <div class="toolbar">
-              <button id="loadStyleLibrary">刷新</button>
-            </div>
+            <button id="loadStyleStatus" class="primary">检查文风</button>
           </header>
 
-          <div class="grid two">
-            <form id="styleForm" class="panel">
-              <label>Style Library Root<input name="style_library_root" placeholder="留空使用全局默认文风库" /></label>
-              <label>Author ID<input name="author_id" placeholder="例如 luxun" /></label>
-              <label>作家名称<input name="author_name" placeholder="例如 鲁迅" /></label>
-              <label>来源模式<select name="mode"><option value="public_domain_or_authorized">公版或已授权</option><option value="abstracted_craft_only">仅抽象技法</option></select></label>
-              <label>来源说明<textarea name="source_note" rows="2" placeholder="说明语料来源、授权或公版依据"></textarea></label>
-              <div class="toolbar compact">
-                <button id="createAuthor" type="button" class="primary">创建作家项目</button>
-              </div>
+          <form id="styleForm" class="control-strip">
+            <label>当前项目<input name="project_root" placeholder="C:\path\to\work" /></label>
+            <label>文风库<input name="style_library_root" placeholder="可选：全局文风库目录" /></label>
+            <div class="dashboard-status" id="styleStatusText">等待检查</div>
+          </form>
 
-              <hr />
-
-              <label>Work ID<input name="work_id" placeholder="例如 kuangrenriji" /></label>
-              <label>作品标题<input name="work_title" placeholder="例如 狂人日记" /></label>
-              <label>作品年份<input name="year" placeholder="可选" /></label>
-              <label>作品备注<textarea name="work_notes" rows="2" placeholder="版本、来源、整理说明"></textarea></label>
-              <div class="toolbar compact">
-                <button id="createWork" type="button">创建作品子项目</button>
-              </div>
-
-              <label>导入文件名<input name="filename" placeholder="例如 source-001.txt" /></label>
-              <label>作品文本<textarea name="source_text" rows="7" placeholder="粘贴作家作品文本。系统会保存 raw、normalized 与 chunks。"></textarea></label>
-              <div class="toolbar compact">
-                <button id="importSource" type="button">导入作品文本</button>
-              </div>
-
-              <hr />
-
-              <label>Profile ID<input name="profile_id" value="default" /></label>
-              <label>Style ID<input name="style_id" placeholder="留空使用 author-profile" /></label>
-              <label>Provider<select name="provider"><option value="platform-agent">platform-agent</option><option value="auto">auto</option><option value="http-chat">http-chat</option><option value="dry-run">dry-run</option></select></label>
-              <label>挂载到创作项目<input name="project_root" placeholder="C:\path\to\work" /></label>
-              <label class="inline-check"><input name="allow_unreviewed" type="checkbox" /> 内部实验：允许未完成评测门禁时挂载</label>
-              <div class="toolbar compact wrap">
-                <button id="compileStyle" type="button">学习并生成提示词</button>
-                <button id="buildStyleSkill" type="button">构建 Style Skill</button>
-                <button id="mountStyleSkill" type="button" class="primary">挂载到项目</button>
-              </div>
-
-              <details class="advanced-settings">
-                <summary>提示词有效性评测</summary>
-                <label>Reference Text<textarea name="reference_text" rows="4" placeholder="参考原文片段"></textarea></label>
-                <label>Task Input<textarea name="task_input_text" rows="4" placeholder="英文回译输入、大纲或盲评任务输入"></textarea></label>
-                <label>Eval Mode<select name="eval_mode"><option value="back-translation">back-translation</option><option value="outline-expansion">outline-expansion</option><option value="blind-review">blind-review</option></select></label>
-                <div class="toolbar compact"><button id="evaluateStyle" type="button">运行评测</button></div>
-              </details>
-            </form>
-
-            <div class="panel">
-              <h3>文风库状态</h3>
-              <pre id="styleLibraryPreview"></pre>
-              <h3>操作结果</h3>
-              <pre id="styleResult"></pre>
+          <section class="panel style-card">
+            <div class="panel-title">
+              <span>当前文风</span>
+              <small>生成前最高优先级表达约束</small>
             </div>
-          </div>
-        </section>
-
-        <section id="view-config" class="view">
-          <header class="view-header">
-            <h2>全局模型配置</h2>
-            <div class="toolbar">
-              <button id="loadConfig">刷新</button>
-              <button id="saveConfig" class="primary">保存</button>
-            </div>
-          </header>
-          <div class="grid two">
-            <form id="configForm" class="panel">
-              <label>Active Profile<input name="active_profile" value="deepseek" /></label>
-              <label>API Base<input name="api_base" value="https://api.deepseek.com" /></label>
-              <label>Model<input name="model" value="deepseek-v4-flash" /></label>
-              <label>API Key Env<input name="api_key_env" value="DEEPSEEK_API_KEY" /></label>
-              <label>API Key<input name="api_key" type="password" autocomplete="off" placeholder="留空则保留已保存密钥" /></label>
-              <label>Temperature<input name="temperature" type="number" step="0.1" value="0.4" /></label>
-              <label>Max Tokens<input name="max_tokens" type="number" value="4000" /></label>
-              <label>Timeout<input name="timeout" type="number" value="120" /></label>
-              <label>Default Project Root<input name="project_root" placeholder="C:\path\to\work" /></label>
-              <label>Style Library Root<input name="style_library_root" placeholder="C:\path\to\style-library" /></label>
-            </form>
-            <div class="panel">
-              <h3>有效配置</h3>
-              <pre id="configPreview"></pre>
-              <h3>密钥设置</h3>
-              <p class="muted">API Key 可显式保存到本机全局配置文件，也可继续使用环境变量。配置预览不会回显明文。</p>
-              <pre id="envPreview"></pre>
-            </div>
-          </div>
+            <div id="styleStatus" class="style-status empty">还没有读取文风挂载状态。</div>
+          </section>
         </section>
       </main>
     </div>

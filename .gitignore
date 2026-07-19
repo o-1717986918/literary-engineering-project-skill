@@ -23,6 +23,7 @@ venv/
 work/
 workspace/
 corpus/
+workflow/
 workflow/runs/
 workflow/approvals/
 

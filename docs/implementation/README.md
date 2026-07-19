@@ -88,3 +88,5 @@
 - `phase89-workflow-dashboard.md`：跨路线只读总控面板
 - `phase89-1-count-unit-bridge-hardening.md`：中文内容字符门禁与机器字符诊断映射硬化
 - `phase90-dashboard-api-frontend.md`：总控面板 API 与前端实时轮询
+- `phase90-1-frontend-humanized-console.md`：中文化、人性化总控前端与冗余模块收束
+- `phase90-2-packaged-json-evidence.md`：JSON 证据包装展示与模型配置降级为连接设置
