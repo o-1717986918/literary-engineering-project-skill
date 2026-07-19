@@ -1,6 +1,7 @@
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from literary_engineering_workbench.approval import record_workflow_approval
 from literary_engineering_workbench.character_state_apply import apply_character_state_patch
@@ -47,10 +48,14 @@ class CharacterStateApplyTests(TempProjectMixin, unittest.TestCase):
         project = self.make_project()
         add_character(project)
         draft = make_passing_scene(project)
-        patch = build_character_state_patch(project, scene=Path("scenes/scene_0001.yaml"), source=draft)
+        state_patch = build_character_state_patch(project, scene=Path("scenes/scene_0001.yaml"), source=draft)
 
         self.assertIn("state-apply", build_parser().format_help())
-        code = main(["state-apply", str(project), "--patch", str(patch.json_path), "--allow-unapproved"])
+        blocked = main(["state-apply", str(project), "--patch", str(state_patch.json_path), "--allow-unapproved"])
+        self.assertEqual(blocked, 2)
+
+        with patch.dict("os.environ", {"LEW_MAINTAINER_MODE": "1"}):
+            code = main(["state-apply", str(project), "--patch", str(state_patch.json_path), "--allow-unapproved"])
 
         self.assertEqual(code, 0)
         self.assertTrue((project / "characters" / "state_patches" / "scene_0001_state_apply.md").exists())

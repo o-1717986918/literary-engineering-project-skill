@@ -10,12 +10,14 @@ import re
 
 from .agent_tasks import agent_task_completion_status, default_agent_completion_path
 from .asset_workshop import ASSET_CANDIDATE_DIRS
+from .canon_evolver import canon_writeback_status
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .context_broker import context_trace_status
 from .flow_gates import branch_selection_status
 from .anti_ai_style import style_lint_gate_message
 from .agent_schema import validate_payload
 from .new_character_register import new_character_register_issues
+from .narrative_rhythm import narrative_rhythm_contract, rhythm_review_status
 from .reader_experience import reader_experience_contract
 from .word_budget import scene_word_budget_contract
 
@@ -330,6 +332,15 @@ def _route_gates(root: Path, route: str, records: list[AgentTaskRecord]) -> list
             "warning",
             "character state patches have apply reports or no pending patches",
             f"仍有 {unapplied} 个人物状态 patch 未生成 state-apply 报告；最终发布前需审批写回或记录内部预览 waiver。",
+        )
+        unapplied_canon = _unapplied_canon_patch_count(root)
+        _add_gate(
+            gates,
+            "canon-patches-applied",
+            unapplied_canon == 0,
+            "blocking",
+            "canon patches have been applied to the canon ledger",
+            f"仍有 {unapplied_canon} 个 canon patch 未进入 canon-apply 账本；最终发布前需审批并运行 canon-apply，或明确改回 no_canon_change_reason。",
         )
         _add_export_release_route_gates(gates, root, chapter_jsons)
     return gates
@@ -765,6 +776,7 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
     state_task = state_patch_json.with_suffix(".agent_tasks.md")
     budget_contract = scene_word_budget_contract(root, scene_path)
     reader_contract = reader_experience_contract(root, scene_path)
+    rhythm_contract = narrative_rhythm_contract(root, scene_path, composition_json)
 
     _add_gate(
         gates,
@@ -917,6 +929,22 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
     )
     _add_gate(
         gates,
+        f"{scene_id}:narrative-rhythm-contract",
+        str(rhythm_contract.get("status") or "") in {"pass", "defaulted"},
+        "blocking",
+        f"{scene_id} narrative rhythm and bridge contract is available",
+        f"{scene_id} 缺少叙事节奏/场景桥接硬属性：{rhythm_contract.get('message')}",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:narrative-rhythm-explicit",
+        str(rhythm_contract.get("status") or "") == "pass",
+        "warning",
+        f"{scene_id} narrative rhythm/bridge is explicit",
+        f"{scene_id} 使用默认叙事节奏/场景桥接契约；建议在 scene.yaml 或 composition 中显式填写，避免场景节奏扁平化。",
+    )
+    _add_gate(
+        gates,
         f"{scene_id}:prose-candidate",
         candidate_path is not None and candidate_path.exists(),
         "blocking",
@@ -1005,6 +1033,27 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         f"{scene_id} AgentReview new-character register is resolved",
         f"{scene_id} 的 AgentReview 新角色登记未解决：{'; '.join(new_character_issues)}。",
     )
+    review_rhythm_status = rhythm_review_status(review_payload)
+    review_rhythm = review_payload.get("narrative_rhythm_adherence") if isinstance(review_payload.get("narrative_rhythm_adherence"), dict) else {}
+    _add_gate(
+        gates,
+        f"{scene_id}:agent-review-narrative-rhythm",
+        review_rhythm_status in {"pass", "not_applicable"}
+        and review_rhythm.get("rhythm_executed") is not False
+        and review_rhythm.get("bridge_executed") is not False,
+        "blocking",
+        f"{scene_id} AgentReview narrative rhythm gate passed",
+        f"{scene_id} 的 AgentReview 叙事节奏/场景桥接未 clean pass：{review_rhythm_status or 'missing'}。",
+    )
+    canon_review_ok, canon_review_message = _agent_review_canon_writeback_ok(review_payload)
+    _add_gate(
+        gates,
+        f"{scene_id}:agent-review-canon-writeback",
+        canon_review_ok,
+        "blocking",
+        f"{scene_id} AgentReview canon writeback declaration exists",
+        f"{scene_id} 的 AgentReview 缺少可执行 canon 写回判断：{canon_review_message}。",
+    )
     revision_manifest = _revision_manifest_path(root, scene_id, candidate_path)
     if candidate_path is not None and _is_revision_candidate(root, candidate_path):
         revision_payload = _read_json(revision_manifest)
@@ -1075,6 +1124,15 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         "blocking",
         f"{scene_id} state-evolve platform-agent task completed",
         f"{scene_id} 的 state-evolve sidecar 未完成：{state_completion.get('message')}",
+    )
+    canon_status = canon_writeback_status(root, scene_id)
+    _add_gate(
+        gates,
+        f"{scene_id}:canon-writeback",
+        str(canon_status.get("status") or "") in {"pass", "not_required"},
+        "blocking",
+        f"{scene_id} canon writeback candidate/no-change gate passed",
+        f"{scene_id} 的 canon 写回候选门禁未完成：{canon_status.get('message')}",
     )
     if _mounted_style_exists(root):
         style_status = _style_adherence_status(review_payload)
@@ -1240,6 +1298,21 @@ def _unapplied_state_patch_count(root: Path) -> int:
     return count
 
 
+def _unapplied_canon_patch_count(root: Path) -> int:
+    patch_dir = root / "canon" / "patches"
+    if not patch_dir.exists():
+        return 0
+    count = 0
+    for path in sorted(patch_dir.glob("*_canon_patch.json")):
+        payload = _read_json(path)
+        if payload.get("applied") is True or str(payload.get("status") or "").strip().lower() == "applied":
+            continue
+        change = payload.get("canon_change")
+        if change is True or str(change).strip().lower() in {"true", "yes", "1", "changed", "change"}:
+            count += 1
+    return count
+
+
 def _add_export_release_route_gates(gates: list[dict[str, str]], root: Path, chapter_jsons: list[Path]) -> None:
     chapter_ids = [path.stem for path in chapter_jsons] or ["chapter_0001"]
     for chapter_id in chapter_ids:
@@ -1374,6 +1447,37 @@ def _word_budget_adherence_status(payload: dict) -> str:
     if not isinstance(adherence, dict):
         return ""
     return str(adherence.get("status") or "").strip().lower()
+
+
+def _agent_review_canon_writeback_ok(payload: dict) -> tuple[bool, str]:
+    value = payload.get("canon_writeback") if isinstance(payload, dict) else None
+    if not isinstance(value, dict):
+        return False, "canon_writeback object missing"
+    status = str(value.get("status") or "").strip().lower()
+    change = _canon_change_value(value.get("canon_change"))
+    if status not in {"pass", "not_required", "pending_canon_evolve", "unknown"}:
+        return False, f"status={status or 'missing'}"
+    if change is False:
+        reason = str(value.get("no_canon_change_reason") or "").strip()
+        if not reason:
+            return False, "canon_change=false requires no_canon_change_reason"
+        return True, "no canon change"
+    if change in {True, "unknown"}:
+        return True, "canon-evolve required or pending"
+    return False, "canon_change must be true, false, or unknown"
+
+
+def _canon_change_value(value: object) -> bool | str | None:
+    if isinstance(value, bool):
+        return value
+    text = str(value or "").strip().lower()
+    if text in {"true", "yes", "1", "changed", "change"}:
+        return True
+    if text in {"false", "no", "0", "none", "no_change", "not_required"}:
+        return False
+    if text in {"unknown", "pending", "todo", "needs_review"}:
+        return "unknown"
+    return None
 
 
 def _read_text(path: Path) -> str:

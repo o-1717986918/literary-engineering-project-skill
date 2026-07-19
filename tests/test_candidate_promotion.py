@@ -127,6 +127,22 @@ class CandidatePromotionTests(TempProjectMixin, unittest.TestCase):
 
         self.assertIn("new_character_register", str(ctx.exception))
 
+    def test_promote_candidate_blocks_missing_revision_integrity(self):
+        project = self.make_project()
+        _prepare_generation_ready(project)
+        candidate = generate_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), rebuild_context=True, provider="dry-run")
+        write_formal_candidate_artifacts(project, candidate.candidate_path)
+        _write_candidate_review(project, candidate.candidate_path)
+        review = project / "reviews" / "agent" / "scene_0001_scene_review.json"
+        payload = json.loads(review.read_text(encoding="utf-8"))
+        payload.pop("revision_integrity", None)
+        review.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        with self.assertRaises(FlowGateError) as ctx:
+            promote_scene_candidate(project, scene=Path("scenes/scene_0001.yaml"), candidate=candidate.candidate_path)
+
+        self.assertIn("scene_review.v1", str(ctx.exception))
+
     def test_promotes_revision_candidate_body(self):
         project = self.make_project()
         _prepare_generation_ready(project)
@@ -226,6 +242,33 @@ def _write_candidate_review(project: Path, candidate: Path, *, new_character_reg
             "clean_body_words": 120,
             "narrative_load_satisfied": True,
             "message": "test project does not require longform budget",
+        },
+        "reader_experience_adherence": {
+            "status": "not_required",
+            "message": "test project does not require reader-experience contract",
+            "reader_promise_satisfied": True,
+            "requires_platform_agent_semantic_review": False,
+        },
+        "narrative_rhythm_adherence": {
+            "status": "pass",
+            "rhythm_executed": True,
+            "bridge_executed": True,
+            "scene_function_executed": True,
+            "scene_turn_executed": True,
+            "reader_effect_executed": True,
+            "message": "测试候选已执行节奏和场景桥接契约。",
+        },
+        "canon_writeback": {
+            "status": "pass",
+            "canon_change": False,
+            "no_canon_change_reason": "测试场景只改变人物临时状态，没有新增持续世界事实。",
+            "candidate_patch": "",
+        },
+        "revision_integrity": {
+            "status": "pass",
+            "anti_evasion_checked": True,
+            "evasion_risks_unresolved": [],
+            "message": "未发现用另一种模板句式规避修订意见。",
         },
         "new_character_register": new_character_register or {
             "schema": "literary-engineering-workbench/new-character-register/v0.1",

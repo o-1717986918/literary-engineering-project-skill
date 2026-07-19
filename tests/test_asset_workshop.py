@@ -119,7 +119,7 @@ class AssetWorkshopTests(TempProjectMixin, unittest.TestCase):
 
     def test_cli_exposes_asset_creation_and_promotion(self):
         help_text = subprocess.check_output(
-            [sys.executable, "-m", "literary_engineering_workbench", "--help"],
+            [sys.executable, "-m", "literary_engineering_workbench", "help-all"],
             cwd=Path(__file__).resolve().parents[1],
             env={**os.environ, "PYTHONPATH": "src"},
             text=True,

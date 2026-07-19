@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 from .agent_provider import AGENT_PROVIDERS, run_agent_task
@@ -15,6 +16,7 @@ from .asset_workshop import (
 )
 from .branch_lab import build_branch_simulation
 from .canon_lint import build_canon_lint
+from .canon_evolver import apply_canon_patch, build_canon_patch_backlog, build_canon_patch_task
 from .candidate_promotion import promote_scene_candidate
 from .character_state_apply import apply_character_state_patch
 from .character_state_evolver import build_character_state_patch
@@ -32,6 +34,7 @@ from .langgraph_adapter import run_literary_graph
 from .longform_audit import build_longform_audit
 from .memory_index import build_memory_index, search_memory
 from .flow_gates import ensure_scene_pre_generation_tasks_completed
+from .formal_mode import bypass_hits, formal_bypass_message
 from .model_config import (
     config_path,
     default_config,
@@ -99,12 +102,46 @@ from .workflow_state import build_workflow_state
 from .word_budget import build_word_budget
 
 
-def build_parser() -> argparse.ArgumentParser:
+FORMAL_HELP_COMMANDS = {
+    "formal-help",
+    "help-all",
+    "protocol",
+    "workflow-dashboard",
+    "workflow-state",
+    "task-next",
+    "task-open",
+    "task-submit",
+    "task-complete",
+    "workflow-advance",
+    "workflow-events",
+    "workflow-validate",
+    "agent-task-status",
+    "route-audit",
+    "canon-backlog",
+    "config-show",
+    "config-init",
+    "config-set-profile",
+}
+
+FORMAL_HELP_METAVAR = (
+    "{formal-help,workflow-dashboard,task-next,task-open,"
+    "task-submit,task-complete,route-audit,help-all}"
+)
+
+
+def build_parser(*, full_help: bool = True) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lew",
         description="Literary Engineering Workbench command line tools.",
+        epilog="Formal hosts should start with: lew formal-help, then lew workflow-dashboard <project>, lew task-next <project> --route <route>, lew task-open <project> --task-id <id>. Low-level commands are route internals unless a task package asks for them.",
     )
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command", required=True, metavar=None if full_help else FORMAL_HELP_METAVAR)
+
+    formal_help = sub.add_parser("formal-help", help="Show the state-machine-first host loop for formal Skill work.")
+    formal_help.add_argument("project", nargs="?", default="", help="Optional work project directory for copyable commands.")
+    formal_help.add_argument("--route", default="scene-development", help="Route to demonstrate, such as scene-development or longform-planning.")
+
+    sub.add_parser("help-all", help="Show every low-level command for maintainers and debugging.")
 
     protocol = sub.add_parser("protocol", help="Print the mandatory agent/CLI run protocol for a route.")
     protocol.add_argument("route", nargs="?", default="", help="Route key such as scene-development, style-engineering, or export-and-release. Omit to list routes.")
@@ -512,6 +549,26 @@ def build_parser() -> argparse.ArgumentParser:
     state_evolve.add_argument("--json-out", default="", help="Output patch JSON path.")
     state_evolve.add_argument("--agent-tasks", action="store_true", help="Write a platform-agent task sidecar for reviewing the state patch.")
 
+    canon_evolve = sub.add_parser("canon-evolve", help="Create a platform-agent canon writeback candidate task for a promoted scene.")
+    canon_evolve.add_argument("project", help="Work project directory.")
+    canon_evolve.add_argument("--scene", default="scenes/scene_0001.yaml")
+    canon_evolve.add_argument("--source", default="", help="Promoted draft or candidate path. Defaults to promoted scene draft.")
+    canon_evolve.add_argument("--out", default="", help="Output canon patch markdown path.")
+    canon_evolve.add_argument("--json-out", default="", help="Output canon patch JSON path.")
+
+    canon_backlog = sub.add_parser("canon-backlog", help="List canon writeback candidates and applied patch state.")
+    canon_backlog.add_argument("project", help="Work project directory.")
+    canon_backlog.add_argument("--out", default="", help="Output backlog markdown path. Defaults to canon/patches/canon_backlog.md.")
+    canon_backlog.add_argument("--json-out", default="", help="Output backlog JSON path. Defaults to canon/patches/canon_backlog.json.")
+
+    canon_apply = sub.add_parser("canon-apply", help="Apply an approved canon patch into the canon change ledger.")
+    canon_apply.add_argument("project", help="Work project directory.")
+    canon_apply.add_argument("--patch", default="", help="Canon patch JSON path. Defaults to latest unapplied patch.")
+    canon_apply.add_argument("--approval-run-id", default="", help="Workflow approval run id. Defaults to patch id.")
+    canon_apply.add_argument("--allow-unapproved", action="store_true", help="Maintainer/debug only; formal Skill hosts must not bypass approval gates.")
+    canon_apply.add_argument("--out", default="", help="Output apply markdown report path.")
+    canon_apply.add_argument("--json-out", default="", help="Output apply JSON manifest path.")
+
     state_apply = sub.add_parser("state-apply", help="Apply an approved character state patch to character files.")
     state_apply.add_argument("project", help="Work project directory.")
     state_apply.add_argument("--patch", default="", help="State patch JSON path. Defaults to latest *_state_patch.json.")
@@ -709,7 +766,19 @@ def build_parser() -> argparse.ArgumentParser:
     config_set.add_argument("--project-root", default="", help="Default work project root for API/front-end workflows.")
     config_set.add_argument("--activate", action="store_true", help="Make this profile active.")
 
+    if not full_help:
+        _harden_top_level_help(parser)
     return parser
+
+
+def _harden_top_level_help(parser: argparse.ArgumentParser) -> None:
+    """Keep bare `lew --help` focused on the formal operating loop."""
+
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            action._choices_actions = [
+                choice for choice in action._choices_actions if getattr(choice, "dest", "") in FORMAL_HELP_COMMANDS
+            ]
 
 
 def _read_prompt_arg(project: Path, file_arg: str, text_arg: str, label: str) -> str:
@@ -725,9 +794,56 @@ def _read_prompt_arg(project: Path, file_arg: str, text_arg: str, label: str) ->
     return path.read_text(encoding="utf-8")
 
 
+def _render_formal_help(project: str, route: str) -> str:
+    project_arg = f'"{project}"' if project else '"<project>"'
+    route_arg = route or "scene-development"
+    return f"""# LEW Formal Host Loop
+
+You are operating a work project through the CLI state machine, not freehand editing the repository.
+
+## Start Here
+
+1. `python -m literary_engineering_workbench workflow-dashboard {project_arg}`
+2. `python -m literary_engineering_workbench task-next {project_arg} --route {route_arg}`
+3. `python -m literary_engineering_workbench task-open {project_arg} --task-id <task_id>`
+4. Read only the task package, prompt asset, and listed source_paths unless the task permits more.
+5. Write only expected_outputs.
+6. `python -m literary_engineering_workbench task-submit {project_arg} --task-id <task_id> --artifact <path>`
+7. `python -m literary_engineering_workbench task-complete {project_arg} --task-id <task_id>`
+8. `python -m literary_engineering_workbench route-audit {project_arg} --route {route_arg}`
+
+## Discipline
+
+- Do not handwrite CLI-generated flow artifacts as formal work.
+- Do not skip `.agent_tasks.md` sidecars or completion markers.
+- Do not use debug/bypass flags during formal Skill-host work.
+- Do not set `LEW_MAINTAINER_MODE=1` unless you are explicitly maintaining the repository or running regression tests.
+- Do not let subagents write body prose.
+- Do not promote, export, release, state-apply, or canon-apply without a clean route audit and the required approvals.
+- Use `canon-backlog` before export/release when canon patches may exist; `canon-evolve` only creates candidates.
+
+## Command Surface
+
+Use `workflow-dashboard`, `workflow-state`, `task-next`, `task-open`, `task-submit`, `task-complete`, `workflow-advance`, `agent-task-status`, `canon-backlog`, and `route-audit` as the main operating surface. Other commands are route internals unless a current task package explicitly instructs you to run them. Use `help-all` only for maintainer/debug discovery.
+"""
+
+
 def main(argv=None) -> int:
-    parser = build_parser()
+    parser = build_parser(full_help=False)
     args = parser.parse_args(argv)
+
+    if args.command == "formal-help":
+        print(_render_formal_help(args.project, args.route), end="")
+        return 0
+
+    if args.command == "help-all":
+        print(build_parser(full_help=True).format_help(), end="")
+        return 0
+
+    hits = bypass_hits(vars(args))
+    if hits:
+        print(formal_bypass_message(hits, surface=f"lew {args.command}"), file=sys.stderr)
+        return 2
 
     if args.command == "protocol":
         if not args.route:
@@ -1732,6 +1848,62 @@ def main(argv=None) -> int:
         print(f"source: {result.source_path}")
         print(f"characters: {result.character_count}")
         print(f"unresolved: {result.unresolved_count}")
+        return 0
+
+    if args.command == "canon-evolve":
+        source = Path(args.source) if args.source else None
+        out = Path(args.out) if args.out else None
+        json_out = Path(args.json_out) if args.json_out else None
+        result = build_canon_patch_task(
+            Path(args.project),
+            scene=Path(args.scene),
+            source=source,
+            output=out,
+            json_output=json_out,
+        )
+        print(f"canon_patch: {result.report_path}")
+        print(f"json: {result.json_path}")
+        print(f"agent_tasks: {result.task_path}")
+        print(f"scene: {result.scene_id}")
+        print(f"source: {result.source_path}")
+        _print_agent_task_notice(result.task_path, project=Path(args.project).resolve())
+        return 0
+
+    if args.command == "canon-backlog":
+        out = Path(args.out) if args.out else None
+        json_out = Path(args.json_out) if args.json_out else None
+        result = build_canon_patch_backlog(
+            Path(args.project),
+            output=out,
+            json_output=json_out,
+        )
+        print(f"canon_backlog: {result.output_path}")
+        print(f"json: {result.json_path}")
+        print(f"pending: {result.pending_count}")
+        print(f"applied: {result.applied_count}")
+        return 0
+
+    if args.command == "canon-apply":
+        patch = Path(args.patch) if args.patch else None
+        out = Path(args.out) if args.out else None
+        json_out = Path(args.json_out) if args.json_out else None
+        try:
+            result = apply_canon_patch(
+                Path(args.project),
+                patch=patch,
+                approval_run_id=args.approval_run_id,
+                allow_unapproved=args.allow_unapproved,
+                output=out,
+                json_output=json_out,
+            )
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+        print(f"canon_apply: {result.report_path}")
+        print(f"json: {result.json_path}")
+        print(f"patch: {result.patch_path}")
+        print(f"changelog: {result.changelog_path}")
+        print(f"status: {result.status}")
+        print(f"items: {result.applied_count}")
         return 0
 
     if args.command == "state-apply":

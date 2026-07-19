@@ -17,6 +17,7 @@ from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 from .flow_gates import FlowGateError, branch_selection_status, ensure_agent_task_completed, selected_branch_from
+from .narrative_rhythm import narrative_rhythm_contract, render_narrative_rhythm_contract
 from .reader_experience import reader_experience_contract
 from .roleplay_lab import CharacterCard, _load_characters, _read
 from .word_budget import scene_word_budget_contract
@@ -106,6 +107,7 @@ def build_scene_composition(
     guardrails = _guardrails()
     word_budget_contract = scene_word_budget_contract(root, scene_path)
     reader_contract = reader_experience_contract(root, scene_path)
+    rhythm_contract = narrative_rhythm_contract(root, scene_path)
 
     default_dir = root / "drafts" / "compositions"
     output_path = _resolve(root, output, default_dir / f"{facts.scene_id}_composition.md")
@@ -148,6 +150,9 @@ def build_scene_composition(
         "prose_seed": prose_seed,
         "word_budget_contract": word_budget_contract,
         "reader_experience_contract": reader_contract,
+        "narrative_rhythm_contract": rhythm_contract,
+        "narrative_rhythm": rhythm_contract.get("narrative_rhythm", {}),
+        "scene_bridge": rhythm_contract.get("scene_bridge", {}),
         "revision_targets": revision_targets,
         "writeback_candidates": branch.get("writeback_candidates", _fallback_writeback(facts)),
         "guardrails": guardrails,
@@ -218,6 +223,10 @@ def _write_composition_agent_tasks(
             (
                 "检查读者体验与章节义务",
                 """读取 reader_experience_contract 与 chapter_obligation。确认本场不是只有事件摘要，而是有明确读者问题、期待回报、张力来源、信息暂扣、兑现或延迟、情绪曲线和读后余味。若契约缺失或 incomplete，停止进入正文生成，先运行 chapter-obligation 并完成平台 Agent 侧车。""",
+            ),
+            (
+                "检查叙事节奏与场景桥接",
+                """读取 narrative_rhythm_contract、narrative_rhythm 和 scene_bridge。确认本场开头接住 incoming_pressure，中段有 scene_turn，过场和高潮的详略不同，结尾留下 outgoing_hook 或 continuity_handshake。若缺失，应先补 scene.yaml 或 composition，不要把所有场景写成同一种平均节奏。""",
             ),
             (
                 "检查写回候选",
@@ -468,7 +477,7 @@ def _build_prose_seed(
     texture = _first_nonempty(list(sensory.get("texture", []))) if isinstance(sensory.get("texture"), list) else str(sensory.get("texture", ""))
 
     return [
-        f"{location} 先给了 {lead} 一个不肯退让的细节：{sound or '细小的动静'}。{lead} 没有立刻奔向 `{goal}`，而是把动作压慢，像是在确认每一个选择会不会把局面推向不可收拾的方向。",
+        f"{location} 先给了 {lead} 一个不肯退让的细节：{sound or '细小的动静'}。{lead} 先停住动作，确认 `{goal}` 会把局面推向哪里。",
         f"`{external}` 没有突然爆发，它只是一步一步逼近。{lead} 伸手碰到{texture or '发冷的边缘'}时，旧习惯先一步收紧了他的判断；他避开最顺手的办法，选择了更慢、更难、但仍属于他的路。",
         f"这一版正文种子采用 `{premise}` 的分支前提。结尾不要替读者总结答案，只让 `{hook}` 成为下一场景可以接住的输入。新增事实仍是候选，不能在本场景自动写入 canon。",
     ]
@@ -652,6 +661,10 @@ def _render_markdown(root: Path, scene_path: Path, context_path: Path, context_t
             f"- 承诺回报：{payload.get('reader_experience_contract', {}).get('reader_experience', {}).get('promised_reward', '未填写') if isinstance(payload.get('reader_experience_contract', {}).get('reader_experience'), dict) else '未填写'}",
             f"- 兑现或延迟：{payload.get('reader_experience_contract', {}).get('reader_experience', {}).get('payoff_or_delay', '未填写') if isinstance(payload.get('reader_experience_contract', {}).get('reader_experience'), dict) else '未填写'}",
             f"- 反摘要要求：{payload.get('reader_experience_contract', {}).get('reader_experience', {}).get('anti_summary_requirement', '未填写') if isinstance(payload.get('reader_experience_contract', {}).get('reader_experience'), dict) else '未填写'}",
+            "",
+            "## 叙事节奏与场景桥接硬属性",
+            "",
+            render_narrative_rhythm_contract(root, scene_path).strip(),
             "",
             "## 正文种子",
             "",

@@ -78,6 +78,7 @@ def build_workflow_dashboard(
         "generated_at": _now(),
         "project_root": str(root),
         "summary": summary,
+        "authority_hierarchy": _authority_hierarchy(),
         "route_state": {
             "path": _rel(state.json_path, root),
             "summary": state_payload.get("summary", {}),
@@ -98,6 +99,7 @@ def build_workflow_dashboard(
             "This dashboard is read-only and must not be used to bypass task-next/task-open/task-submit/task-complete.",
             "The platform agent still performs creative and review judgment; this dashboard only aggregates formal route evidence.",
             "When a row is blocked, the blocking message is the next repair task.",
+            "workflow-state is a navigation summary; route-audit is the formal pass/fail ledger.",
         ],
     }
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -234,11 +236,21 @@ def _render_markdown(payload: dict[str, object]) -> str:
         f"- Pending sidecars：{summary.get('pending_task_count', 0)}",
         f"- Missing expected artifacts：{summary.get('missing_expected_count', 0)}",
         "",
+        "## Authority Hierarchy",
+        "",
+    ]
+    for item in payload.get("authority_hierarchy", []):
+        if isinstance(item, dict):
+            lines.append(f"- **{item.get('level', '')}**：{item.get('meaning', '')}")
+    lines.extend(
+        [
+        "",
         "## Route Audits",
         "",
         "| Route | Blocking | Warning | Pending tasks |",
         "| --- | ---: | ---: | ---: |",
-    ]
+        ]
+    )
     for audit in payload.get("route_audits", []):
         if not isinstance(audit, dict):
             continue
@@ -334,6 +346,10 @@ def _render_html(payload: dict[str, object]) -> str:
     <div class="metric">Missing expected<strong>{_h(summary.get('missing_expected_count', 0))}</strong></div>
   </div>
   <section>
+    <h2>Authority Hierarchy</h2>
+    <ul>{''.join(f"<li><strong>{_h(item.get('level', ''))}</strong>：{_h(item.get('meaning', ''))}</li>" for item in payload.get('authority_hierarchy', []) if isinstance(item, dict))}</ul>
+  </section>
+  <section>
     <h2>Route Audits</h2>
     <table>
       <thead><tr><th>Route</th><th>Blocking</th><th>Warning</th><th>Pending tasks</th></tr></thead>
@@ -379,6 +395,18 @@ def _read_events(path: Path) -> list[dict[str, object]]:
 def _audit_int(payload: dict[str, object], key: str) -> int:
     summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
     return int(summary.get(key) or 0)
+
+
+def _authority_hierarchy() -> list[dict[str, str]]:
+    return [
+        {"level": "task-next", "meaning": "唯一推荐入口：选择当前 route 的下一项正式任务。"},
+        {"level": "task-open", "meaning": "执行包入口：平台 Agent 读取此包和 source artifacts 后再动手。"},
+        {"level": "task-submit / task-complete", "meaning": "产物落地与完成标记，未完成不得前进。"},
+        {"level": "route-audit", "meaning": "正式门禁证据：判断 route 是否真的通过。"},
+        {"level": "workflow-dashboard", "meaning": "只读驾驶舱：方便观察，不推进状态。"},
+        {"level": "workflow-state", "meaning": "导航摘要：提示当前步骤，不替代 route-audit。"},
+        {"level": "low-level commands", "meaning": "内部执行命令：除 task package 指定外，不应由宿主 Agent 自行挑选。"},
+    ]
 
 
 def _load_json(path: Path) -> dict[str, object]:

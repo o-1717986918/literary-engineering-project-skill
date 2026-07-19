@@ -12,6 +12,7 @@ from .agent_provider import run_agent_task
 from .agent_schema import validate_agent_run
 from .context_broker import default_context_trace_path
 from .draft_text import final_body_from_workbench_text
+from .narrative_rhythm import render_narrative_rhythm_contract
 from .new_character_register import empty_new_character_register, render_new_character_register_contract
 from .reader_experience import reader_experience_adherence_for_body, scene_chapter_obligation_id
 from .word_budget import word_budget_adherence_for_body
@@ -55,6 +56,9 @@ def review_scene_with_agent(
         source_paths.append(_rel_str(context_trace_path, root))
     if style_prompt_path and style_prompt_path.exists():
         source_paths.append(_rel_str(style_prompt_path, root))
+    composition_json = root / "drafts" / "compositions" / f"{scene_id}_composition.json"
+    if composition_json.exists():
+        source_paths.append(_rel_str(composition_json, root))
     obligation_path = root / "plot" / "chapter_obligations" / f"{scene_chapter_obligation_id(root, scene_path)}.json"
     if obligation_path.exists():
         source_paths.append(_rel_str(obligation_path, root))
@@ -67,13 +71,14 @@ def review_scene_with_agent(
     style_text = _read(style_prompt_path) if style_prompt_path else ""
     word_budget_adherence = word_budget_adherence_for_body(root, scene_path, draft_body)
     reader_adherence = reader_experience_adherence_for_body(root, scene_path, draft_body)
+    rhythm_contract_text = render_narrative_rhythm_contract(root, scene_path, composition_json if composition_json.exists() else None)
     dry_payload = _dry_scene_review(scene_id, draft_text, source_paths, word_budget_adherence, reader_adherence)
     run_result = run_agent_task(
         root,
         agent_id="scene-reviewer",
         task=f"review-scene:{scene_id}",
         system_prompt=_system_prompt(),
-        user_prompt=_user_prompt(scene_text, draft_text, context_text, context_trace_text, style_text, source_paths, word_budget_adherence, reader_adherence),
+        user_prompt=_user_prompt(scene_text, draft_text, context_text, context_trace_text, style_text, source_paths, word_budget_adherence, reader_adherence, rhythm_contract_text),
         provider=provider,
         metadata={"schema_name": "scene_review.v1", "scene_id": scene_id, "source_paths": source_paths},
         dry_run_output=dry_payload,
@@ -103,7 +108,7 @@ def review_scene_with_agent(
 def _system_prompt() -> str:
     return """You are a literary engineering scene review agent.
 
-Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, reader-experience payoff, mounted style adherence, punctuation rhythm, deterministic Style Lint evidence, anti-evasion revision integrity, cleaned-body word-budget adherence, new character registration, and revision actions. Output JSON only using schema scene_review.v1, including structured style_adherence, word_budget_adherence, reader_experience_adherence, new_character_register, and revision_integrity objects."""
+Review the scene as a workbench artifact, not as final praise. Judge character logic, canon safety, plot movement, reader-experience payoff, narrative rhythm and scene bridge, mounted style adherence, punctuation rhythm, deterministic Style Lint evidence, anti-evasion revision integrity, cleaned-body word-budget adherence, new character registration, canon writeback declaration, and revision actions. Output JSON only using schema scene_review.v1, including structured style_adherence, word_budget_adherence, reader_experience_adherence, narrative_rhythm_adherence, canon_writeback, new_character_register, and revision_integrity objects."""
 
 
 def _user_prompt(
@@ -115,6 +120,7 @@ def _user_prompt(
     source_paths: list[str],
     word_budget_adherence: dict[str, object],
     reader_adherence: dict[str, object],
+    rhythm_contract_text: str,
 ) -> str:
     draft_body = final_body_from_workbench_text(draft_text) or draft_text
     return f"""Source paths: {source_paths}
@@ -142,6 +148,14 @@ def _user_prompt(
 ```json
 {json.dumps(reader_adherence, ensure_ascii=False, indent=2)}
 ```
+
+## Narrative Rhythm / Scene Bridge Gate
+
+{rhythm_contract_text}
+
+若正文没有接住入场压力、没有完成本场 scene_turn、没有详略节奏差异，或结尾没有给下一场留下可接续钩子，`conclusion` 不得为 pass。必须在 JSON 中填写 `narrative_rhythm_adherence`。
+
+同时检查 Scene Function Gate、Reader Question / Promise-Payoff、Narrative Distance 和 Texture Variety：本场不能只是补设定或聊天；必须有推进主线、改变关系、制造误判、兑现/设置问题、改变人物选择、扩大代价或转移读者认知之一。若读者问题没有管理、承诺没有兑现/延迟说明、叙述距离持续贴脸解释心理，或章节内连续场景材料过于单一，不能 clean pass。
 
 ## Scene YAML
 
@@ -246,12 +260,28 @@ def _dry_scene_review(
             "reader_promise_satisfied": reader_status in {"pass", "not_required"},
             "semantic_review_required": reader_adherence.get("requires_platform_agent_semantic_review", True),
         },
+        "narrative_rhythm_adherence": {
+            "status": "pass_with_notes" if has_body else "revise_required",
+            "rhythm_executed": has_body,
+            "bridge_executed": has_body,
+            "flatness_risks": ["dry-run cannot semantically judge rhythm; platform agent must verify scene turn and bridge."],
+            "revision_actions": [],
+        },
+        "canon_writeback": {
+            "status": "unknown",
+            "canon_change": "unknown",
+            "no_canon_change_reason": "",
+            "candidate_patch": "",
+        },
         "new_character_register": empty_new_character_register(),
         "revision_integrity": {
+            "status": "pass" if not blocking_lint else "revise_required",
             "anti_evasion_checked": True,
             "evasion_risks": [f"{issue.rule}: {issue.sample}" for issue in blocking_lint if issue.rule in {"mechanical-contrast-frame", "contrast-evasion-frame"}],
+            "evasion_risks_unresolved": [f"{issue.rule}: {issue.sample}" for issue in blocking_lint if issue.rule in {"mechanical-contrast-frame", "contrast-evasion-frame"}],
             "retained_transitions": [],
             "burden_of_proof": [],
+            "message": "dry-run deterministic review; platform agent must perform semantic revision-integrity review.",
         },
         "source_paths": source_paths,
         "agent_confidence": "dry-run",
@@ -278,6 +308,18 @@ def _render_report(payload: dict[str, object], validation_status: str) -> str:
         f"- 状态：`{(payload.get('reader_experience_adherence') if isinstance(payload.get('reader_experience_adherence'), dict) else {}).get('status', '')}`",
         f"- 信息：{(payload.get('reader_experience_adherence') if isinstance(payload.get('reader_experience_adherence'), dict) else {}).get('message', '')}",
         f"- 语义复核：`{(payload.get('reader_experience_adherence') if isinstance(payload.get('reader_experience_adherence'), dict) else {}).get('semantic_review_required', '')}`",
+        "",
+        "## 叙事节奏与场景桥接门禁",
+        "",
+        f"- 状态：`{(payload.get('narrative_rhythm_adherence') if isinstance(payload.get('narrative_rhythm_adherence'), dict) else {}).get('status', '')}`",
+        f"- 节奏执行：`{(payload.get('narrative_rhythm_adherence') if isinstance(payload.get('narrative_rhythm_adherence'), dict) else {}).get('rhythm_executed', '')}`",
+        f"- 桥接执行：`{(payload.get('narrative_rhythm_adherence') if isinstance(payload.get('narrative_rhythm_adherence'), dict) else {}).get('bridge_executed', '')}`",
+        "",
+        "## Canon 写回判断",
+        "",
+        f"- 状态：`{(payload.get('canon_writeback') if isinstance(payload.get('canon_writeback'), dict) else {}).get('status', '')}`",
+        f"- Canon 变化：`{(payload.get('canon_writeback') if isinstance(payload.get('canon_writeback'), dict) else {}).get('canon_change', '')}`",
+        f"- 无变化理由：{(payload.get('canon_writeback') if isinstance(payload.get('canon_writeback'), dict) else {}).get('no_canon_change_reason', '')}",
         "",
         "## 摘要",
         "",

@@ -143,6 +143,27 @@ def write_platform_scene_review(project_root: Path, scene_id: str = "scene_0001"
             "reader_promise_satisfied": True,
             "requires_platform_agent_semantic_review": False,
         },
+        "narrative_rhythm_adherence": {
+            "status": "pass",
+            "rhythm_executed": True,
+            "bridge_executed": True,
+            "scene_function_executed": True,
+            "scene_turn_executed": True,
+            "reader_effect_executed": True,
+            "message": "测试场景已执行节奏和场景桥接契约。",
+        },
+        "canon_writeback": {
+            "status": "pass",
+            "canon_change": False,
+            "no_canon_change_reason": "测试场景只改变人物临时状态，没有新增持续世界事实。",
+            "candidate_patch": "",
+        },
+        "revision_integrity": {
+            "status": "pass",
+            "anti_evasion_checked": True,
+            "evasion_risks_unresolved": [],
+            "message": "未发现用另一种模板句式规避修订意见。",
+        },
         "new_character_register": {
             "schema": "literary-engineering-workbench/new-character-register/v0.1",
             "status": "none",
@@ -269,6 +290,11 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
                         "status": "not_required",
                         "message": "test project does not require reader-experience contract",
                     },
+                    "narrative_rhythm_contract": {
+                        "status": "pass",
+                        "message": "test formal flow provides explicit rhythm and bridge contract",
+                    },
+                    "narrative_rhythm_loaded": True,
                     "reader_experience_loaded": True,
                     "review_notes": "test review notes",
                     "anti_evasion": "test anti-evasion",
@@ -332,9 +358,17 @@ def write_formal_candidate_artifacts(project_root: Path, candidate: Path, scene_
                 "message": "test project does not require reader-experience contract",
             },
             "reader_experience_standard_applied": True,
+            "narrative_rhythm_standard_applied": True,
             "hard_constraints_applied": True,
             "anti_evasion_protocol_applied": True,
             "pass_with_notes_actions_applied": False,
+            "canon_change": False,
+            "no_canon_change_reason": "测试候选只改变人物临时状态，没有新增持续世界事实。",
+            "canon_writeback": {
+                "canon_change": False,
+                "no_canon_change_reason": "测试候选只改变人物临时状态，没有新增持续世界事实。",
+                "candidate_patch": "",
+            },
             "new_character_register": {
                 "schema": "literary-engineering-workbench/new-character-register/v0.1",
                 "status": "none",
@@ -455,6 +489,35 @@ def prepare_formal_scene_flow(project_root: Path, scene_id: str = "scene_0001") 
                 "selected_branch": "branch_character_inevitable",
                 "selection_source": "selection",
                 "ready_for_generation": True,
+                "narrative_rhythm": {
+                    "rhythm_role": "conflict",
+                    "pace": "fast_to_slow",
+                    "density": "medium",
+                    "scene_function": ["推进测试主线", "改变角色选择压力"],
+                    "scene_turn": "测试角色从观望转为承担一个小代价。",
+                    "reader_effect": "读者确认线索推进，但意识到下一场仍有未结压力。",
+                    "narrative_distance": "medium",
+                    "slow_down_points": ["角色作出选择的瞬间"],
+                    "speed_up_points": ["进入旧楼前的过场"],
+                },
+                "scene_bridge": {
+                    "incoming_pressure": "接住上一场遗留的测试线索压力。",
+                    "incoming_from_previous": ["上一场留下的档案缺页。"],
+                    "reader_questions_carried": ["档案缺页来自哪里？"],
+                    "outgoing_hooks": [
+                        {
+                            "type": "plot_pressure",
+                            "content": "新的测试线索指向下一场行动。",
+                        }
+                    ],
+                    "outgoing_hook": "新的测试线索指向下一场行动。",
+                    "promise_payoff_items": [
+                        {
+                            "type": "payoff_delay",
+                            "content": "兑现旧楼线索，延迟幕后真相。",
+                        }
+                    ],
+                },
                 "flow_gate": {
                     "branch_selection_required": True,
                     "ready_for_generation": True,

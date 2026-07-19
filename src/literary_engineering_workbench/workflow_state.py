@@ -10,6 +10,7 @@ import re
 
 from .agent_tasks import agent_task_completion_status
 from .asset_workshop import ASSET_CANDIDATE_DIRS
+from .canon_evolver import canon_writeback_status
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .flow_gates import branch_selection_status
 from .reader_experience import reader_experience_contract
@@ -927,6 +928,7 @@ def _scene_state(root: Path, scene_path: Path) -> dict[str, object]:
         _static_review_step(root, scene_id),
         _file_step("state-patch-json", root / "characters" / "state_patches" / f"{scene_id}_state_patch.json", "run state-evolve --agent-tasks"),
         _task_step("state-agent-task", root, root / "characters" / "state_patches" / f"{scene_id}_state_patch.agent_tasks.md", "complete state-evolve sidecar and marker"),
+        _canon_writeback_step(root, scene_id),
     ]
     first_open = next((step for step in steps if step["status"] != "pass"), None)
     return {
@@ -1069,6 +1071,21 @@ def _static_review_step(root: Path, scene_id: str) -> dict[str, object]:
         "path": _rel(path, root),
         "message": f"conclusion={conclusion or 'missing'}",
         "next_action": "" if conclusion == "pass" else "run review-scene on the promoted draft and resolve notes",
+    }
+
+
+def _canon_writeback_step(root: Path, scene_id: str) -> dict[str, object]:
+    status = canon_writeback_status(root, scene_id)
+    state = str(status.get("status") or "")
+    passed = state in {"pass", "not_required"}
+    key = "canon-agent-task" if state == "task_incomplete" else "canon-patch-json"
+    next_action = "run canon-evolve, have the platform agent write canon patch/no-change rationale, then complete the sidecar"
+    return {
+        "key": key,
+        "status": "pass" if passed else state or "unknown",
+        "path": status.get("json", ""),
+        "message": status.get("message", ""),
+        "next_action": "" if passed else next_action,
     }
 
 

@@ -282,4 +282,4 @@
 
 `v0.89.1` 已实现 Count Unit Bridge 硬化。文风提示词质量门禁和长篇正文预算以中文内容字符为正式单位；机器非空白字符只作为诊断桥，输出观测比例、1:1 基准范围和粗略机器范围，用于解释 UI/platform 计数差异，不能作为 pass/fail 依据。
 
-下一步规划：Phase 90 将继续推进失败模式回归测试和前端轮询 dashboard 的集成。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。
+`v0.95.0` 已实现 Phase 95 收敛：入口文档改为 Host Operating Constitution，强调 `task-next -> task-open -> task-submit -> task-complete` 是正式工作入口；新增 `canon-evolve` 和 `canon_writeback` 状态门禁，场景产生持续世界事实或无法判断时必须生成候选 canon patch；新增 `narrative_rhythm` / `scene_bridge` 契约并接入 `compose-scene`、`generate-scene`、`agent-review-scene`、prompt manifest、route audit 与前端项目库展示。叙事节奏现在显式管理场景功能、入场压力、场景转向、读者效果、叙述距离、详略点、承诺/兑现和出场钩子，防止长篇正文变成平均速度的剧情摘要。详细执行记录见 `docs/plans/phase95-cli-state-canon-rhythm-convergence-plan.md`。

@@ -140,7 +140,7 @@ def _validate_step_order(payload: dict[str, Any], errors: list[dict[str, str]], 
                 first_blocking_index = index
                 first_blocking_key = str(step.get("key") or index)
             elif status == "pass" and first_blocking_index is not None:
-                if str(step.get("key") or "") in ORDER_NEUTRAL_PASS_STEPS:
+                if _is_order_neutral_pass_step(step):
                     continue
                 errors.append(
                     _issue(
@@ -151,6 +151,18 @@ def _validate_step_order(payload: dict[str, Any], errors: list[dict[str, str]], 
                 )
         if item.get("status") == "ready" and any(isinstance(step, dict) and step.get("status") != "pass" for step in steps):
             errors.append(_issue(label, "state item is ready but at least one step is not pass", "inconsistent"))
+
+
+def _is_order_neutral_pass_step(step: dict[str, Any]) -> bool:
+    """Return true for checks that may pass before upstream creative gates."""
+
+    key = str(step.get("key") or "")
+    if key in ORDER_NEUTRAL_PASS_STEPS:
+        return True
+    if key == "canon-patch-json":
+        message = str(step.get("message") or "").lower()
+        return "not required" in message or "not_required" in message
+    return False
 
 
 def _validate_tasks(root: Path, errors: list[dict[str, str]], warnings: list[dict[str, str]]) -> None:

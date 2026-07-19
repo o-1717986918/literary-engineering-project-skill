@@ -287,6 +287,31 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
             any(gate["key"] == "scene_0001:candidate-review-pass" and gate["status"] == "fail" for gate in payload["gates"])
         )
 
+    def test_route_audit_blocks_agent_review_missing_rhythm_and_canon_writeback(self):
+        project = self.make_project()
+        _write_candidate(project)
+        review = write_platform_scene_review(project, scene_id="scene_0001")
+        payload = json.loads(review.read_text(encoding="utf-8"))
+        payload["candidate"] = "drafts/candidates/scene_0001-platform-agent.md"
+        payload["source_paths"] = [
+            "scenes/scene_0001.yaml",
+            "drafts/candidates/scene_0001-platform-agent.md",
+            "memory/context_packets/scene_0001.md",
+        ]
+        payload.pop("narrative_rhythm_adherence", None)
+        payload.pop("canon_writeback", None)
+        review.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        result = build_route_audit(project, route="scene-development")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:agent-review-narrative-rhythm" and gate["status"] == "fail" for gate in payload["gates"])
+        )
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:agent-review-canon-writeback" and gate["status"] == "fail" for gate in payload["gates"])
+        )
+
     def test_route_audit_requires_static_review_after_promotion(self):
         project = self.make_project()
         add_character(project)
@@ -450,8 +475,20 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
 
     def test_cli_exposes_task_status_commands(self):
         help_text = build_parser().format_help()
+        self.assertIn("formal-help", help_text)
         self.assertIn("agent-task-status", help_text)
         self.assertIn("route-audit", help_text)
+
+    def test_formal_help_hides_low_level_route_internals(self):
+        help_text = build_parser(full_help=False).format_help()
+
+        self.assertIn("task-next", help_text)
+        self.assertIn("route-audit", help_text)
+        self.assertIn("help-all", help_text)
+        self.assertNotIn("generate-scene", help_text)
+        self.assertNotIn("compose-scene", help_text)
+        self.assertNotIn("export-package", help_text)
+        self.assertIn("generate-scene", build_parser(full_help=True).format_help())
 
 
 def _select_branch(path: Path, branch_id: str):

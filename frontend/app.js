@@ -26,6 +26,8 @@ const sectionNames = {
   style: "文风挂载",
   reviews: "审查证据",
   word_budget: "字数预算",
+  rhythm: "节奏衔接",
+  canon_patches: "写回候选",
 };
 
 function escapeHtml(value) {

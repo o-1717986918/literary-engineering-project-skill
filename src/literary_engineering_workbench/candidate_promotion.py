@@ -106,6 +106,7 @@ def promote_scene_candidate(
         "allow_review_notes": allow_review_notes,
         "chars": len(draft),
         "writeback_sections": sections,
+        "canon_writeback": _canon_writeback_declaration(root, candidate_path),
         "guardrails": [
             "本命令只把候选稿转入草稿审查通道，不确认 canon。",
             "默认必须先完成针对该候选稿的正式平台 Agent 场景审查。",
@@ -198,18 +199,29 @@ def candidate_generation_gate(root: Path, scene_id: str, candidate_path: Path) -
             for key in ("style_generation_standard_applied", "hard_constraints_applied", "anti_evasion_protocol_applied"):
                 if payload.get(key) is not True:
                     invalid.append(f"{key} is not true")
+            if payload.get("narrative_rhythm_standard_applied") is not True:
+                invalid.append("narrative_rhythm_standard_applied is not true")
             for key in ("word_budget_standard_applied", "pass_with_notes_actions_applied"):
                 if key not in payload or not isinstance(payload.get(key), bool):
                     invalid.append(f"{key} must be a boolean")
             if not str(payload.get("prompt_manifest") or "").strip() and not prompt_manifest_path.exists():
                 invalid.append("prompt_manifest is missing")
+            canon_decl = _canon_writeback_declaration(root, candidate_path)
+            canon_change = _canon_change_value(canon_decl.get("canon_change"))
+            if canon_change is None:
+                invalid.append("canon_change declaration is missing")
+            if canon_change is False and not str(canon_decl.get("no_canon_change_reason") or "").strip():
+                invalid.append("canon_change=false requires no_canon_change_reason")
         invalid.extend(new_character_register_issues(payload, root, mode="generation"))
         prompt_payload = _read_json(prompt_manifest_path)
+        standards = prompt_payload.get("generation_standards") if isinstance(prompt_payload.get("generation_standards"), dict) else {}
+        rhythm_standard = standards.get("narrative_rhythm_contract") if isinstance(standards, dict) else {}
+        if not isinstance(rhythm_standard, dict) or rhythm_standard.get("status") not in {"pass", "defaulted"}:
+            invalid.append("prompt manifest missing ready generation_standards.narrative_rhythm_contract")
         scene_path = root / "scenes" / f"{scene_id}.yaml"
         candidate_body = _candidate_body(_read(candidate_path)) if candidate_path.exists() else ""
         reader = reader_experience_adherence_for_body(root, scene_path, candidate_body)
         if reader.get("status") != "not_required":
-            standards = prompt_payload.get("generation_standards") if isinstance(prompt_payload.get("generation_standards"), dict) else {}
             reader_standard = standards.get("reader_experience_contract") if isinstance(standards, dict) else {}
             if not isinstance(reader_standard, dict) or reader_standard.get("status") not in {"pass", "not_required"}:
                 invalid.append("prompt manifest missing ready generation_standards.reader_experience_contract")
@@ -222,6 +234,24 @@ def candidate_generation_gate(root: Path, scene_id: str, candidate_path: Path) -
     else:
         gate.update({"status": "pass", "missing": [], "invalid": [], "message": "formal candidate generation provenance passed"})
     return gate
+
+
+def _canon_writeback_declaration(root: Path, candidate_path: Path) -> dict[str, object]:
+    payload = _read_json(candidate_path.with_suffix(".json"))
+    nested = payload.get("canon_writeback") if isinstance(payload.get("canon_writeback"), dict) else {}
+    canon_change = nested.get("canon_change") if isinstance(nested, dict) and "canon_change" in nested else payload.get("canon_change")
+    no_change_reason = (
+        str(nested.get("no_canon_change_reason") or "").strip()
+        if isinstance(nested, dict)
+        else ""
+    ) or str(payload.get("no_canon_change_reason") or "").strip()
+    return {
+        "canon_change": canon_change,
+        "no_canon_change_reason": no_change_reason,
+        "candidate_patch": str(nested.get("candidate_patch") or "") if isinstance(nested, dict) else "",
+        "source": _rel(candidate_path.with_suffix(".json"), root),
+        "note": "promotion carries declaration only; canon-evolve creates/applies no canon automatically.",
+    }
 
 
 def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> dict[str, object]:
@@ -272,6 +302,13 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
     review_budget_status = str(review_budget.get("status") or "").strip().lower()
     review_reader = payload.get("reader_experience_adherence") if isinstance(payload.get("reader_experience_adherence"), dict) else {}
     review_reader_status = str(review_reader.get("status") or "").strip().lower()
+    review_rhythm = payload.get("narrative_rhythm_adherence") if isinstance(payload.get("narrative_rhythm_adherence"), dict) else {}
+    review_rhythm_status = str(review_rhythm.get("status") or "").strip().lower()
+    review_canon = payload.get("canon_writeback") if isinstance(payload.get("canon_writeback"), dict) else {}
+    canon_review_ok, canon_review_status, canon_review_message = _canon_writeback_review_gate(review_canon)
+    revision_integrity_ok, revision_integrity_status, revision_integrity_message = _revision_integrity_review_gate(
+        payload.get("revision_integrity") if isinstance(payload.get("revision_integrity"), dict) else {}
+    )
     budget_status = str(word_budget.get("status") or "").strip().lower()
     reader_status = str(reader_experience.get("status") or "").strip().lower()
     budget_passed = budget_status in {"pass", "not_required"}
@@ -281,6 +318,7 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
     review_reader_passed = (not reader_required) or (
         review_reader_status in {"pass", "not_required"} and review_reader.get("reader_promise_satisfied") is not False
     )
+    review_rhythm_passed = review_rhythm_status in {"pass", "not_applicable"} and review_rhythm.get("rhythm_executed") is not False and review_rhythm.get("bridge_executed") is not False
     task_completed = review_completion.get("complete") is True
     passed = (
         not errors
@@ -294,6 +332,9 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
         and review_budget_passed
         and reader_passed
         and review_reader_passed
+        and review_rhythm_passed
+        and canon_review_ok
+        and revision_integrity_ok
         and not new_character_issues
     )
     if passed:
@@ -329,6 +370,15 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
     elif not review_reader_passed:
         status = "reader_experience_review_failed"
         message = f"AgentReview did not pass reader_experience_adherence: {review_reader_status or 'missing'}"
+    elif not review_rhythm_passed:
+        status = "narrative_rhythm_review_failed"
+        message = f"AgentReview did not pass narrative_rhythm_adherence: {review_rhythm_status or 'missing'}"
+    elif not canon_review_ok:
+        status = "canon_writeback_review_failed"
+        message = f"AgentReview did not resolve canon_writeback declaration: {canon_review_message}"
+    elif not revision_integrity_ok:
+        status = "revision_integrity_review_failed"
+        message = f"AgentReview did not pass revision_integrity: {revision_integrity_message}"
     elif new_character_issues:
         status = "new_character_unresolved"
         message = "AgentReview did not resolve new_character_register: " + "; ".join(new_character_issues)
@@ -345,6 +395,9 @@ def candidate_review_gate(root: Path, scene_id: str, candidate_path: Path) -> di
             "style_adherence": style_status,
             "word_budget_status": budget_status,
             "reader_experience_status": reader_status,
+            "narrative_rhythm_status": review_rhythm_status,
+            "canon_writeback_review_status": canon_review_status,
+            "revision_integrity_status": revision_integrity_status,
             "schema_errors": errors,
             "unresolved_notes": unresolved,
             "new_character_register_issues": new_character_issues,
@@ -446,7 +499,70 @@ def _unresolved_review_notes(payload: dict[str, object]) -> list[str]:
             notes.append(f"reader_experience_adherence.status={reader_status}")
         if reader_status in {"pass", "not_required"} and reader.get("reader_promise_satisfied") is False:
             notes.append("reader_experience_adherence.reader_promise_satisfied=false")
+    rhythm = payload.get("narrative_rhythm_adherence")
+    if isinstance(rhythm, dict):
+        rhythm_status = str(rhythm.get("status") or "").strip().lower()
+        if rhythm_status not in {"", "pass", "not_applicable"}:
+            notes.append(f"narrative_rhythm_adherence.status={rhythm_status}")
+        if rhythm_status in {"pass", "not_applicable"} and rhythm.get("rhythm_executed") is False:
+            notes.append("narrative_rhythm_adherence.rhythm_executed=false")
+        if rhythm_status in {"pass", "not_applicable"} and rhythm.get("bridge_executed") is False:
+            notes.append("narrative_rhythm_adherence.bridge_executed=false")
+    canon_ok, canon_status, canon_message = _canon_writeback_review_gate(
+        payload.get("canon_writeback") if isinstance(payload.get("canon_writeback"), dict) else {}
+    )
+    if not canon_ok:
+        notes.append(f"canon_writeback.{canon_status}:{canon_message}")
+    revision_ok, revision_status, revision_message = _revision_integrity_review_gate(
+        payload.get("revision_integrity") if isinstance(payload.get("revision_integrity"), dict) else {}
+    )
+    if not revision_ok:
+        notes.append(f"revision_integrity.{revision_status}:{revision_message}")
     return notes
+
+
+def _revision_integrity_review_gate(value: dict[str, object]) -> tuple[bool, str, str]:
+    if not value:
+        return False, "missing", "revision_integrity object is missing"
+    status = str(value.get("status") or "").strip().lower()
+    if status not in {"pass", "not_applicable"}:
+        return False, status or "missing_status", f"status={status or 'missing'}"
+    if value.get("anti_evasion_checked") is not True:
+        return False, "unchecked", "anti_evasion_checked must be true"
+    unresolved = value.get("evasion_risks_unresolved")
+    if not _empty_unresolved(unresolved):
+        return False, "unresolved", "evasion_risks_unresolved must be empty/false"
+    return True, status, "revision integrity reviewed"
+
+
+def _canon_writeback_review_gate(value: dict[str, object]) -> tuple[bool, str, str]:
+    if not value:
+        return False, "missing", "canon_writeback object is missing"
+    status = str(value.get("status") or "").strip().lower()
+    change = _canon_change_value(value.get("canon_change"))
+    if status not in {"pass", "not_required", "pending_canon_evolve", "unknown"}:
+        return False, status or "missing_status", f"status={status or 'missing'}"
+    if change is False:
+        reason = str(value.get("no_canon_change_reason") or "").strip()
+        if not reason:
+            return False, "missing_reason", "canon_change=false requires no_canon_change_reason"
+        return True, "no_change", "canon no-change declaration is explicit"
+    if change in {True, "unknown"}:
+        return True, "needs_canon_evolve" if change is True else "unknown", "canon writeback requires canon-evolve route gate"
+    return False, "missing_change", "canon_change must be true, false, or unknown"
+
+
+def _canon_change_value(value: object) -> bool | str | None:
+    if isinstance(value, bool):
+        return value
+    text = str(value or "").strip().lower()
+    if text in {"true", "yes", "1", "changed", "change"}:
+        return True
+    if text in {"false", "no", "0", "none", "no_change", "not_required"}:
+        return False
+    if text in {"unknown", "pending", "todo", "needs_review"}:
+        return "unknown"
+    return None
 
 
 def _normalize_review_path(value: str) -> str:

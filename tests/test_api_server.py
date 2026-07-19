@@ -709,6 +709,13 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
             "/asset/promote",
             json={"project_root": str(project), "candidate": candidate, "group": "character", "allow_unapproved": True},
         )
+        self.assertEqual(promoted.status_code, 400)
+
+        with patch.dict("os.environ", {"LEW_MAINTAINER_MODE": "1"}):
+            promoted = client.post(
+                "/asset/promote",
+                json={"project_root": str(project), "candidate": candidate, "group": "character", "allow_unapproved": True},
+            )
         self.assertEqual(promoted.status_code, 200)
         self.assertTrue((project / "characters" / "linzhou.yaml").exists())
 

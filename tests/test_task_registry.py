@@ -813,6 +813,27 @@ def _write_candidate_review(project: Path, candidate: Path, *, conclusion: str) 
             "reader_promise_satisfied": True,
             "requires_platform_agent_semantic_review": False,
         },
+        "narrative_rhythm_adherence": {
+            "status": "pass",
+            "rhythm_executed": True,
+            "bridge_executed": True,
+            "scene_function_executed": True,
+            "scene_turn_executed": True,
+            "reader_effect_executed": True,
+            "message": "测试候选已执行节奏和场景桥接契约。",
+        },
+        "canon_writeback": {
+            "status": "pass",
+            "canon_change": False,
+            "no_canon_change_reason": "测试场景只改变人物临时状态，没有新增持续世界事实。",
+            "candidate_patch": "",
+        },
+        "revision_integrity": {
+            "status": "pass",
+            "anti_evasion_checked": True,
+            "evasion_risks_unresolved": [],
+            "message": "未发现用另一种模板句式规避修订意见。",
+        },
         "new_character_register": {
             "schema": "literary-engineering-workbench/new-character-register/v0.1",
             "status": "none",

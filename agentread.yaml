@@ -1,455 +1,78 @@
-schema: agentread/v0.2
+schema: agentread/v0.3
 project_name: literary-engineering-project-skill
 language: zh-CN
 purpose: >
-  给 Codex、Claude 等工具层 agent 使用的大型项目型 Skill。
-  平台 agent 担任项目总监、创作总监、LLM provider 和子 agent 编排者；
-  本项目提供文学工程文件结构、artifact contract、文风机制、审查流程和正式路线 CLI sidecar/provenance 工具。
+  Project-type Skill for tool-layer agents. The host Agent performs creative
+  and review judgment; the CLI state machine supplies task packages,
+  provenance, deterministic evidence, and route gates.
 
 read_first:
   - SKILL.md
   - AGENTS.md
-  - CLAUDE.md
+  - references/formal-host-operating-constitution.md
   - references/agent-run-protocol.md
-  - references/project-director-playbook.md
 
 core_references:
+  formal_host_operating_constitution: references/formal-host-operating-constitution.md
   agent_run_protocol: references/agent-run-protocol.md
   cli_run_protocol: references/cli-run-protocol.md
-  project_director: references/project-director-playbook.md
-  artifact_contracts: references/artifact-contracts.md
-  workflows: references/workflows.md
-  orchestration: references/orchestration.md
   punctuation_standard: references/punctuation-standard.md
+  developer_workflows: references/workflows.md
+  artifact_contracts: references/artifact-contracts.md
   prompt_registry: docs/modules/prompt-registry.md
-  context_broker: docs/modules/context-broker.md
-  new_character_register: docs/modules/new-character-register.md
-  project_type_skill_architecture: docs/architecture/project-type-skill.md
+  workflow_state_machine: docs/modules/workflow-state-machine.md
 
-core_project_files:
-  skill_entry: SKILL.md
-  agent_entry: AGENTS.md
-  claude_entry: CLAUDE.md
-  project_router: agentread.yaml
-  formal_route_toolkit_development: src/literary_engineering_workbench/
-  formal_route_toolkit_installed: scripts/literary_engineering_workbench/
-  prompt_assets: templates/prompt_assets/
-  templates: templates/
-  schemas: schemas/
-  docs: docs/
+host_operating_contract:
+  authority_order:
+    - task-next chooses the next formal task for a registered route.
+    - task-open is the executable package and may include prompt assets, source_paths, expected_outputs, hard_constraints, and forbidden_shortcuts.
+    - .agent_tasks.md files are pending work until an adjacent .agent_completion.json exists.
+    - task-submit records the host Agent artifact.
+    - task-complete validates expected outputs.
+    - route-audit is the formal pass/fail ledger.
+    - workflow-state and workflow-dashboard are navigation/read-only summaries.
+  formal_host_must_not:
+    - directly handwrite CLI-generated flow artifacts as formal outputs
+    - skip task sidecars
+    - use debug waiver flags in formal work
+    - let subagents write body prose or final creative text
+    - bypass review, promotion, export, release, state, or canon gates
+    - treat generated JSON, simulation scores, or branch recommendations as accepted project state
+  host_reads:
+    - the current task package
+    - the prompt asset resolved by task-open
+    - source_paths listed by the task package
+    - extra files only when the task package, route protocol, or user explicitly requires them
+  host_writes:
+    - expected_outputs listed by the task package
+    - completion markers required by sidecars
+    - submissions through task-submit
 
-governance:
-  tool_layer_participation_required_for:
-    - creative generation and revision
-    - LLM-authored JSON and schema repair
-    - style-prompt creation and evaluation
-    - existing-work reverse extraction into project candidates
-    - longform word-budget and narrative-inventory planning
-    - character, world, outline, and relationship candidate assets
-    - roleplay, branch, scene, consequence, and state simulations
-    - review findings, committee reports, and patch plans
-    - promotion recommendations, release choices, and free project decisions
-  formal_nondeterministic_commands_are: platform_agent_task_sidecars
-  local_model_commands_are: legacy_debug_only
-  required_platform_agent_actions:
-    - choose task, prompt, context packet, and guardrails
-    - read generated .agent_tasks.md files
-    - write expected JSON/Markdown/prose artifacts when a task requires platform judgment
-    - inspect raw and parsed outputs
-    - run or perform schema, canon, character, style, and safety review
-    - decide revise, keep as candidate, ask user, approve internally, or promote after approval
-    - write creative body text only as the main platform agent; subagents may support with mechanical checks and summaries only
-  never_auto_accept:
-    - generated JSON
-    - simulation recommendations
-    - branch scores
-    - local director decisions
-    - provider-generated prose
+registered_routes:
+  - scene-development
+  - longform-planning
+  - source-ingest
+  - style-engineering
+  - character-and-world-assets
+  - review-and-audit
+  - export-and-release
 
-route_execution_contract:
-  applies_to:
-    - project_director
-    - work_project_initialization
-    - style_engineering
-    - source_ingest
-    - longform_planning
-    - character_and_world_assets
-    - scene_development
-    - review_and_audit
-    - export_and_release
-    - optional_cli
-  mandatory_preflight:
-    - classify workspace type
-    - select one primary route from task_routes
-    - read references/agent-run-protocol.md
-    - read route-specific references before changing artifacts
-    - record reading receipt with route, references read, inspected project files, missing context, and pending sidecars
-    - inspect current project state and latest review/workflow/approval records
-    - state intended artifacts, review gates, and approval boundary
-  cli_preflight:
-    - read references/cli-run-protocol.md before any formal route with CLI sidecars, manifests, or provenance gates
-    - run "python -m literary_engineering_workbench protocol <route>" before route-specific command chains
-    - inspect command output paths instead of trusting terminal success alone
-    - read and execute required .agent_tasks.md sidecars and expected route artifacts
-    - create adjacent .agent_completion.json markers after sidecar artifacts are checked
-    - run prompt-registry-validate after adding task prompt ids or changing prompt assets
-  completion_gates:
-    - route selected and route references accounted for
-    - reading receipt recorded or summarized
-    - project state inspected
-    - platform agent handled every creative, review, JSON, simulation, and second-level decision
-    - schema/canon/character/style/punctuation/release checks applied when relevant
-    - candidate, promoted, revised, blocked, and approval-pending artifacts clearly separated
-    - final response reports changed files, checks run, and pending approval decisions
-  forbidden_shortcuts:
-    - do not accept CLI output as canon or final creative judgment
-    - do not accept generated JSON because it parses
-    - do not skip .agent_tasks.md handling when a command writes sidecars
-    - do not promote candidates without clean review and approval
-    - do not use debug or bypass flags such as --allow-unreviewed, --allow-review-notes, --include-blocked, --allow-unapproved, --allow-unresolved, --allow-missing-composition, --allow-unselected-composition, --allow-recommended-branch, or --allow-missing-branch during formal Skill-host work
-    - do not delegate creative body-text drafting, rewriting, polishing, expansion, or finalization to subagents
-    - do not skip Chinese punctuation review for Chinese prose
-    - do not store API keys or provider secrets in work projects
+route_entrypoint:
+  command_template: python -m literary_engineering_workbench task-next <project> --route <route>
+  open_template: python -m literary_engineering_workbench task-open <project> --task-id <task_id>
+  submit_template: python -m literary_engineering_workbench task-submit <project> --task-id <task_id> --from <artifact>
+  complete_template: python -m literary_engineering_workbench task-complete <project> --task-id <task_id>
+  audit_template: python -m literary_engineering_workbench route-audit <project> --route <route>
 
-task_routes:
-  project_director:
-    protocol: project-director
-    when:
-      - 用户给大方向、继续、修改创作口味、决定下一步
-      - 需要 Codex/Claude 接管项目管理而非调用内部 director-chat
-    read:
-      - references/project-director-playbook.md
-      - references/artifact-contracts.md
-      - project.yaml
-    inspect_if_present:
-      - canon/
-      - characters/
-      - plot/
-      - style/
-      - scenes/
-      - drafts/
-      - reviews/
-      - memory/
-      - workflow/
-      - director/
-    output:
-      - user-facing creative summary
-      - candidate plan or candidate files
-      - review/audit notes
-      - next high-level creative choice
-    completion_gates:
-      - current project status inspected
-      - broad direction converted into candidate plan or concrete project action
-      - user-facing answer hides internal schema noise unless requested
-
-  work_project_initialization:
-    protocol: work-project-initialization
-    when:
-      - 新建小说、剧本、伪记录、短剧或长视频提示词项目
-    read:
-      - references/project-director-playbook.md
-      - references/artifact-contracts.md
-      - templates/work-project/project.yaml
-      - docs/architecture/data-model.md
-      - docs/implementation/phase1-initializer.md
-    output:
-      - work project skeleton
-      - initial premise and project brief
-      - first candidate-generation plan
-      - approval boundaries
-    completion_gates:
-      - project skeleton exists or planned path is explicit
-      - initial creative brief remains candidate until reviewed
-      - approval boundaries recorded
-
-  style_engineering:
-    protocol: style-engineering
-    when:
-      - 文风学习、作家风格项目、Style Skill、文风挂载、回译/扩写评测
-    read:
-      - references/project-director-playbook.md
-      - references/artifact-contracts.md
-      - references/workflows.md
-      - docs/modules/style-compiler.md
-      - docs/modules/cli-mediated-agent-workflow.md
-      - docs/implementation/phase26-style-prompt-effectiveness.md
-      - docs/implementation/phase58-author-style-projects.md
-      - docs/implementation/phase59-style-skill-package.md
-      - docs/implementation/phase60-style-skill-mount.md
-      - docs/implementation/phase61-style-priority-enforcement.md
-    output:
-      - author style project
-      - work subproject
-      - style profile
-      - LLM-facing style prompt
-      - mountable Style Skill
-      - style risk/effectiveness review
-    completion_gates:
-      - corpus authorization or public-domain assumption recorded
-      - formal project-local style profile work uses task-next/task-open/task-submit/task-complete with route style-engineering until ready
-      - style_prompt.agent_tasks.md exists and has style_prompt.agent_completion.json
-      - platform agent wrote style_prompt.md and style_prompt.agent.json
-      - style_prompt.md is 500-2500 Chinese-content detail characters, counting Han characters and Chinese punctuation after Markdown scaffolding is stripped, and includes all required high-quality prompt blocks
-      - at least one style_eval_*.json is accepted before building or mounting as priority style
-      - style skill mount does not use allow_unreviewed in formal Skill-host work
-
-  source_ingest:
-    protocol: source-ingest
-    when:
-      - 用户提供已有文本、完整作品、旧稿、剧本、伪记录材料，希望续写、改写、分析或整理成工程项目
-      - 需要从源作品反推人物、背景故事、世界观、主线大纲、时间线、伏笔或文风说明
-    read:
-      - references/agent-run-protocol.md
-      - references/cli-run-protocol.md
-      - references/artifact-contracts.md
-      - references/workflows.md
-      - docs/modules/source-ingest-engine.md
-      - docs/implementation/phase64-existing-work-ingest.md
-    inspect_if_present:
-      - sources/imports/
-      - canon/
-      - characters/
-      - plot/
-      - style/
-      - reviews/source_ingest/
-    output:
-      - source manifest and chunks
-      - platform-agent extraction task sidecar
-      - extracted project brief candidate
-      - extracted character/world/outline/timeline/foreshadowing/style candidates
-      - source-ingest review report
-    completion_gates:
-      - source manifest and chunks exist
-      - formal source-ingest work uses task-next/task-open/task-submit/task-complete with route source-ingest until ready
-      - platform agent handled extract_project_files.agent_tasks.md and created extract_project_files.agent_completion.json
-      - extracted project brief candidate exists
-      - extracted characters/background stories candidate exists
-      - extracted world, outline, timeline, foreshadowing, and style notes candidates exist
-      - source-ingest extraction review exists with conclusion pass
-      - every extracted claim carries evidence references, confidence, unknowns, and contradiction notes when relevant
-      - no extracted item is promoted without review and explicit approval
-
-  longform_planning:
-    protocol: longform-planning
-    when:
-      - 用户要求几十万字、百万字、多卷、多季、多篇章长篇规划
-      - 生成正文、大纲或章节时发现用户目标字数、剧情量、场景库存明显不足
-      - 需要把目标字数按中文内容字符口径映射为卷、章、场景、叙事负载和扩纲计划
-    read:
-      - references/agent-run-protocol.md
-      - references/cli-run-protocol.md
-      - references/project-director-playbook.md
-      - references/artifact-contracts.md
-      - references/workflows.md
-      - docs/modules/longform-word-budget.md
-      - docs/modules/reader-experience-contract.md
-      - docs/modules/cli-mediated-agent-workflow.md
-      - docs/modules/workflow-state-machine.md
-      - docs/implementation/phase65-longform-word-budget.md
-      - docs/implementation/phase83-sidecar-state-machine-word-budget-chain.md
-      - docs/implementation/phase84-cli-mediated-agent-workflow.md
-      - docs/implementation/phase88-reader-experience-contract.md
-    inspect_if_present:
-      - project.yaml
-      - plot/outline.md
-      - plot/word_budget/
-      - plot/chapter_obligations/
-      - plot/candidates/outlines/
-      - plot/candidates/scenes/
-      - scenes/
-      - reviews/word_budget/
-      - reviews/longform/
-    output:
-      - word budget markdown/json
-      - platform-agent budget expansion task sidecar
-      - platform-agent scene inventory task sidecar
-      - platform-agent chapter obligation task sidecar
-      - budgeted outline candidate
-      - budgeted scene inventory candidate
-      - chapter obligation / reader-experience contract
-      - word-budget review report
-      - scene inventory review report
-      - chapter obligation review report
-      - updated generation readiness decision
-    completion_gates:
-      - formal longform work uses task-next/task-open/task-submit/task-complete with route longform-planning until ready
-      - target Chinese-content characters, volume count, genre, and time-span assumptions are explicit
-      - CLI budget is treated as deterministic constraint evidence, not creative authority
-      - platform agent handled the budget expansion sidecar and created word_budget.agent_completion.json
-      - platform agent handled the scene inventory expansion sidecar and created scene_inventory_expansion.agent_completion.json
-      - platform agent handled the chapter obligation sidecar and created chapter_obligations.agent_completion.json
-      - plot/candidates/outlines/word_budget_expansion.md exists
-      - plot/candidates/scenes/word_budget_scene_inventory.md exists
-      - reviews/word_budget/word_budget_review.md conclusion is pass
-      - reviews/word_budget/scene_inventory_review.md conclusion is pass
-      - reviews/word_budget/chapter_obligation_review.md conclusion is pass
-      - budgeted outline remains candidate until review and user approval
-      - chapter target Chinese-content characters, cleaned actual Chinese-content characters, machine diagnostic mapping, missing scenes, and expansion tasks are reviewed before bulk generation
-      - per-chapter `chapter-obligation --chapter-id <chapter_id>` contracts are completed before prose generation for that chapter
-
-  character_and_world_assets:
-    protocol: character-and-world-assets
-    when:
-      - 创建或修改人物、背景故事、关系、世界观、地点、组织、主线大纲
-    read:
-      - references/project-director-playbook.md
-      - references/artifact-contracts.md
-      - docs/implementation/phase37-asset-candidate-schemas.md
-      - docs/implementation/phase38-agent-character-creation.md
-      - docs/implementation/phase39-agent-worldbuilding.md
-      - docs/implementation/phase40-agent-outline-creation.md
-      - docs/implementation/phase41-candidate-review-promotion.md
-    output:
-      - candidate assets
-      - candidate review
-      - promotion recommendation
-      - user approval question
-    completion_gates:
-      - formal character/world asset work uses task-next/task-open/task-submit/task-complete with route character-and-world-assets until ready
-      - asset-create or agent-create-* only prepares the platform-agent creation sidecar
-      - asset written as candidate first
-      - candidate JSON/report and asset creation completion marker exist
-      - review-candidate-asset sidecar exists and has been completed by the platform agent
-      - schema and canon risks reviewed
-      - candidate review status is pass with no blocking issues or unresolved revision actions
-      - explicit approval required before promotion
-      - promotion manifest exists, does not use allow_unapproved, and listed promoted outputs exist
-
-  scene_development:
-    protocol: scene-development
-    when:
-      - 场景推进、剧情分支、正文候选、人物状态演化
-    read:
-      - references/project-director-playbook.md
-      - references/artifact-contracts.md
-      - docs/modules/plot-scene-engine.md
-      - docs/modules/character-engine.md
-      - docs/modules/cli-mediated-agent-workflow.md
-      - docs/modules/workflow-state-machine.md
-      - docs/implementation/phase20-branch-simulation.md
-      - docs/implementation/phase22-scene-composer.md
-      - docs/implementation/phase23-model-provider-prompt-pack.md
-      - docs/implementation/phase24-character-state-evolution.md
-      - docs/implementation/phase25-candidate-promotion-state-apply.md
-      - docs/implementation/phase83-sidecar-state-machine-word-budget-chain.md
-      - templates/scene.yaml
-      - templates/prompts/scene_generation_system.md
-      - templates/prompts/scene_generation_user.md
-      - references/punctuation-standard.md
-    output:
-      - context packet and context trace
-      - branch candidates
-      - scene composition packet
-      - draft candidate
-      - review report
-      - revision candidate and revision report when review notes require local fixes
-      - character state patch
-    completion_gates:
-      - for formal scene-development, task-next/task-open/task-submit/task-complete controls the next formal operation when available
-      - CLI-generated context packet and context trace or recorded CLI-equivalent workaround completed
-      - simulate-scene --agent roleplay, branch-simulate --agent branch manifest, formal branch_selection, and compose-scene --agent-tasks ready composition completed before generation
-      - roleplay/branch/composition platform-agent tasks handled before generation; hand-written files are exploratory/debug-only unless command failure and workaround provenance are recorded
-      - each handled .agent_tasks.md sidecar has an adjacent .agent_completion.json marker before the next formal step
-      - for longform projects, scene chapter_id maps to word_budget and word_count_target/min/max Chinese-content character constraints are injected into generation and review
-      - prose candidate reviewed for canon, character, style, and punctuation
-      - exact prose candidate passed scene_review.v1 before promote-candidate; stale or missing candidate review blocks promotion
-      - mounted Style Skill reviewed through scene_review.v1 style_adherence before promotion, readiness, export, or writeback
-      - pass_with_notes, warnings, or revise_required findings resolved through revise-scene and re-review
-      - state patch remains candidate until reviewed and approved
-
-  review_and_audit:
-    protocol: review-and-audit
-    when:
-      - 审查、canon 检查、长篇连续性、章节 ready、发布前检查
-    read:
-      - references/artifact-contracts.md
-      - references/punctuation-standard.md
-      - docs/modules/review-ci.md
-      - docs/implementation/phase4-scene-review-loop.md
-      - docs/implementation/phase19-canon-lint.md
-      - docs/implementation/phase7-chapter-pipeline.md
-      - docs/implementation/phase8-longform-audit.md
-    output:
-      - blocking/warning/info findings
-      - revision plan
-      - agent task status dashboard when sidecar state is unclear
-      - route audit dashboard when gate state is unclear
-      - workflow dashboard when cross-route next actions are unclear
-      - approval gates
-    completion_gates:
-      - for formal review-and-audit, task-next/task-open/task-submit/task-complete controls canon lint, canon review, longform audit, committee review, and final pass checks when available
-      - canon-lint Markdown/JSON exists, schema is valid, and blocking_count is 0
-      - agent-canon-review sidecar is completed by the platform Agent; canon_review.v1 JSON/Markdown exist and conclude clean pass
-      - canon review has no blocking issues, warnings, unresolved facts, or timeline risks before the route advances
-      - longform-audit Markdown/JSON and longform graph exist before committee review
-      - agent-committee sidecar is completed by the platform Agent; final recommendation is approve and action_items/disagreements are empty
-      - blocking findings separated from warnings
-      - revision plan maps findings to artifacts
-      - pending sidecars, missing expected artifacts, and incomplete gates are resolved or listed as pending
-      - readiness and approval limits stated
-
-  export_and_release:
-    protocol: export-and-release
-    when:
-      - 导出小说、剧本、长视频提示词、DOCX 成品、发布章节、回滚说明
-    read:
-      - references/artifact-contracts.md
-      - references/file-format-export.md
-      - references/punctuation-standard.md
-      - docs/implementation/phase9-export-package.md
-      - docs/implementation/phase21-publish-chain.md
-      - docs/implementation/phase15-approval-loop.md
-    output:
-      - export package
-      - DOCX delivery files
-      - DOCX layout plan files
-      - DOCX inspection files
-      - release manifest
-      - release notes
-      - rollback notes
-    completion_gates:
-      - for formal export-and-release, task-next/task-open/task-submit/task-complete controls chapter workspace, export package, release approval, and publish steps when available
-      - chapter-workspace Markdown/JSON exists and every included scene is ready
-      - export-package manifest is schema-valid, include_blocked is false, skipped_scenes is empty, requested outputs exist, and final reader-facing files contain no engineering traces
-      - human approve record exists for the required release run_id before publish
-      - publish-chapter writes formal-release manifest, release notes, rollback notes, latest.json, and requested published outputs
-      - latest.json points to the formal-release publish manifest, and publish manifest approval is approve
-      - chapter/work readiness checked
-      - approval record verified or pending approval stated
-      - requested file formats generated and inspected
-      - DOCX layout/inspection companion files exist when DOCX is requested
-      - release notes and rollback notes prepared
-
-  optional_cli:
-    protocol: optional-cli
-    when:
-      - 需要确定性命令、回归测试、Dify/LangGraph、本地前端、跨路线 dashboard 或批处理
-    read:
-      - references/workflows.md
-      - references/orchestration.md
-    inspect_if_present:
-      - pyproject.toml
-      - src/literary_engineering_workbench/cli.py
-      - scripts/literary_engineering_workbench/cli.py
-    output:
-      - exact command
-      - command result summary
-      - generated artifact paths
-      - read-only workflow dashboard when requested
-    completion_gates:
-      - CLI command selected from route needs, not convenience
-      - stdout paths inspected
-      - generated sidecars handled or listed as pending
-
-do_not_assume:
-  - local director-chat is the required top-level interface
-  - local model-backed commands can independently decide creative direction
-  - model output is canon
-  - parsed JSON is accepted because it parses
-  - retrieval is canon
-  - simulation scores are final plot decisions
-  - style similarity is originality safety
-  - candidates may be promoted without review and approval
-  - debug or unreview instructions may bypass formal review gates
-  - subagents may write prose candidates or final body text
-  - API keys may be written into work projects
+developer_notes:
+  detailed_docs_location:
+    - references/
+    - docs/
+    - templates/
+    - schemas/
+    - src/
+    - tests/
+  rule: >
+    Detailed docs support Skill maintenance and debugging. Ordinary formal
+    host operation should follow the CLI task package rather than navigating
+    the project structure manually.

@@ -8,6 +8,7 @@ from pathlib import Path
 from . import __version__
 from .agent_provider import run_agent_task
 from .asset_workshop import create_asset_candidate, list_asset_candidates, promote_candidate_asset, review_candidate_asset
+from .canon_evolver import apply_canon_patch, build_canon_patch_backlog
 from .demo_project import build_demo_project
 from .director_agent import (
     DirectorBootstrapResult,
@@ -18,6 +19,7 @@ from .director_agent import (
 )
 from .init_project import InitOptions, init_work_project
 from .approval import record_workflow_approval
+from .formal_mode import FormalModeBypassError, ensure_no_bypass
 from .model_config import as_env_exports, config_path, default_config, load_config, redacted_effective_config, save_config
 from .project_interaction import (
     build_current_human_choices,
@@ -182,6 +184,13 @@ class AssetPromoteRequest(BaseModel):
     project_root: str
     candidate: str
     group: str = ""
+    approval_run_id: str = ""
+    allow_unapproved: bool = False
+
+
+class CanonApplyRequest(BaseModel):
+    project_root: str
+    patch: str = ""
     approval_run_id: str = ""
     allow_unapproved: bool = False
 
@@ -474,6 +483,7 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
     @app.post("/style-lab/mount")
     def style_lab_mount(payload: StyleMountRequest, http_request: Request):
         _require_api_token(http_request, token)
+        _reject_bypass(payload, "POST /style-lab/mount")
         root = _safe_project_root(payload.project_root, root_policy)
         try:
             result = mount_style_skill(
@@ -615,6 +625,7 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
     @app.post("/workflow/run")
     def workflow_run(payload: RunWorkflowRequest, http_request: Request):
         _require_api_token(http_request, token)
+        _reject_bypass(payload, "POST /workflow/run")
         root = _safe_project_root(payload.project_root, root_policy)
         try:
             result = run_workflow(
@@ -688,6 +699,53 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/canon/backlog")
+    def canon_backlog(project_root: str, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+        try:
+            result = build_canon_patch_backlog(root)
+            payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "project_root": str(root),
+            "summary": payload.get("summary", {}),
+            "items": payload.get("items", []),
+            "paths": {
+                "markdown": _rel_str(result.output_path, root),
+                "json": _rel_str(result.json_path, root),
+            },
+        }
+
+    @app.post("/canon/apply")
+    def canon_apply(payload: CanonApplyRequest, http_request: Request):
+        _require_api_token(http_request, token)
+        _reject_bypass(payload, "POST /canon/apply")
+        root = _safe_project_root(payload.project_root, root_policy)
+        try:
+            result = apply_canon_patch(
+                root,
+                patch=Path(payload.patch) if payload.patch else None,
+                approval_run_id=payload.approval_run_id,
+                allow_unapproved=payload.allow_unapproved,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "project_root": str(root),
+            "patch": _rel_str(result.patch_path, root),
+            "report": _rel_str(result.report_path, root),
+            "json": _rel_str(result.json_path, root),
+            "changelog": _rel_str(result.changelog_path, root),
+            "status": result.status,
+            "applied_count": result.applied_count,
+        }
 
     @app.post("/agent/run")
     def agent_run(payload: RunAgentRequest, http_request: Request):
@@ -856,6 +914,7 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
     @app.post("/asset/promote")
     def asset_promote(payload: AssetPromoteRequest, http_request: Request):
         _require_api_token(http_request, token)
+        _reject_bypass(payload, "POST /asset/promote")
         root = _safe_project_root(payload.project_root, root_policy)
         try:
             result = promote_candidate_asset(
@@ -1183,6 +1242,13 @@ def _require_api_token(request: Request, api_token: str) -> None:
         or (header_token and secrets.compare_digest(header_token, api_token))
     ):
         raise HTTPException(status_code=401, detail="missing or invalid API token")
+
+
+def _reject_bypass(payload: object, surface: str) -> None:
+    try:
+        ensure_no_bypass(payload, surface=surface)
+    except FormalModeBypassError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _record_approval(root: Path, run_id: str, decision: str, actor: str = "human", notes: str = "") -> Path:

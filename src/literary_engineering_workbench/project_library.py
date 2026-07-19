@@ -43,6 +43,8 @@ def build_project_library(project_root: Path) -> dict[str, object]:
         "style": _style_items(root, overrides),
         "reviews": _review_items(root, overrides),
         "word_budget": _word_budget_items(root, overrides),
+        "rhythm": _rhythm_items(root, overrides),
+        "canon_patches": _canon_patch_items(root, overrides),
     }
     counts = {key: len(value) for key, value in sections.items()}
     project = _project_card(root, overrides)
@@ -449,6 +451,100 @@ def _word_budget_items(root: Path, overrides: dict[str, object]) -> list[dict[st
     return items
 
 
+def _rhythm_items(root: Path, overrides: dict[str, object]) -> list[dict[str, object]]:
+    items: list[dict[str, object]] = []
+    for path in sorted((root / "drafts" / "compositions").glob("*_composition.json"))[:250]:
+        payload = read_json_file(path)
+        if not payload:
+            continue
+        scene_id = str(payload.get("scene_id") or path.stem.replace("_composition", ""))
+        rhythm = payload.get("narrative_rhythm") if isinstance(payload.get("narrative_rhythm"), dict) else {}
+        bridge = payload.get("scene_bridge") if isinstance(payload.get("scene_bridge"), dict) else {}
+        contract = payload.get("narrative_rhythm_contract") if isinstance(payload.get("narrative_rhythm_contract"), dict) else {}
+        item = {
+            "kind": "rhythm",
+            "id": scene_id,
+            "title": f"{_display_scene_name(scene_id)} 的叙事节奏",
+            "subtitle": "节奏与场景衔接",
+            "path": _rel(path, root),
+            "status": str(contract.get("status") or "composition"),
+            "badges": [str(rhythm.get("rhythm_role") or "mixed"), str(rhythm.get("pace") or "balanced"), str(contract.get("source") or "composition")],
+            "excerpt": str(rhythm.get("reader_effect") or rhythm.get("scene_turn") or bridge.get("outgoing_hook") or "这个场景还没有显式节奏转折说明。"),
+            "facts": [
+                {"label": "场景功能", "value": _display_list_value(rhythm.get("scene_function")) or rhythm.get("rhythm_role") or "未填写"},
+                {"label": "节奏定位", "value": rhythm.get("pace") or "balanced"},
+                {"label": "叙事密度", "value": rhythm.get("density") or "medium"},
+                {"label": "本场转折", "value": rhythm.get("scene_turn") or "未填写"},
+                {"label": "读者效果", "value": rhythm.get("reader_effect") or "未填写"},
+                {"label": "叙述距离", "value": rhythm.get("narrative_distance") or "medium"},
+                {"label": "入场压力", "value": bridge.get("incoming_pressure") or "未填写"},
+                {"label": "承接上场", "value": _display_list_value(bridge.get("incoming_from_previous")) or _display_list_value(bridge.get("carryover_from_previous")) or "未填写"},
+                {"label": "出场钩子", "value": _display_hooks(bridge.get("outgoing_hooks")) or bridge.get("outgoing_hook") or "未填写"},
+            ],
+        }
+        items.append(_apply_overrides(item, overrides))
+    if items:
+        return items
+    for path in sorted((root / "scenes").glob("*.yaml"))[:250]:
+        text = _read_text(path)
+        scene_id = scalar_from_yaml_text(text, "scene_id") or path.stem
+        turn = nested_scalar_from_yaml_text(text, "narrative_rhythm", "scene_turn")
+        hook = nested_scalar_from_yaml_text(text, "scene_bridge", "outgoing_hook")
+        if not turn and not hook:
+            continue
+        item = {
+            "kind": "rhythm",
+            "id": scene_id,
+            "title": f"{_display_scene_name(scene_id)} 的叙事节奏",
+            "subtitle": "scene.yaml 节奏字段",
+            "path": _rel(path, root),
+            "status": "scene",
+            "badges": ["scene.yaml"],
+            "excerpt": turn or hook,
+            "facts": [
+                {"label": "本场转折", "value": turn or "未填写"},
+                {"label": "出场钩子", "value": hook or "未填写"},
+            ],
+        }
+        items.append(_apply_overrides(item, overrides))
+    return items
+
+
+def _canon_patch_items(root: Path, overrides: dict[str, object]) -> list[dict[str, object]]:
+    folder = root / "canon" / "patches"
+    if not folder.exists():
+        return []
+    items: list[dict[str, object]] = []
+    for path in sorted(folder.glob("*_canon_patch.json"))[:250]:
+        payload = read_json_file(path)
+        if not payload:
+            continue
+        scene_id = str(payload.get("scene_id") or path.stem.replace("_canon_patch", ""))
+        change = payload.get("canon_change", "unknown")
+        patch_items = payload.get("items") if isinstance(payload.get("items"), list) else []
+        report = path.with_suffix(".md")
+        body = _display_text_for_path(report) or _json_to_display_text(payload)
+        item = {
+            "kind": "canon_patches",
+            "id": scene_id,
+            "title": f"{_display_scene_name(scene_id)} 的世界观写回候选",
+            "subtitle": "Canon 写回候选",
+            "path": _rel(path, root),
+            "status": str(change),
+            "badges": ["有持续事实" if change is True else "无持续事实" if change is False else "待判断", f"{len(patch_items)} 条候选"],
+            "excerpt": str(payload.get("no_canon_change_reason") or summarize_text(body, limit=220) or "等待平台 Agent 判断是否需要写回世界观。"),
+            "body": truncate_text(body, 3000),
+            "facts": [
+                {"label": "Canon 变化", "value": change},
+                {"label": "候选条目", "value": len(patch_items)},
+                {"label": "是否已应用", "value": "是" if payload.get("applied") else "否"},
+                {"label": "来源正文", "value": payload.get("source") or "未填写"},
+            ],
+        }
+        items.append(_apply_overrides(item, overrides))
+    return items
+
+
 def _load_overrides(root: Path) -> dict[str, object]:
     payload = read_json_file(root / "workflow" / "ui_overrides.json")
     items = payload.get("items") if isinstance(payload.get("items"), dict) else {}
@@ -583,6 +679,31 @@ def _metric_int(item: dict[str, object], key: str) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _display_list_value(value: object) -> str:
+    if isinstance(value, list):
+        return "；".join(str(item) for item in value if str(item).strip())
+    return str(value or "")
+
+
+def _display_hooks(value: object) -> str:
+    if not isinstance(value, list):
+        return str(value or "")
+    parts: list[str] = []
+    for item in value:
+        if isinstance(item, dict):
+            hook_type = str(item.get("type") or "").strip()
+            content = str(item.get("content") or item.get("summary") or "").strip()
+            if hook_type and content:
+                parts.append(f"{hook_type}: {content}")
+            elif content:
+                parts.append(content)
+        else:
+            text = str(item).strip()
+            if text:
+                parts.append(text)
+    return "；".join(parts)
 
 
 def _safe_item_id(path: Path, root: Path) -> str:

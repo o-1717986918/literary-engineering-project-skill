@@ -18,6 +18,7 @@ from .anti_ai_style import ANTI_EVASION_REVISION_PROTOCOL, ANTI_EVASION_SHORT_RU
 from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, ASSET_TYPES
 from .context_broker import default_context_trace_path
 from .draft_text import count_delivery_chars, final_body_from_workbench_text
+from .narrative_rhythm import narrative_rhythm_contract, render_narrative_rhythm_contract
 from .new_character_register import render_new_character_register_contract
 from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
 from .reader_experience import reader_experience_adherence_for_body, reader_experience_contract, scene_chapter_obligation_id
@@ -50,6 +51,9 @@ def write_platform_scene_review_task(
         source_paths.append(context_path)
     if context_trace_path.exists():
         source_paths.append(context_trace_path)
+    composition_json = root / "drafts" / "compositions" / f"{scene_id}_composition.json"
+    if composition_json.exists():
+        source_paths.append(composition_json)
     obligation_path = root / "plot" / "chapter_obligations" / f"{scene_chapter_obligation_id(root, scene_path)}.json"
     if obligation_path.exists():
         source_paths.append(obligation_path)
@@ -59,6 +63,7 @@ def write_platform_scene_review_task(
     style_lint_block = render_ai_style_lint_block(body or draft_text)
     word_budget_adherence = word_budget_adherence_for_body(root, scene_path, body)
     reader_adherence = reader_experience_adherence_for_body(root, scene_path, body)
+    rhythm_contract_text = render_narrative_rhythm_contract(root, scene_path, composition_json if composition_json.exists() else None)
     new_character_contract = render_new_character_register_contract()
     task_path = json_output.with_suffix(".agent_tasks.md")
     write_agent_tasks(
@@ -116,6 +121,14 @@ def write_platform_scene_review_task(
 若 `status` 不是 pass 或 not_required，`conclusion` 不得为 pass。即使结构通过，也必须语义判断 reader_question、promised_reward、withheld_information、payoff_or_delay、emotional_curve、tension_source、curiosity_hook、freshness_requirement、anti_summary_requirement、reader_aftertaste 是否在正文中得到执行。""",
             ),
             (
+                "执行叙事节奏与场景桥接门禁",
+                f"""{rhythm_contract_text}
+
+审查正文是否接住入场压力、完成本场 scene_turn、在过场/高潮之间形成详略差异，并把 outgoing_hook 交给下一场。若全场只是平均叙述、段落功能重复、场景之间缺少承接，`conclusion` 不得为 pass；JSON 必须填写 `narrative_rhythm_adherence`。
+
+审查还必须判断 Scene Function Gate：本场是否推进主线、改变关系、制造误判、兑现/设置问题、改变人物选择、扩大代价或转移读者认知之一。检查 Reader Question / Promise-Payoff：本场提出、延迟、兑现或加压了哪些读者问题和承诺。检查 Narrative Distance：是否一直贴脸解释心理，还是按场景功能调整远近。检查 Texture Variety：本场和相邻场景是否全是同一种材料。若这些关键项缺失，不能 clean pass。""",
+            ),
+            (
                 "写入正式 JSON",
                 f"""创建或覆盖 `{_rel(json_output, root)}`，JSON 必须符合 `scene_review.v1`：
 {{
@@ -137,10 +150,13 @@ def write_platform_scene_review_task(
     "revision_actions": []
   }},
   "revision_integrity": {{
+    "status": "pass | revise_required | not_applicable",
     "anti_evasion_checked": true,
     "evasion_risks": [],
+    "evasion_risks_unresolved": [],
     "retained_transitions": [],
-    "burden_of_proof": []
+    "burden_of_proof": [],
+    "message": ""
   }},
   "word_budget_adherence": {{
     "status": "pass | not_required | under_target | over_target | revise_required",
@@ -163,6 +179,19 @@ def write_platform_scene_review_task(
     "reader_promise_satisfied": true,
     "semantic_review_required": true
   }},
+  "narrative_rhythm_adherence": {{
+    "status": "pass | pass_with_notes | revise_required | not_applicable",
+    "rhythm_executed": true,
+    "bridge_executed": true,
+    "flatness_risks": [],
+    "revision_actions": []
+  }},
+  "canon_writeback": {{
+    "status": "pass | not_required | pending_canon_evolve | unknown",
+    "canon_change": true | false | "unknown",
+    "no_canon_change_reason": "",
+    "candidate_patch": "canon/patches/{scene_id}_canon_patch.json 或空"
+  }},
   "new_character_register": {{
     "schema": "literary-engineering-workbench/new-character-register/v0.1",
     "status": "none | existing_only | ephemeral_only | resolved | needs_candidate | needs_review | needs_approval",
@@ -172,7 +201,7 @@ def write_platform_scene_review_task(
   }},
   "source_paths": []
 }}
-`conclusion=pass` 且 warnings / revision_actions / style_notes / style_adherence 偏差为空，且 word_budget_adherence.status 为 pass 或 not_required、narrative_load_satisfied=true，reader_experience_adherence.status 为 pass 或 not_required、reader_promise_satisfied=true，且 new_character_register.status 为 none / existing_only / ephemeral_only / resolved，才可进入 clean ready。`pass_with_notes` 必须先进入 revise-scene 或记录明确 waiver，不能直接章节装配或导出；新增事实仍保持候选。""",
+`conclusion=pass` 且 warnings / revision_actions / style_notes / style_adherence 偏差为空，且 word_budget_adherence.status 为 pass 或 not_required、narrative_load_satisfied=true，reader_experience_adherence.status 为 pass 或 not_required、reader_promise_satisfied=true，narrative_rhythm_adherence.status 为 pass 或 not_applicable，且 new_character_register.status 为 none / existing_only / ephemeral_only / resolved，才可进入 clean ready。`pass_with_notes` 必须先进入 revise-scene 或记录明确 waiver，不能直接章节装配或导出；新增事实仍保持候选。若正文产生持续世界事实，canon_writeback.canon_change 必须为 true，并在 promote/state 后继续运行 canon-evolve。若无持续世界事实，必须写 no_canon_change_reason。""",
             ),
             (
                 "处理 pass_with_notes 语义",
@@ -180,7 +209,7 @@ def write_platform_scene_review_task(
             ),
             (
                 "写入正式 Markdown 报告",
-                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“新角色登记门禁”段落：列出正文是否出现新角色、哪些是一次性路人、哪些需要候选资产/审查/approval/promotion。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。必须新增“字数预算门禁”段落：写明目标/最低/最高/清洗后正文中文内容字符、机器非空白字符诊断、叙事负载是否满足、是否存在灌水或摘要化。必须新增“读者体验门禁”段落：写明读者问题、承诺回报、暂扣信息、兑现/延迟、张力来源、反摘要要求和读后余味是否被正文执行。必须新增“反规避负担证明”段落：列出是否存在换皮转折、保留显式转折的理由、批判性反驳和最终判断。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
+                f"""创建或覆盖 `{_rel(report, root)}`，说明结论、阻塞问题、修订动作、人物逻辑、canon 风险和风格备注。必须新增“新角色登记门禁”段落：列出正文是否出现新角色、哪些是一次性路人、哪些需要候选资产/审查/approval/promotion。必须新增“文风执行门禁”段落：写明 style_adherence.status、证据、偏差和修订动作。必须新增“字数预算门禁”段落：写明目标/最低/最高/清洗后正文中文内容字符、机器非空白字符诊断、叙事负载是否满足、是否存在灌水或摘要化。必须新增“读者体验门禁”段落：写明读者问题、承诺回报、暂扣信息、兑现/延迟、张力来源、反摘要要求和读后余味是否被正文执行。必须新增“叙事节奏与场景桥接门禁”段落：写明入场压力、本场转折、详略节奏和出场钩子是否执行。必须新增“Canon 写回判断”段落：说明是否有持续世界事实，若无写理由，若有列候选 patch 路径。必须新增“反规避负担证明”段落：列出是否存在换皮转折、保留显式转折的理由、批判性反驳和最终判断。若结论为 pass_with_notes，必须新增“小修闭环”段落：列出 writing agent 必须执行的小修项、可接受的最小改动、需要人工确认的 notes。不要写入 `[AGENT_TASK: ...]`。""",
             ),
         ],
     )
@@ -214,6 +243,8 @@ def write_platform_scene_generation_task(
     _extend_unique(source_paths, _style_source_paths(root))
     word_budget_contract = scene_word_budget_contract(root, scene_path)
     reader_contract = reader_experience_contract(root, scene_path)
+    rhythm_contract = narrative_rhythm_contract(root, scene_path, composition_path)
+    rhythm_contract_text = render_narrative_rhythm_contract(root, scene_path, composition_path)
     new_character_contract = render_new_character_register_contract()
     task_path = candidate.with_suffix(".agent_tasks.md")
     write_agent_tasks(
@@ -262,6 +293,14 @@ def write_platform_scene_generation_task(
 若 status 不是 pass 或 not_required，停止正文生成并先运行 chapter-obligation。若 status=pass，正文必须执行 reader_question、promised_reward、withheld_information、payoff_or_delay、emotional_curve、tension_source、curiosity_hook、freshness_requirement、anti_summary_requirement 和 reader_aftertaste。不能只写“发生了什么”，还要让读者知道为什么继续读、期待被怎样兑现或延迟。""",
             ),
             (
+                "执行生成前叙事节奏与场景桥接",
+                f"""{rhythm_contract_text}
+
+写正文时必须让开头接住 incoming_pressure，中段完成 scene_turn，结尾交出 outgoing_hook。过场不要恋战，高潮不要靠堆形容词撑长；用动作、信息差、人物选择和代价调整节奏。候选 manifest 必须记录 narrative_rhythm_contract 和 narrative_rhythm_standard_applied=true。
+
+同时执行 Scene Function Gate、Reader Question Ledger、Promise / Payoff Ledger、Narrative Distance Control 和 Texture Variety Pass：确认本场功能不是“补设定/聊天”，读者问题和承诺有管理，叙述距离不会持续贴脸解释心理，本场材料与上下场形成变化。""",
+            ),
+            (
                 "执行 AgentReview 小修约束",
                 """若 prompt manifest 中 generation_standards.review_notes_loaded=true，尤其上一轮结论为 pass_with_notes，必须执行 revision_actions / warnings / style_notes 中的局部小修。候选 manifest 记录 pass_with_notes_actions_applied=true；若任何小修无法执行，写入“需要人工确认”，不得静默忽略。""",
             ),
@@ -271,11 +310,16 @@ def write_platform_scene_generation_task(
             ),
             (
                 "生成候选 manifest",
-                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、reader_experience_contract、reader_experience_standard_applied=true/false、word_budget_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false、word_budget_contract、clean_body_chinese_chars、clean_body_machine_chars、word_budget_adherence.status、new_character_register 和待审查事项。
+                f"""创建或覆盖 `{_rel(manifest, root)}`，记录 schema、scene_id、candidate、prompt_manifest、source_paths、generated_by=`platform-agent`、created_at、style_profile/context/composition 引用、style_generation_standard_applied=true、reader_experience_contract、reader_experience_standard_applied=true/false、word_budget_standard_applied=true/false、narrative_rhythm_contract、narrative_rhythm_standard_applied=true/false、hard_constraints_applied=true、anti_evasion_protocol_applied=true、pass_with_notes_actions_applied=true/false、word_budget_contract、clean_body_chinese_chars、clean_body_machine_chars、word_budget_adherence.status、new_character_register、canon_change、no_canon_change_reason 和待审查事项。
+
+本场叙事节奏契约：
+{json.dumps(rhythm_contract, ensure_ascii=False, indent=2)}
 
 {new_character_contract}
 
-若正文没有新角色，写 status=none。若只有一次性路人，写 status=ephemeral_only 并列明 waiver_reason。若引入会复用、掌握线索、推动关系或改变世界状态的新角色，先用 `agent-create-character` / `asset-create --asset-type character` 生成候选资产，再把 candidate_path 写入 register；未完成时 status 必须是 needs_candidate/needs_review/needs_approval，不能伪装为 clean。""",
+若正文没有新角色，写 status=none。若只有一次性路人，写 status=ephemeral_only 并列明 waiver_reason。若引入会复用、掌握线索、推动关系或改变世界状态的新角色，先用 `agent-create-character` / `asset-create --asset-type character` 生成候选资产，再把 candidate_path 写入 register；未完成时 status 必须是 needs_candidate/needs_review/needs_approval，不能伪装为 clean。
+
+Canon 声明不得留空：如果正文产生会跨场景持续约束未来创作的世界事实，写 `canon_change=true`；如果没有，写 `canon_change=false` 且给出 `no_canon_change_reason`；如果无法判断，写 `canon_change=\"unknown\"`，后续 route 会强制运行 canon-evolve，不得静默跳过。""",
             ),
             (
                 "后续门禁",

@@ -1,218 +1,72 @@
 ---
 name: literary-engineering-project-skill
-description: Project-type skill for Codex, Claude, and similar tool-layer agents to manage long-form fictional literature projects as engineering workspaces. Use when the agent needs to act as project director, creative director, editor, continuity auditor, style engineer, source-text analyst, longform word-budget planner, scene planner, prose generator, reviewer, or release manager for novels, screenplays, pseudo-record texts, web fiction, short-drama scripts, or long-video prompt projects; especially when work involves AGENTS.md/agentread.yaml project onboarding, canon/character/plot/style file maintenance, importing existing works for continuation or rewrite, target length planning, author style projects, mounted Style Skills, candidate asset review/promotion, hidden character background causality, scene simulation, branch planning, context packets, prompt packs, chapter exports, or formal route CLI sidecars. The tool-layer platform provides the LLM, subagents, planning, and conversation; this skill provides the operating manual, file contracts, and deterministic helper commands.
+description: Project-type skill for Codex, Claude, and similar tool-layer agents to manage long-form fictional literature through a CLI-mediated workflow state machine. Use for novels, scripts, pseudo-record works, web fiction, long-video prompt projects, author style learning, style mounting, source-work reverse extraction, longform word-budget planning, scene development, prose generation, review, canon/character candidate management, DOCX/export packaging, and formal route sidecars. The platform agent supplies creative judgment and writing; the skill supplies operating constitution, task packages, schemas, prompts, and deterministic helper commands.
 ---
 
 # Literary Engineering Project Skill
 
-Use this skill to let Codex, Claude, or another capable tool-layer agent manage a long-form fictional work as an engineering project. The platform agent is the project director. This repository is the operating manual, artifact contract, and formal-route toolbox.
+Use this skill when a tool-layer Agent is developing a long-form literary project as an engineering workspace. The host Agent is the director, writer, reviewer, and decision maker. The local CLI is the state machine and provenance layer.
 
-## Core Shift
+## Host Constitution
 
-- Treat Codex/Claude as the creative director, project manager, LLM provider, and subagent orchestrator.
-- Treat this skill as project structure, contracts, procedures, prompts, schemas, and helper CLI.
-- Do not assume the local `director-chat` command is the main interface. It is an optional experimental/local helper.
-- Prefer direct tool-layer reasoning, file edits, review passes, and subagent delegation when the platform supports them.
-- Treat the local CLI as optional only for informal brainstorming or exploratory notes. Formal routes that generate, review, promote, or export project artifacts must use the route CLI sidecar/provenance chain where the skill provides one, or record an attempted-command failure and a clearly marked CLI-equivalent workaround.
-- For registered formal routes, prefer the CLI-mediated task loop: `task-next` issues the next formal task, `task-open` shows the platform-Agent prompt package, `task-submit` records the Agent's output artifact, and `task-complete` validates expected outputs before the workflow advances.
+For formal project work, do not treat the repository as a map for freehand editing. Treat it as a state machine.
 
-## Formal Route CLI Clarification
+1. Read `AGENTS.md` and `references/formal-host-operating-constitution.md`.
+2. Choose the relevant formal route.
+3. Use `task-next <project> --route <route>` to obtain the next task.
+4. Use `task-open <project> --task-id <id>` as the executable package.
+5. Read only the task package, its prompt asset, and the listed `source_paths` unless the package allows more.
+6. Write only the task package `expected_outputs` as formal artifacts.
+7. Use `task-submit` and `task-complete`; do not call a task complete by narration.
+8. Use `route-audit` as the formal pass/fail ledger before promotion, chapter readiness, export, release, or writeback.
 
-"CLI optional" means a user may discuss ideas, ask for analysis, or request exploratory snippets without running local tools. It does not mean formal project routes can be hand-written around the CLI.
+`workflow-state` and `workflow-dashboard` are navigation/read-only summaries. They do not replace `task-next`, `task-open`, `task-submit`, `task-complete`, or `route-audit`.
 
-For formal `scene-development`, `style-engineering`, `longform-planning`, `source-ingest`, `character-and-world-assets`, `review-and-audit`, and `export-and-release`, run the route protocol and the documented deterministic commands when they are available. Manual files with the same names as CLI outputs are exploratory/debug-only unless the agent first tried the command, recorded the exact failure, and marked the replacement artifact as a CLI-equivalent workaround for route audit and human review.
+Bare `lew --help` intentionally shows the formal state-machine surface. `help-all` is for maintainers/debugging only; do not use it as a menu for ordinary creative work.
 
-Formal candidates must carry provenance. A scene candidate cannot be promoted or exported merely because `drafts/candidates/*.md` exists; it must also have prompt manifest, `.agent_tasks.md`, platform-agent candidate manifest, exact-candidate review, Style Lint, and route-audit gates.
+## Hard Bans
 
-## Tool-Layer Participation Gate
+- Do not handwrite CLI-generated flow artifacts and pretend they are formal.
+- Do not skip `.agent_tasks.md`; a sidecar is executable work for the current host Agent, not proof that a step is done.
+- Do not use debug or bypass flags such as `--allow-unreviewed`, `--allow-review-notes`, `--include-blocked`, `--allow-unapproved`, `--allow-unresolved`, `--allow-missing-composition`, `--allow-unselected-composition`, `--allow-recommended-branch`, or `--allow-missing-branch` during formal Skill-host work.
+- Do not set `LEW_MAINTAINER_MODE=1` during ordinary formal project work. That variable exists only for explicit repository maintenance and regression tests.
+- Do not let subagents write, revise, polish, expand, or finalize body prose. Subagents may only gather evidence, summarize, lint, count, check schema, or produce bounded support notes.
+- Do not bypass review, promotion, approval, export, release, state, or canon gates.
+- Do not write workflow notes, canon notes, review traces, scene IDs, prompt manifests, or `[AGENT_TASK: ...]` into reader-facing prose or final delivery.
+- Do not store API keys or provider secrets in work projects.
 
-The tool-layer agent that loaded this skill must lead every non-deterministic creative step. Formal workflow commands write platform-agent task sidecars and expected artifact paths; the platform agent fills those artifacts. Local model-backed commands and HTTP providers are legacy/debug helpers, not formal creative authorities.
+## What The Host Agent Does
 
-Require tool-layer planning, prompting, inspection, and acceptance for:
+The host Agent supplies all non-deterministic intelligence:
 
-- prose, project briefs, characters, hidden background stories, world rules, outlines, scenes, revisions, and style prompts;
-- source-text reverse extraction for continuation, rewrite, adaptation, or analysis;
-- longform target-length planning, budgeted outline expansion, and narrative-inventory sufficiency judgments;
-- LLM-authored JSON, schema repair, patch plans, committee reports, review findings, and candidate metadata;
-- roleplay, branch, scene, consequence, and character-state simulations;
-- free routing decisions, project-director decisions, candidate promotion recommendations, release choices, and any user-facing creative judgment.
+- creative direction and user conversation;
+- body prose and revisions;
+- branch choice and scene judgment;
+- author-style prompt writing and evaluation;
+- LLM-authored JSON after schema and semantic review;
+- AgentReview, canon review, committee review, and release judgment;
+- deciding whether an output remains candidate-only, needs revision, needs user approval, or can be promoted through the formal route.
 
-When using formal local commands such as `source-ingest`, `extract-existing-work`, `word-budget`, `longform-budget`, `agent-task-status`, `workflow-state`, `workflow-validate`, `workflow-dashboard`, `route-audit`, `agent-create-*`, `asset-create`, `agent-build-json`, `agent-review-scene`, `agent-canon-review`, `review-candidate-asset`, `agent-plan-patch`, `agent-style-prompt`, `agent-committee`, `style-prompt`, `style-prompt-eval`, `style-lab-compile`, `simulate-scene`, `branch-simulate`, `compose-scene`, `generate-scene`, `revise-scene`, `state-evolve`, or `run-workflow`, expect `.agent_tasks.md` files plus expected JSON/Markdown paths. The platform agent should read the task, perform the creative or review judgment, write the expected artifacts, then decide whether to revise, keep as candidate, ask the user, or promote after approval.
+The CLI supplies task order, dynamic prompt packages, source/target paths, provenance, deterministic lint/count/schema evidence, and route gates.
 
-Every `.agent_tasks.md` sidecar remains pending until the platform agent creates the adjacent `.agent_completion.json` marker after checking expected artifacts. Treat `workflow-state`, `agent-task-status`, `workflow-validate`, `route-audit`, and `workflow-dashboard` as the route control surface: current step, pending sidecars, state/event/task integrity, formal route gate status, and a cross-route read-only cockpit.
+## Formal Scene Minimum
 
-For formal scene work, longform planning, source ingestion, style engineering, and character/world asset work, treat `task-next`, `task-open`, `task-submit`, and `task-complete` as the controlling loop when available. The platform agent still performs the creative judgment and writes prose/reviews/branch choices/budgeted outline candidates/scene inventory candidates/source-derived candidate files/style prompts/asset candidates, but the CLI task registry chooses the next formal operation, provides the execution package, records submissions, and blocks missing expected outputs.
+For scene development, the host Agent should not start from manual drafting. The task loop will lead through context, roleplay, branch choice, composition, generation, exact-candidate AgentReview, promotion, static review, state evolution, and canon writeback when required.
 
-`longform-planning` is now a registered task route. Before bulk scene work, use `task-next --route longform-planning` until it returns ready. The route must complete `word-budget-file`, `budget-agent-task`, `budget-review`, `scene-inventory-agent-task`, `scene-inventory-review`, `chapter-obligation-agent-task`, and `chapter-obligation-review`; all sidecar completion markers, required candidate/review artifacts, and clean `pass` reviews are required.
+Generation must obey mounted style, punctuation rules, word budget, reader-experience contract, narrative rhythm/scene bridge, anti-AI-style constraints, new-character registration, and candidate-only writeback boundaries. Exact details are delivered by the current task package and prompt manifest.
 
-`source-ingest` is now a registered task route for already imported source works. After `source-ingest` / `extract-existing-work` creates a source import, use `task-next --route source-ingest` until it returns ready. The route must complete source extraction sidecar handling, extracted project brief/character/world/outline/timeline/foreshadowing/style candidates, sidecar completion marker, and a clean `pass` extraction review.
+## Canon And Rhythm
 
-`style-engineering` is now a registered task route for project-local style profiles. After `style-profile` or `style-lab-compile` creates a profile under `style/{profile}/`, use `task-next --route style-engineering` until it returns ready. The route must complete style prompt sidecar creation, platform-agent `style_prompt.md` and `style_prompt.agent.json`, prompt quality gates, completion marker, and at least one accepted `style_eval_*.json` before formal Style Skill build or mount.
+Durable world facts require canon writeback classification:
 
-`character-and-world-assets` is now a registered task route for candidate characters, hidden background stories, relationships, world rules, locations, organizations, outlines, chapter plans, and scene lists. Use `task-next --route character-and-world-assets` around `asset-create` / `agent-create-*`; the route tracks asset creation sidecars, candidate JSON/report, platform-agent review, clean review pass, user approval, promotion manifest, and promoted outputs. Review is not approval, and `--allow-unapproved` is never valid for formal Skill-host work.
+- `canon_change=true`: run `canon-evolve` and write candidate patch artifacts.
+- `canon_change=false`: write `no_canon_change_reason`.
+- `canon_change="unknown"`: run `canon-evolve`; do not silently skip.
 
-`review-and-audit` is now a registered task route for project-level review closure. Use `task-next --route review-and-audit` until it returns ready. The route must complete `canon-lint`, platform-agent canon review sidecar handling, clean `canon_review.v1` pass with no warnings/unresolved risks, `longform-audit`, and a final platform-agent committee review with `final_recommendation=approve` and no action items.
+Canon patches remain candidates until approved and applied through `canon-apply`. Use `canon-backlog` to inspect unapplied canon work before export/release.
 
-`export-and-release` is now a registered task route for chapter packaging and formal delivery. Use `task-next --route export-and-release` until the target chapter is ready. The route must complete `chapter-workspace`, clean `export-package`, human release approval, and `publish-chapter`; final delivery must not use `--include-blocked`, `--allow-unapproved`, custom export scripts, or expose scene IDs, canon/workflow notes, review traces, writeback candidates, or `[AGENT_TASK: ...]`.
+Every formal composition/generation/review should carry narrative rhythm and scene bridge: scene function, incoming pressure, scene turn, reader effect, narrative distance, what to slow down, what to pass quickly, promise/payoff handling, texture variety, and outgoing hook. This prevents flat, average-speed scene summaries.
 
-Use `agent-run`, `agent-repair`, provider-backed Python functions, `/director/chat`, or `director-chat` only for explicit legacy regression, local demos, or debugging. Do not route formal creative generation, JSON creation, scene/canon review, style-prompt creation, or second-level project decisions through local dry-run, HTTP chat, or an external agent service.
+## Developer Notes
 
-Never let generated JSON, simulation output, local-director output, model scores, or a CLI recommendation become canon, selected plot direction, approved style policy, final prose, or release authority by itself.
-
-## Execution Discipline Gate
-
-- Do not declare a documented CLI step, sidecar step, or platform-agent task impossible until you have actually probed it: run `--help`, run `protocol <route>`, or attempt the smallest safe command. If it fails, record the exact command, error, and next workaround.
-- A command that emits `.agent_tasks.md` has not completed the step. It has handed executable work to the platform agent that loaded this skill. Read the sidecar immediately when possible, write the expected Markdown/JSON/prose artifacts, inspect them, then continue the route.
-- `agent-review-scene` is not an external model dependency by itself. It prepares the scene-review task, deterministic `Style Lint (auto-detected)` evidence, and expected `scene_review.v1` outputs; the supervising platform agent performs the review, handles lint findings explicitly, and writes the files.
-- If a formal command such as `promote-candidate`, `chapter-workspace`, or `export-package` blocks on missing review/readiness gates, do not bypass it with an ad hoc script, debug flag, or unreview instruction. Resolve the gate, run `revise-scene`, run `agent-task-status` / `route-audit`, and complete the missing review/approval.
-
-## Formal Host Debug-Waiver Ban
-
-- A Skill host using this skill for real project work must not use debug or bypass parameters, including `--allow-unreviewed`, `--allow-review-notes`, `--include-blocked`, `--allow-unapproved`, `--allow-unresolved`, `--allow-missing-composition`, `--allow-unselected-composition`, `--allow-recommended-branch`, and `--allow-missing-branch`.
-- User wording such as “先跳过 review”, “unreview”, “快速放行”, “内部实验”, or “直接导出” does not authorize the host to bypass formal review gates. The correct response is to complete the review, revision, approval, or route audit.
-- These flags remain in the CLI only for maintainers running regression tests or debugging the skill implementation inside this repository. They are not available as normal operating instructions for Codex/Claude when acting as a project Skill host.
-- `route-audit` should be treated as authoritative evidence: if it reports debug/waiver flags in project manifests, the formal route is blocked until the artifact is regenerated through the reviewed path.
-
-## Main Agent Prose Authority Gate
-
-- Creative body text must be written by the main platform agent that is directly interacting with the user and holding the project-level intent. This includes prose candidates, revised prose, formal scene drafts, chapter bodies, screenplay scenes, pseudo-record entries, and final deliverable text.
-- Subagents may assist only with relatively mechanical or bounded work: retrieval summaries, source evidence extraction, continuity tables, schema validation, punctuation/style issue lists, canon risk checklists, word-count inventories, branch option comparison, and review notes.
-- Subagents must not ghostwrite, rewrite, expand, polish, or finalize body text. If a subagent returns draft-like prose, the main agent must treat it as reference material only, not paste it as the candidate or final body.
-- The main agent may use subagent findings to inform writing, but it must personally compose the final candidate text and accept responsibility for style, character logic, canon, and review readiness.
-
-## Batch Scene Loop Coverage Gate
-
-- A scene-development loop is per scene. Running the chain once for `scene_0075` does not cover `scene_0076` through `scene_0099`.
-- Before bulk drafting, identify the complete scene set from `scenes/*.yaml`, `plot/chapters/`, or the word-budget scene inventory, then track each scene through context, roleplay, branch selection, composition, prose candidate, exact-candidate AgentReview, `promote-candidate`, static/Agent review notes, and `state-evolve`.
-- For 100000+ word or multi-volume targets, run or emulate `word-budget` before bulk scene work. If `word_budget.json` reports `needs_expansion`, the platform agent must complete the budgeted outline, scene-inventory expansion, and reviews before treating prose generation as formally ready.
-- Run `route-audit --route scene-development` after a batch and before chapter/export. It must show each scene has a prose candidate, passing exact-candidate `scene_review.v1`, Style Lint clean/notes-only, promotion manifest, promoted draft, static `review-scene` clean pass, and state patch. If a revision candidate is used, it must also show a clean anti-evasion revision manifest. Missing gates are work items, not optional notes.
-- Run `longform-audit`, `agent-task-status`, and `route-audit --route export-and-release` before final delivery. Custom export scripts do not satisfy official readiness gates.
-
-## First Move
-
-1. Identify the workspace type:
-   - **Skill root**: contains this `SKILL.md`, `AGENTS.md`, `agentread.yaml`, `references/`, `templates/`, `schemas/`, and either development `src/` or installed-package `scripts/` helper code.
-   - **Work project**: contains `project.yaml`, `canon/`, `characters/`, `plot/`, `style/`, `sources/`, `scenes/`, `drafts/`, `reviews/`, `memory/`.
-   - **Style library**: contains `authors/{author_id}/`, `works/`, `profiles/`, `style_skills/`.
-2. Read `AGENTS.md` and `agentread.yaml` before changing a work project or this skill.
-3. Select the smallest task route in `agentread.yaml`.
-4. Apply the mandatory run protocol before doing work:
-   - Read `references/agent-run-protocol.md` for every project task.
-   - Read `references/cli-run-protocol.md` before any formal route that has deterministic CLI sidecars or provenance gates.
-   - If using the CLI, run `python -m literary_engineering_workbench protocol <route>` first and follow its preflight, handoff points, completion gates, and forbidden shortcuts.
-5. Load only the needed reference file:
-   - `references/project-director-playbook.md` for project-director behavior and user interaction.
-   - `references/artifact-contracts.md` before changing file layouts or writing project artifacts.
-   - `references/workflows.md` for CLI command recipes.
-   - `references/orchestration.md` for LangGraph, Dify, subagents, or external workflow design.
-   - `references/punctuation-standard.md` before generating, reviewing, revising, or exporting Chinese prose.
-   - `references/file-format-export.md` before exporting final work artifacts to DOCX or other concrete delivery formats.
-   - `docs/modules/prompt-registry.md` before adding, renaming, or auditing prompt assets.
-
-## Mandatory Run Protocol
-
-Every task must follow the loop in `references/agent-run-protocol.md`: classify workspace, choose a route, read route references, record a reading receipt, inspect project state, plan, execute deterministic helpers only as helpers, let the platform agent handle creative judgment, process `.agent_tasks.md`, validate outputs, decide candidate/revision/promotion status, and finish with an audit summary.
-
-Every formal CLI-backed route must follow `references/cli-run-protocol.md`. The CLI is never the creative authority, but its sidecars and manifests are the formal provenance layer. A command that writes `.agent_tasks.md` has prepared work for the platform agent; it has not completed the creative or review step. Use `agent-task-status`, route-specific `route-audit`, `workflow-validate`, and `workflow-dashboard` when you need one view of pending sidecars, missing expected artifacts, route gates, ledger integrity, and next actions.
-
-`task-open` resolves `prompt_asset_id` through the file-backed Prompt Registry and injects the resolved Prompt Asset into the task package. If a prompt asset is missing, run `prompt-registry-validate` / `prompt-preview` and repair the registry before treating the task as formally complete.
-
-Context packets are formal only with their adjacent Context Trace. `context` must create both `memory/context_packets/{scene_id}.md` and `memory/context_packets/{scene_id}.trace.json`; the trace proves which project, scene, canon, character, plot, style, word-budget, and retrieval files were loaded. If the trace is missing, invalid, or reports missing required context, rerun/fix `context` before roleplay, branch, composition, generation, review, chapter readiness, or export.
-
-New characters are formal only through the New Character Register. If a scene introduces a person who is not already in `characters/*.yaml` or the scene participants/reference lists, the main platform agent must classify that figure in `new_character_register`. Ephemeral walk-ons need a waiver reason; named, recurring, plot-facing, clue-bearing, relationship-changing, or state-changing characters must enter `characters/candidates/`, pass candidate asset review, and obtain user approval or promotion before AgentReview can clean pass. Do not let prose silently create persistent characters.
-
-Before final response, explicitly account for the relevant completion gates: route selected, references read, reading receipt, project state inspected, task sidecars handled or listed as pending, schema/canon/character/style/punctuation/release checks applied when relevant, and approval boundaries recorded.
-
-## Operating Rules
-
-- Project state is source code; generated prose is an artifact.
-- Canon, character facts, and approved plot decisions are hard constraints.
-- Retrieval results, roleplay output, model summaries, and style matches are evidence, not canon.
-- Source-derived extraction is evidence, not canon. Existing-work imports must write extracted characters, world rules, outlines, timelines, foreshadowing, and style notes to candidate/review locations before any promotion.
-- Longform word budgets are generation constraints, not final plot. For 100000+ word or multi-volume targets, build or inspect `plot/word_budget/word_budget.json`, have the platform agent handle the budget expansion and scene-inventory sidecars, and do not bulk-generate while budget status is `needs_expansion` or chapter/scene inventory shortfalls are unresolved.
-- For longform scene generation, `scene.yaml` must have a budgetable `chapter_id`; optional `word_count_target`, `word_count_min`, and `word_count_max` are hard scene properties. These targets mean cleaned Chinese-content characters, including Han characters and Chinese punctuation. Context packets, composition packets, prompt manifests, generation sidecars, AgentReview, promotion, route audit, chapter readiness, and export readiness must all use cleaned deliverable prose to enforce that contract.
-- For 100000+ Chinese-content-character or multi-volume projects, longform scene generation also requires a ready Chapter Obligation / Reader Experience Contract. Run `chapter-obligation --chapter-id <chapter_id>`, let the platform agent fill the chapter/scene promise-payoff contract, and require AgentReview to record `reader_experience_adherence` before promotion, chapter readiness, or export.
-- Machine non-whitespace character counts are diagnostic mappings only. If the machine count and Chinese-content count disagree, use the Chinese-content count for pass/fail and record the mapping in review or manifest evidence. `machine_count_mapping` may show both a 1:1 Chinese-prose baseline and an observed machine-to-Chinese ratio; neither replaces `target_chinese_chars`, `min_chinese_chars`, `max_chinese_chars`, or `clean_body_chinese_chars`.
-- Scene loop evidence is per-scene evidence. A batch is incomplete if any scene lacks context, RP, branch selection, composition, candidate, exact-candidate AgentReview, Style Lint clean/notes-only, promotion, promoted draft, static review clean pass, or state patch; `route-audit --route scene-development` is the default ledger for this.
-- Draft length, chapter progress, longform progress, and export manifest `draft_chars` must use cleaned deliverable prose only. Do not count workflow notes, review text, canon explanations, prompt manifests, `[AGENT_TASK: ...]`, status/writeback candidates, scene IDs, or file paths as prose length.
-- Formal scene generation must not start from `generate-scene`, manual drafting, or provider-backed helpers until the scene has a CLI-generated context packet plus valid context trace, `simulate-scene --agent` roleplay simulation with platform-agent reading receipt and CLI provenance, `branch-simulate --agent` branch manifest with CLI provenance, formal `branch_selection.md`, and `compose-scene --agent-tasks` composition with `selection_source=selection`, `ready_for_generation=true`, and `formal_cli_provenance.created_by=compose-scene`. Manual file creation before generation is exploratory/debug-only and cannot satisfy formal route gates unless an attempted CLI failure and CLI-equivalent workaround are recorded.
-- LLM-authored JSON is a draft artifact until the tool-layer agent validates schema, checks project constraints, and accepts it as a candidate or asks for approval.
-- New characters, world rules, locations, organizations, relationship graphs, outlines, and major plot turns start as candidates.
-- Promote candidates only after review and explicit user approval. Do not use debug or unreview instructions to skip review.
-- Scene prose candidates must pass a candidate-specific platform Agent scene review before `promote-candidate`: the review JSON must cite the exact candidate path in `source_paths` or `candidate`, satisfy `scene_review.v1`, and have a clean `conclusion=pass`. `pass_with_notes`, warnings, revision actions, style deviations, stale reviews, or missing candidate source paths block formal promotion until revised and re-reviewed.
-- Preserve `background_story` as hidden behavioral causality. It should shape choices, avoidance, speech, misreadings, and relationship pressure; do not dump it as exposition unless the scene intentionally reveals it.
-- Mounted Style Skills have highest priority for expression-level choices: narrative distance, syntax rhythm, imagery, sensory balance, dialogue density, and psychological presentation. They never override canon, character facts, plot causality, safety/legal boundaries, or explicit user constraints.
-- When a Style Skill is mounted, formal platform scene review must include `style_adherence` in `reviews/agent/{scene_id}_scene_review.json`. Clean chapter readiness and formal export require `style_adherence.status=pass`; `pass_with_notes`, missing fields, `not_applicable`, or `revise_required` are blocking until `revise-scene` and re-review resolve them.
-- A mountable Style Skill must contain a reliable LLM-facing `prompt.md`: detailed but executable, 500-2500 Chinese-content characters after stripping Markdown scaffolding, counting Han characters and Chinese punctuation rather than English paths or blank markup, with explicit identity/boundary, priority, core mechanism, narrative distance, syntax/rhythm, punctuation, imagery/sensory, psychology/behavior, dialogue/tone, forbidden tendencies, and output self-check blocks. Shorter, longer, or structurally vague prompts must be revised before default mounting.
-- Standard Chinese punctuation is a baseline expression constraint under every Style Skill: Chinese prose should use full-width punctuation, `……` for ellipsis, `——` for dashes, horizontal Chinese dialogue quotes `“”` with inner quotes `‘’`, and no unexplained English punctuation or mixed corner/vertical quote style in Chinese sentences.
-- Generated prose must pass the Style Lint Gate before promotion, chapter readiness, or formal export. Mechanical “不是……而是……” contrast frames and dash variants such as “不是……——是……” are core banned frames and always blocking; same-function evasive contrast frames such as “并不是……只是……”“倒不是……只是……”“看似……其实……”“表面上……实则……” are also blocking. Other medium-or-higher AI trace findings are blocking; low findings are notes-only and require platform Agent review or a retention reason. Extract any intended correction, irony, or information-reversal function into actions, fact order, information gaps, or direct statements. Risk phrase families such as organ-rotation, generic placeholders, simile dependency, abstract summary language, explanatory psychology labels, template transitions, scenery syncing, symmetric slogan rhythm, omniscient theme explanation, and aphoristic endings use an approximately 2% narrative-unit density gate: isolated hits are review signals, dense hits require revision. Scripts may flag or safely normalize typography, but must not batch-delete negation or perform semantic prose cleanup.
-- Revision must pass the anti-evasion protocol. When review notes or Style Lint identify a contrast/AI-trace problem, the writing agent must not replace it with another explicit contrast. If any transition is retained, the revision report must provide burden of proof: original issue, revised sentence, whether it still contains a transition, whether it is a disguised replacement, why action/fact order/information gap cannot replace it, critical counterargument, and final conclusion. Weak explanations such as “增强节奏” or “体现复杂心理” are not sufficient.
-- `pass_with_notes` is not a silent pass. The writing agent must apply listed `revision_actions` / warnings / style notes as local edits, usually through `revise-scene`, then re-review before promotion, chapter readiness, export, or writeback.
-- Final delivery artifacts must hide engineering markers such as `scene_0001`, `chapter_0001`, scene file paths, context packet paths, canon notes, workflow traces, review state, and writeback candidates. Keep provenance in manifests and workbench files.
-- Formal chapter export must rebuild or verify the chapter workspace immediately before packaging. If any scene is non-ready, stale, missing flow gates, missing clean AgentReview, or still carrying `pass_with_notes` notes, block export and complete the missing review/revision path.
-- Store each character in a separate `characters/{character_id}.yaml`. Mark major characters with `importance: major`; secondary/cameo characters are loaded into scene context only when listed in `participants`, `referenced_characters`, or `character_refs`.
-- Exact author-style imitation is appropriate only for public-domain or authorized corpora. For other authors, abstract higher-level craft features.
-- Never store API keys or provider secrets in a work project. If local tools need keys, use the platform secret mechanism, environment variables, or local global config.
-- Keep changes auditable: explain what files changed, what remains candidate-only, what needs user approval, and what tests/checks ran.
-
-## Tool-Layer Director Pattern
-
-When the user gives a broad creative direction, act directly as the director:
-
-1. Restate the creative intent briefly.
-2. Inspect project state through the relevant route.
-3. Decide whether to plan, create candidate assets, revise drafts, audit continuity, learn style, or ask one high-level question.
-4. Use subagents only for bounded support passes: character logic checks, worldbuilding consistency, plot inventory, style-risk lists, canon audit, source summaries, schema validation, and word-count tables. Do not use subagents to draft or revise body text.
-5. Write outputs into the correct candidate/review/draft locations.
-6. Return a concise user-facing summary plus next creative choices.
-
-Do not expose raw schemas, internal file paths, or command chatter unless the user asks for implementation details.
-
-## Common Routes
-
-- New work project: read `references/project-director-playbook.md`, then initialize or propose a work project. Use the CLI `init` only when deterministic scaffolding is useful.
-- Existing project direction: inspect `project.yaml`, recent `reviews/`, `workflow/`, `director/`, and relevant canon/character/plot files. Then act as director.
-- Existing work import: read `references/workflows.md` and `references/artifact-contracts.md`, use `source-ingest` only to store source chunks and task sidecars, then let the platform agent reverse-extract candidate project files with evidence and confidence.
-- Longform planning: read `docs/modules/longform-word-budget.md` and `docs/modules/reader-experience-contract.md`, run or emulate `word-budget`, process the platform-agent expansion, scene-inventory, and chapter-obligation sidecars, then keep budgeted outline, scene inventory, and chapter obligations as candidates until review and approval.
-- Style learning: use author-as-project, work-as-subproject, and Style Skill output. Read `references/project-director-playbook.md` and `references/workflows.md`.
-- Scene work: build context, simulate character behavior, branch plot options, compose a scene packet, generate candidate prose, review, revise through `revise-scene` when notes exist, then propose state patches.
-- Review/audit: run canon, character, plot, style, and release checks before treating text as ready.
-- Export/release: confirm chapter readiness, longform audit status, approval records, and requested delivery formats such as DOCX before packaging or release.
-
-## Formal Route CLI
-
-For this copied development workspace:
-
-```powershell
-$env:PYTHONPATH = "<skill-root>\\src"
-python -m literary_engineering_workbench --help
-```
-
-For an installed packaged skill that uses a `scripts/` directory:
-
-```powershell
-$env:PYTHONPATH = "<skill-root>\\scripts"
-python -m literary_engineering_workbench --help
-```
-
-Provider flags on formal commands are compatibility fields. In normal Codex/Claude use, the platform's main agent is the creative writing provider and reviewer. Subagents may provide bounded mechanical support, but must not draft, rewrite, polish, or finalize body text. Use local provider paths only when the user explicitly asks for legacy/debug behavior.
-
-Exploratory work may skip CLI. Formal project artifacts may not: run route commands, process sidecars, and preserve prompt/task/manifest provenance before promotion, chapter readiness, export, or release.
-
-Before using a route-specific command chain, print the runbook:
-
-```powershell
-$env:PYTHONPATH = "<skill-root>\\src"
-python -m literary_engineering_workbench protocol scene-development
-```
-
-## Validation
-
-After modifying this skill or helper code:
-
-```powershell
-$env:PYTHONPATH = "src"
-python -m unittest discover -s tests -v
-```
-
-For an installed package without `src/`, use `$env:PYTHONPATH = "scripts"` and run a CLI smoke check such as `python -m literary_engineering_workbench --help`. For pure instruction/reference edits, also validate `SKILL.md` frontmatter with the skill validation script when available.
+For ordinary creative project work, let the CLI task package reveal the needed files and constraints. For maintaining this skill itself, use the detailed material in `references/`, `docs/`, `templates/`, `schemas/`, `src/`, and `tests/`.

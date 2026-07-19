@@ -13,6 +13,7 @@ from typing import Any
 from .anti_ai_style import ANTI_AI_STYLE_PROMPT, ANTI_EVASION_REVISION_PROTOCOL
 from .context_broker import default_context_trace_path
 from .flow_gates import ensure_composition_ready_for_generation
+from .narrative_rhythm import narrative_rhythm_contract, render_narrative_rhythm_contract
 from .new_character_register import render_new_character_register_contract
 from .punctuation_standard import render_punctuation_standard_for_prompt
 from .reader_experience import (
@@ -109,6 +110,8 @@ class PromptPack:
     scene_word_budget_contract_text: str
     reader_experience_contract: dict[str, Any]
     reader_experience_contract_text: str
+    narrative_rhythm_contract: dict[str, Any]
+    narrative_rhythm_contract_text: str
     review_notes_standard: str
     generation_constraint_brief: str
     system_prompt: str
@@ -148,6 +151,7 @@ def build_scene_prompt_pack(
     )
     word_budget_contract = ensure_scene_word_budget_ready(root, scene_path)
     reader_contract = ensure_reader_experience_ready(root, scene_path)
+    rhythm_contract = narrative_rhythm_contract(root, scene_path, composition_path)
     style_profile_path = _find_style_asset(root)
     word_budget_path = _find_word_budget(root)
     review_notes_path = _find_scene_review_notes(root, scene_id)
@@ -163,8 +167,9 @@ def build_scene_prompt_pack(
         "word_budget_generation_standard": render_word_budget_generation_standard(root),
         "scene_word_budget_contract": render_scene_word_budget_contract(root, scene_path),
         "reader_experience_contract": render_reader_experience_contract(root, scene_path),
+        "narrative_rhythm_contract": render_narrative_rhythm_contract(root, scene_path, composition_path),
         "review_notes_standard": _render_review_notes_standard(root, scene_id, review_notes_path),
-        "generation_constraint_brief": _render_generation_constraint_brief(root, style_profile_path, word_budget_path, review_notes_path),
+        "generation_constraint_brief": _render_generation_constraint_brief(root, style_profile_path, word_budget_path, review_notes_path, rhythm_contract),
         "punctuation_standard": render_punctuation_standard_for_prompt(),
         "anti_ai_style": ANTI_AI_STYLE_PROMPT,
         "new_character_register_contract": render_new_character_register_contract(),
@@ -178,6 +183,7 @@ def build_scene_prompt_pack(
     user_prompt = _ensure_word_budget_generation_standard(user_prompt, values["word_budget_generation_standard"])
     user_prompt = _ensure_scene_word_budget_contract(user_prompt, values["scene_word_budget_contract"])
     user_prompt = _ensure_reader_experience_contract(user_prompt, values["reader_experience_contract"])
+    user_prompt = _ensure_narrative_rhythm_contract(user_prompt, values["narrative_rhythm_contract"])
     user_prompt = _ensure_review_notes_standard(user_prompt, values["review_notes_standard"])
     user_prompt = _ensure_generation_constraint_brief(user_prompt, values["generation_constraint_brief"])
     user_prompt = _ensure_new_character_register_contract(user_prompt, values["new_character_register_contract"])
@@ -198,6 +204,8 @@ def build_scene_prompt_pack(
         scene_word_budget_contract_text=values["scene_word_budget_contract"],
         reader_experience_contract=reader_contract,
         reader_experience_contract_text=values["reader_experience_contract"],
+        narrative_rhythm_contract=rhythm_contract,
+        narrative_rhythm_contract_text=values["narrative_rhythm_contract"],
         review_notes_standard=values["review_notes_standard"],
         generation_constraint_brief=values["generation_constraint_brief"],
         system_prompt=system_prompt,
@@ -230,6 +238,8 @@ def write_prompt_manifest(pack: PromptPack, output: Path, provider: str, model: 
             "scene_word_budget_contract": pack.scene_word_budget_contract,
             "reader_experience_contract": pack.reader_experience_contract,
             "reader_experience_loaded": pack.reader_experience_contract.get("status") in {"pass", "not_required"},
+            "narrative_rhythm_contract": pack.narrative_rhythm_contract,
+            "narrative_rhythm_loaded": pack.narrative_rhythm_contract.get("status") in {"pass", "defaulted"},
             "review_notes": pack.review_notes_standard,
             "review_notes_loaded": pack.review_notes_path is not None,
             "review_notes_path": _rel(pack.review_notes_path, pack.project_root) if pack.review_notes_path else "",
@@ -288,6 +298,12 @@ def _ensure_reader_experience_contract(user_prompt: str, standard: str) -> str:
     if "## 本场景读者体验硬属性" in user_prompt or "# 本场景读者体验硬属性" in user_prompt:
         return user_prompt
     return user_prompt.rstrip() + "\n\n## 本场景读者体验硬属性\n\n" + standard.strip() + "\n"
+
+
+def _ensure_narrative_rhythm_contract(user_prompt: str, standard: str) -> str:
+    if "## 本场景叙事节奏与场景桥接硬属性" in user_prompt or "# 本场景叙事节奏与场景桥接硬属性" in user_prompt:
+        return user_prompt
+    return user_prompt.rstrip() + "\n\n## 本场景叙事节奏与场景桥接硬属性\n\n" + standard.strip() + "\n"
 
 
 def _ensure_review_notes_standard(user_prompt: str, standard: str) -> str:
@@ -547,7 +563,9 @@ def _render_generation_constraint_brief(
     style_path: Path | None,
     word_budget_path: Path | None,
     review_notes_path: Path | None,
+    rhythm_contract: dict[str, Any] | None = None,
 ) -> str:
+    rhythm_status = str((rhythm_contract or {}).get("status") or "missing")
     return f"""# 生成前最终硬约束摘要
 
 写作 agent 必须按以下顺序执行，不能只把它们当成审查清单：
@@ -557,10 +575,11 @@ def _render_generation_constraint_brief(
 3. 人物逻辑优先：行动来自 BDI、当前信息差、关系压力、道德边界和 hidden background_story 的隐性影响，不为方便剧情强行转向。
 4. 文风优先级：{_loaded_label(style_path, root, "已加载", "未加载")}。文风改变表达机制，不覆盖事实。
 5. 读者体验与章节义务：长篇正式生成必须有 ready 的 reader_experience_contract。每场要推进读者问题、承诺回报、暂扣信息、兑现/延迟、张力来源和读后余味，不能只把剧情写成摘要。
-6. 长篇预算：{_loaded_label(word_budget_path, root, "已加载", "未加载")}。场景必须承担明确叙事功能，不用空泛描写灌字数，也不把剧情量压缩成摘要；目标单位是中文内容字符，机器非空白字符只作诊断。
-7. AgentReview 小修：{_loaded_label(review_notes_path, root, "已加载", "未加载")}。若上一轮为 pass_with_notes，必须执行小修或逐条说明豁免。
-8. 标点与 AI 腔：遵守标准中文标点，禁用机械“不是……而是……”和“不是……——是”等生硬对照，不判断为合理修辞；禁用“并不是……只是……”“看似……其实……”“表面上……实则……”等换皮转折。正式正文原则上不用破折号，孤立破折号需逐句复核，超过约 2% 叙事单元密度或替代转折时必须修订；一句话超过三个逗号通常要拆句。转折由动作、信息差、因果和人物选择产生，器官轮岗、万能占位、比喻依赖、抽象总结、解释性心理标签、模板转折、景物强制同步、对称排比和金句化收束按约 2% 密度门禁控制。若保留显式转折，必须在后续修订/审查中能通过反规避负担证明。
-9. 输出边界：只输出候选正文和状态变化候选；不输出工作流、分析、自检表、AGENT_TASK、prompt manifest、canon 解释或审查过程。
+6. 叙事节奏与场景桥接：状态 `{rhythm_status}`。开头接住入场压力，中段有 scene_turn，过场快速通过，关键选择放慢，结尾给下一场留下 outgoing_hook；不要把所有场景写成同一种平均节奏。
+7. 长篇预算：{_loaded_label(word_budget_path, root, "已加载", "未加载")}。场景必须承担明确叙事功能，不用空泛描写灌字数，也不把剧情量压缩成摘要；目标单位是中文内容字符，机器非空白字符只作诊断。
+8. AgentReview 小修：{_loaded_label(review_notes_path, root, "已加载", "未加载")}。若上一轮为 pass_with_notes，必须执行小修或逐条说明豁免。
+9. 标点与 AI 腔：遵守标准中文标点，禁用机械“不是……而是……”和“不是……——是”等生硬对照，不判断为合理修辞；禁用“并不是……只是……”“看似……其实……”“表面上……实则……”等换皮转折。正式正文原则上不用破折号，孤立破折号需逐句复核，超过约 2% 叙事单元密度或替代转折时必须修订；一句话超过三个逗号通常要拆句。转折由动作、信息差、因果和人物选择产生，器官轮岗、万能占位、比喻依赖、抽象总结、解释性心理标签、模板转折、景物强制同步、对称排比和金句化收束按约 2% 密度门禁控制。若保留显式转折，必须在后续修订/审查中能通过反规避负担证明。
+10. 输出边界：只输出候选正文和状态变化候选；不输出工作流、分析、自检表、AGENT_TASK、prompt manifest、canon 解释或审查过程。
 """
 
 

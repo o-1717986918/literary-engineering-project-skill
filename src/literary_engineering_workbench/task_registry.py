@@ -13,6 +13,7 @@ from .agent_tasks import agent_task_completion_status, default_agent_completion_
 from .agent_schema import validate_payload
 from .anti_ai_style import style_lint_gate, style_lint_gate_message
 from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, PROMOTABLE_GROUPS
+from .canon_evolver import canon_writeback_status
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
 from .context_broker import context_trace_status
 from .draft_text import final_body_from_draft_path
@@ -815,6 +816,7 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
     candidate = f"drafts/candidates/{scene_id}-platform-agent"
     review = f"reviews/agent/{scene_id}_scene_review"
     state_patch = f"characters/state_patches/{scene_id}_state_patch"
+    canon_patch = f"canon/patches/{scene_id}_canon_patch"
     common_sources = [scene_rel]
     table: dict[str, dict[str, object]] = {
         "context-packet": {
@@ -1074,6 +1076,36 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "hard_constraints": ["Review state patch consequences and complete the marker; do not apply state without approval."],
             "style_constraints": [],
             "validation_gates": ["state-evolve sidecar completion marker exists"],
+            "next_allowed_states": ["canon-patch-json", "ready"],
+        },
+        "canon-patch-json": {
+            "task_type": "deterministic-cli-plus-platform-review",
+            "prompt_asset_id": "route.scene-development.canon-evolve.v1",
+            "command": f"python -m literary_engineering_workbench canon-evolve <project> --scene {scene_rel}",
+            "source_paths": [scene_rel, context, context_trace, f"drafts/scenes/{scene_id}.md", f"drafts/promotions/{scene_id}_promotion.json", f"{review}.json", f"{state_patch}.json"],
+            "context_trace": context_trace,
+            "expected_outputs": [f"{canon_patch}.md", f"{canon_patch}.json", f"{canon_patch}.agent_tasks.md"],
+            "hard_constraints": [
+                "Canon writeback is a candidate-only judgment after state-evolve; it must not directly modify canon files.",
+                "If no durable world fact changed, the platform agent must write no_canon_change_reason instead of silently skipping.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["canon patch/no-change JSON exists", "canon-evolve sidecar exists when required"],
+            "next_allowed_states": ["canon-agent-task"],
+        },
+        "canon-agent-task": {
+            "task_type": "platform-agent-review",
+            "prompt_asset_id": "route.scene-development.canon-evolve.v1",
+            "command": "",
+            "source_paths": [scene_rel, context, context_trace, f"{canon_patch}.md", f"{canon_patch}.json", f"{canon_patch}.agent_tasks.md"],
+            "context_trace": context_trace,
+            "expected_outputs": [f"{canon_patch}.agent_completion.json"],
+            "hard_constraints": [
+                "Complete canon-evolve sidecar only after writing either a candidate canon patch or an explicit no-change rationale.",
+                "Do not apply canon; promotion to canon remains a separate review/approval route.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["canon-evolve sidecar completion marker exists"],
             "next_allowed_states": ["ready"],
         },
     }
@@ -2070,6 +2102,8 @@ def _state_gate_validation(root: Path, task: dict[str, object]) -> tuple[list[st
         errors.extend(_static_review_gate_errors(root, scene_id))
     if current_state in {"state-patch-json", "state-agent-task"}:
         errors.extend(_state_patch_gate_errors(root, scene_id))
+    if current_state in {"canon-patch-json", "canon-agent-task"}:
+        errors.extend(_canon_writeback_gate_errors(root, scene_id))
     return errors, notes
 
 
@@ -3037,6 +3071,14 @@ def _state_patch_gate_errors(root: Path, scene_id: str) -> list[str]:
     if str(payload.get("status") or "").strip().lower() not in {"pending_human_approval", "candidate", "reviewed", "approved"}:
         errors.append("state patch status must remain candidate/review/approval-scoped")
     return errors
+
+
+def _canon_writeback_gate_errors(root: Path, scene_id: str) -> list[str]:
+    status = canon_writeback_status(root, scene_id)
+    state = str(status.get("status") or "")
+    if state in {"pass", "not_required"}:
+        return []
+    return [f"canon writeback gate is not complete for {scene_id}: {status.get('message')}"]
 
 
 def _candidate_path_for_task(root: Path, task: dict[str, object]) -> Path:

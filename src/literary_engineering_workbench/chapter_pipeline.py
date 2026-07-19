@@ -13,6 +13,7 @@ from .context_broker import default_context_trace_path
 from .draft_text import count_delivery_chars, count_delivery_chinese_content_chars, final_body_from_draft_text
 from .platform_agent_tasks import write_platform_scene_review_task
 from .review_ci import review_scene_draft
+from .narrative_rhythm import narrative_rhythm_contract
 from .scene_draft import build_scene_draft
 from .scene_readiness import agent_review_gate_state, scene_flow_gate_issues, scene_readiness_status
 
@@ -42,6 +43,12 @@ class SceneChapterRecord:
     word_budget_adherence_status: str
     reader_experience_adherence_status: str
     reader_promise_satisfied: bool
+    narrative_rhythm_status: str
+    scene_function: tuple[str, ...]
+    scene_turn: str
+    reader_effect: str
+    incoming_pressure: str
+    outgoing_hook: str
     flow_gate_issues: tuple[str, ...]
     readiness_issues: tuple[str, ...]
     draft_chars: int
@@ -159,6 +166,7 @@ def _build_scene_record(
     agent_review_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.md"
     agent_review_json_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
     simulation_path = root / "branches" / scene_id / "roleplay_simulation.md"
+    composition_json_path = root / "drafts" / "compositions" / f"{scene_id}_composition.json"
 
     if build_missing and not draft_path.exists():
         build_scene_draft(root, scene=_relative(scene_path, root), rebuild_context=not context_path.exists())
@@ -191,6 +199,9 @@ def _build_scene_record(
         flow_gate_issues=flow_issues,
         agent_review_state=agent_state,
     )
+    rhythm_contract = narrative_rhythm_contract(root, scene_path, composition_json_path)
+    rhythm_payload = rhythm_contract.get("narrative_rhythm") if isinstance(rhythm_contract.get("narrative_rhythm"), dict) else {}
+    bridge_payload = rhythm_contract.get("scene_bridge") if isinstance(rhythm_contract.get("scene_bridge"), dict) else {}
 
     return SceneChapterRecord(
         scene_id=scene_id,
@@ -216,6 +227,12 @@ def _build_scene_record(
         word_budget_adherence_status=str(agent_state.get("word_budget_adherence_status") or ""),
         reader_experience_adherence_status=str(agent_state.get("reader_experience_adherence_status") or ""),
         reader_promise_satisfied=bool(agent_state.get("reader_promise_satisfied")),
+        narrative_rhythm_status=str(rhythm_contract.get("status") or ""),
+        scene_function=tuple(_string_list(rhythm_payload.get("scene_function"))),
+        scene_turn=str(rhythm_payload.get("scene_turn") or ""),
+        reader_effect=str(rhythm_payload.get("reader_effect") or ""),
+        incoming_pressure=str(bridge_payload.get("incoming_pressure") or ""),
+        outgoing_hook=_outgoing_hook_text(bridge_payload),
         flow_gate_issues=flow_issues,
         readiness_issues=readiness_issues,
         draft_chars=count_delivery_chinese_content_chars(body),
@@ -266,6 +283,25 @@ def _render_chapter_markdown(root: Path, chapter_id: str, records: list[SceneCha
                 review=record.review_conclusion or "missing",
                 agent_review=_agent_review_label(record),
                 status=record.status,
+            )
+        )
+
+    lines.extend([
+        "",
+        "## 叙事节奏与场景桥接",
+        "",
+        "| 场景 | 节奏契约 | 场景功能 | 本场转折 | 入场压力 | 出场钩子 |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ])
+    for record in records:
+        lines.append(
+            "| {scene} | {status} | {function} | {turn} | {incoming} | {outgoing} |".format(
+                scene=record.scene_id,
+                status=record.narrative_rhythm_status or "missing",
+                function="、".join(record.scene_function) or "未填写",
+                turn=record.scene_turn or "未填写",
+                incoming=record.incoming_pressure or "未填写",
+                outgoing=record.outgoing_hook or "未填写",
             )
         )
 
@@ -389,7 +425,36 @@ def _chapter_summary(records: list[SceneChapterRecord]) -> dict[str, int]:
         "draft_chars": sum(record.draft_chars for record in records),
         "draft_chinese_chars": sum(record.draft_chars for record in records),
         "draft_machine_chars": sum(record.draft_machine_chars for record in records),
+        "rhythm_pass_count": sum(1 for record in records if record.narrative_rhythm_status == "pass"),
+        "rhythm_incomplete_count": sum(1 for record in records if record.narrative_rhythm_status == "incomplete"),
     }
+
+
+def _string_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = str(value or "").strip()
+    return [text] if text else []
+
+
+def _outgoing_hook_text(bridge: dict[str, object]) -> str:
+    direct = str(bridge.get("outgoing_hook") or "").strip()
+    if direct:
+        return direct
+    hooks = bridge.get("outgoing_hooks")
+    if not isinstance(hooks, list):
+        return ""
+    parts: list[str] = []
+    for item in hooks:
+        if isinstance(item, dict):
+            content = str(item.get("content") or item.get("summary") or "").strip()
+            if content:
+                parts.append(content)
+        else:
+            text = str(item).strip()
+            if text:
+                parts.append(text)
+    return "；".join(parts)
 
 
 def _review_conclusion(text: str) -> str:

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .context_broker import context_trace_status
 from .draft_text import count_delivery_chars, count_delivery_chinese_content_chars, final_body_from_draft_text
+from .narrative_rhythm import narrative_rhythm_contract
 from .scene_readiness import agent_review_gate_state, scene_flow_gate_issues, scene_readiness_status
 from .word_budget import load_word_budget_summary
 
@@ -50,6 +51,12 @@ class LongformSceneRecord:
     word_budget_adherence_status: str
     reader_experience_adherence_status: str
     reader_promise_satisfied: bool
+    narrative_rhythm_status: str
+    scene_function: tuple[str, ...]
+    scene_turn: str
+    reader_effect: str
+    incoming_pressure: str
+    outgoing_hook: str
     flow_gate_issues: tuple[str, ...]
     readiness_issues: tuple[str, ...]
     draft_chars: int
@@ -148,6 +155,7 @@ def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
         review_path = root / "reviews" / f"{scene_id}-review.md"
         agent_review_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.md"
         agent_review_json_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
+        composition_json_path = root / "drafts" / "compositions" / f"{scene_id}_composition.json"
         draft_text = _read(draft_path)
         body = final_body_from_draft_text(draft_text) if draft_text else ""
         review_text = _read(review_path)
@@ -164,6 +172,9 @@ def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
             flow_gate_issues=flow_issues,
             agent_review_state=agent_state,
         )
+        rhythm_contract = narrative_rhythm_contract(root, scene_path, composition_json_path)
+        rhythm_payload = rhythm_contract.get("narrative_rhythm") if isinstance(rhythm_contract.get("narrative_rhythm"), dict) else {}
+        bridge_payload = rhythm_contract.get("scene_bridge") if isinstance(rhythm_contract.get("scene_bridge"), dict) else {}
         records.append(
             LongformSceneRecord(
                 scene_id=scene_id,
@@ -185,6 +196,12 @@ def _scan_scenes(root: Path) -> list[LongformSceneRecord]:
                 word_budget_adherence_status=str(agent_state.get("word_budget_adherence_status") or ""),
                 reader_experience_adherence_status=str(agent_state.get("reader_experience_adherence_status") or ""),
                 reader_promise_satisfied=bool(agent_state.get("reader_promise_satisfied")),
+                narrative_rhythm_status=str(rhythm_contract.get("status") or ""),
+                scene_function=tuple(_string_list(rhythm_payload.get("scene_function"))),
+                scene_turn=str(rhythm_payload.get("scene_turn") or ""),
+                reader_effect=str(rhythm_payload.get("reader_effect") or ""),
+                incoming_pressure=str(bridge_payload.get("incoming_pressure") or ""),
+                outgoing_hook=_outgoing_hook_text(bridge_payload),
                 flow_gate_issues=flow_issues,
                 readiness_issues=readiness_issues,
                 draft_chars=count_delivery_chinese_content_chars(body),
@@ -273,6 +290,16 @@ def _audit_issues(
             issues.append(LongformIssue("medium", "scene_schema", scene.scene_id, "场景缺少 participants。", "补齐参与人物以支持人物弧审计。"))
         if not scene.scene_goal:
             issues.append(LongformIssue("medium", "scene_schema", scene.scene_id, "场景缺少 scene_goal。", "补齐场景目标，避免章节节奏失焦。"))
+        if scene.narrative_rhythm_status in {"", "defaulted", "incomplete"}:
+            issues.append(
+                LongformIssue(
+                    "medium",
+                    "narrative_rhythm",
+                    scene.scene_id,
+                    f"叙事节奏/场景桥接契约未显式通过：{scene.narrative_rhythm_status or 'missing'}。",
+                    "补齐 scene_function、scene_turn、reader_effect、incoming_pressure 和 outgoing_hook，避免场景孤岛和平均速度叙事。",
+                )
+            )
         for participant in scene.participants:
             if known_names and participant not in known_names:
                 issues.append(
@@ -512,6 +539,8 @@ def _render_markdown(root: Path, payload: dict, graph_path: Path) -> str:
         f"- 字数预算状态：{summary.get('word_budget_status', 'missing')} / 预算场景 {summary.get('word_budget_scene_count', 0)}",
         f"- 可装配场景：{summary['ready_scene_count']}",
         f"- 阻塞场景：{summary['blocked_scene_count']}",
+        f"- 节奏契约通过场景：{summary.get('rhythm_pass_count', 0)}",
+        f"- 节奏契约缺口场景：{summary.get('rhythm_gap_count', 0)}",
         f"- 问题数：{summary['issue_count']}",
         "",
         "## 场景状态矩阵",
@@ -532,6 +561,24 @@ def _render_markdown(root: Path, payload: dict, graph_path: Path) -> str:
                 status=scene["status"],
             )
         )
+
+    lines.extend(["", "## 叙事节奏与场景桥接矩阵", ""])
+    if scenes:
+        lines.extend(["| 章节 | 场景 | 节奏契约 | 场景功能 | 本场转折 | 入场压力 | 出场钩子 |", "| --- | --- | --- | --- | --- | --- | --- |"])
+        for scene in scenes:
+            lines.append(
+                "| {chapter} | {scene} | {status} | {function} | {turn} | {incoming} | {outgoing} |".format(
+                    chapter=scene["chapter_id"],
+                    scene=scene["scene_id"],
+                    status=scene.get("narrative_rhythm_status") or "missing",
+                    function="、".join(scene.get("scene_function") or []) or "未填写",
+                    turn=scene.get("scene_turn") or "未填写",
+                    incoming=scene.get("incoming_pressure") or "未填写",
+                    outgoing=scene.get("outgoing_hook") or "未填写",
+                )
+            )
+    else:
+        lines.append("- 未发现场景。")
 
     lines.extend(["", "## 风险清单", ""])
     if issues:
@@ -601,6 +648,8 @@ def _summary(
         "target_length": target_length,
         "ready_scene_count": sum(1 for scene in scenes if scene.status == "ready"),
         "blocked_scene_count": sum(1 for scene in scenes if scene.status != "ready"),
+        "rhythm_pass_count": sum(1 for scene in scenes if scene.narrative_rhythm_status == "pass"),
+        "rhythm_gap_count": sum(1 for scene in scenes if scene.narrative_rhythm_status in {"", "defaulted", "incomplete"}),
         "issue_count": len(issues),
         "word_budget_status": str(word_budget.get("status") or "missing") if word_budget else "missing",
         "word_budget_scene_count": _to_int(totals.get("scene_count")),
@@ -643,6 +692,33 @@ def _list_after(text: str, key: str) -> list[str]:
         if re.match(r"^[A-Za-z_][A-Za-z0-9_]*:", stripped):
             break
     return values
+
+
+def _string_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = str(value or "").strip()
+    return [text] if text else []
+
+
+def _outgoing_hook_text(bridge: dict[str, object]) -> str:
+    direct = str(bridge.get("outgoing_hook") or "").strip()
+    if direct:
+        return direct
+    hooks = bridge.get("outgoing_hooks")
+    if not isinstance(hooks, list):
+        return ""
+    parts: list[str] = []
+    for item in hooks:
+        if isinstance(item, dict):
+            content = str(item.get("content") or item.get("summary") or "").strip()
+            if content:
+                parts.append(content)
+        else:
+            text = str(item).strip()
+            if text:
+                parts.append(text)
+    return "；".join(parts)
 
 
 def _read(path: Path) -> str:
