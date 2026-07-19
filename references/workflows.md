@@ -189,6 +189,24 @@ python -m literary_engineering_workbench longform-audit "<work-dir>" --target-le
 
 If the budget status is `needs_expansion`, resolve the outline, scene inventory, and chapter obligation before bulk scene generation. Later `generate-scene` prompt manifests automatically include the word-budget standard when `plot/word_budget/word_budget.json` exists. For formal longform work, each `scenes/*.yaml` should carry a real `chapter_id` that maps to the budget row, and may carry `word_count_target`, `word_count_min`, and `word_count_max` overrides. These are Chinese-content-character targets, counting Han characters and Chinese punctuation. The scene word-budget and reader-experience contracts are injected into context packets, `compose-scene` output, prompt manifests, and generation sidecars; AgentReview, `promote-candidate`, `route-audit`, `chapter-workspace`, and export readiness recompute cleaned-body Chinese-content length and reader promise/payoff adherence before passing the scene, while machine nonspace counts remain diagnostics.
 
+## Cross-route dashboard
+
+Use the dashboard when a platform Agent, user, or local frontend needs one read-only view of pending formal work:
+
+```powershell
+python -m literary_engineering_workbench workflow-dashboard <project>
+```
+
+It writes:
+
+```text
+workflow/dashboard/workflow_dashboard.json
+workflow/dashboard/workflow_dashboard.md
+workflow/dashboard/workflow_dashboard.html
+```
+
+The command refreshes overall workflow state, agent task status, every formal route audit, and recent task events. It does not complete tasks, submit artifacts, approve releases, or advance workflow state. Treat blocking rows as repair tasks, then return to `task-next` / `task-open` / `task-submit` / `task-complete`.
+
 Before bulk scene generation, check:
 
 ```powershell

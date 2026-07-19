@@ -148,6 +148,10 @@ context packet
 
 `v0.88.0` 起，长篇规划增加 Chapter Obligation / Reader Experience Contract。`word-budget` 会同时派发章节义务规划侧车，`longform-planning` route 必须完成 `chapter-obligation-agent-task` 和 `chapter-obligation-review` 后才 ready；单章正式生成前还要运行 `chapter-obligation --chapter-id <chapter_id>`，由平台 Agent 填写每章承诺、设置、变化、暂不解决项、章末钩子，以及逐场读者问题、承诺回报、信息暂扣、兑现/延迟、张力来源、反摘要要求和读后余味。`prompt manifest`、生成 `.agent_tasks.md`、AgentReview、promotion、route-audit、chapter-workspace 和 export readiness 都会读取这份契约，防止长篇正文只写成事件摘要。
 
+`v0.89.0` 起，新增 `workflow-dashboard` 跨路线总控面板。它会刷新 `workflow-state --route overall`、`agent-task-status`、七条正式 route audit 和最近 task events，输出 `workflow/dashboard/workflow_dashboard.json`、`.md`、`.html`。这不是第二套工作流，也不会推进状态；它只是把“当前卡在哪里、哪个 sidecar 没处理、哪个 route gate 阻塞、下一步该修什么”压缩成平台 Agent 和前端都能读取的只读 cockpit。
+
+`v0.89.1` 起，计数口径进一步硬化：文风提示词 500-2500 门禁按中文内容字符计算，正式长篇预算也只用清洗后中文内容字符 pass/fail；机器非空白字符进入 `machine_count_mapping`、`draft_machine_chars`、`baseline_machine_chars_1_to_1_range` 和 `rough_expected_machine_chars_range`，用于前端显示、诊断工程痕迹和解释“为什么机器数比中文正文数大”，不能替代正式字数判断。
+
 ### 4. 文风是可挂载能力，不是临时修饰
 
 文风学习模块以“作家为项目、作品为子项目”组织语料，最终输出可挂载 Style Skill。一个合格的文风提示词必须足够具体、可执行，覆盖叙述距离、句法节奏、意象系统、心理呈现、对白语气、标点节奏、禁用倾向和自检规则。
@@ -293,7 +297,7 @@ python -m literary_engineering_workbench word-budget "<work-dir>" --target-words
 
 后续场景生成会自动读取预算标准。正式长篇项目中，`scene.yaml` 的 `chapter_id` 必须能映射到 `word_budget.json` 的章节预算；可选 `word_count_target`、`word_count_min`、`word_count_max` 会作为本场景硬属性注入 context packet、composition、prompt manifest 和平台 Agent 写作任务。进入某章正文前，还要运行 `chapter-obligation --chapter-id <chapter_id>`，让平台 Agent 填写本章承诺、设置、变化、暂不解决项、章末钩子和逐场读者体验契约。AgentReview 会用清洗后的可交付正文重新统计，低于最低值、超过最高值、未满足叙事负载、reader promise/payoff 不成立或仍靠流程文本凑字数时不能 `pass`。`promote-candidate`、`route-audit`、`chapter-workspace`、`longform-audit` 和正式导出也会复查这条链路。
 
-计数口径：正式通过看清洗后中文内容字符，计入汉字和中文标点；机器非空白字符只作为诊断映射，用来发现英文路径、JSON/Markdown 或工程痕迹是否混进正文。
+计数口径：正式通过看清洗后中文内容字符，计入汉字和中文标点；机器非空白字符只作为诊断映射，用来发现英文路径、JSON/Markdown 或工程痕迹是否混进正文。`machine_count_mapping` 会同时给出普通中文正文的 1:1 基准范围和按当前正文机器/中文比例推导的粗略机器字符范围，供前端显示与异常解释使用。
 
 当任务链路较长时，可以让 CLI 给平台 Agent 一张总控面板：
 
@@ -506,6 +510,7 @@ literary-engineering-project-skill/
 - 正式路线 CLI 工具箱：可运行。
 - 平台 Agent sidecar 状态机与字数预算硬接入：已要求 `.agent_completion.json` 完成标记，`run-workflow --agent-tasks` 在 sidecar handoff 停止等待，场景生成与审查读取 `scene.yaml` / `word_budget.json` 的预算契约。
 - CLI 中介 Agent 工作流内核：已新增 `task-next`、`task-open`、`task-submit`、`task-complete`、`workflow-advance`、`workflow-events`，并升级为 route registry。`scene-development` 已接入深度 gate；`longform-planning` 已接入预算文件、预算 sidecar、预算化大纲候选、预算 review、场景库存 sidecar、分场景库存候选和库存 review 闭环；`source-ingest` 已接入已有作品导入后的反推候选、sidecar completion 和 clean review 闭环；`style-engineering` 已接入 style prompt sidecar、500-2500 字高质量 prompt、prompt agent JSON、completion marker 和 accepted style eval 闭环；`character-and-world-assets` 已接入资产创建 sidecar、候选 JSON/报告、资产审查 sidecar、clean review、用户 approve、promotion manifest 和晋升输出闭环。正式场景操作、长篇预算规划、源作品反推、文风挂载前 readiness 和角色/世界资产晋升都必须由 CLI 发任务、平台 Agent 执行、CLI 收提交并校验完成。
+- Workflow Dashboard：已新增 `workflow-dashboard`，把七条正式路线、sidecar 状态、route audit、event log 和 next actions 汇总为 JSON/Markdown/HTML，只读展示平台 Agent 完善项目的行为，前端可以轮询 JSON 或直接打开 HTML 观察项目状态。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 
 ## 推荐下一步

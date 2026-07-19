@@ -106,7 +106,7 @@ Use `longform-budget` as an alias. Do not treat `word_budget.json` as final plot
 
 For 100000+ word or multi-volume work, formal scene generation is blocked unless the word-budget sidecar has a completion marker and the budget review exists. Each scene should declare a budgeted `chapter_id`; optional `word_count_target`, `word_count_min`, and `word_count_max` in `scene.yaml` become hard generation and review properties. Before prose for a chapter, run `chapter-obligation <project> --chapter-id <chapter_id>`, then have the platform agent fill the generated chapter contract and completion marker. `context`, `compose-scene`, `generate-scene`, `agent-review-scene`, `promote-candidate`, `route-audit`, `chapter-workspace`, and export readiness all use cleaned deliverable prose when checking the budget, and use `reader_experience_contract` / `reader_experience_adherence` to block summary-like scenes that do not satisfy reader questions, promised rewards, payoff/delay, tension source, anti-summary requirements, and aftertaste. Workflow/canon/status notes must not be counted as body length.
 
-Formal target length and style-prompt length use Chinese-content characters, including Han characters and Chinese punctuation. Machine non-whitespace counts are diagnostic mappings only; if they disagree, use the Chinese-content count for pass/fail and inspect whether English paths, JSON keys, Markdown, or workbench traces leaked into the body.
+Formal target length and style-prompt length use Chinese-content characters, including Han characters and Chinese punctuation. Machine non-whitespace counts are diagnostic mappings only; if they disagree, use the Chinese-content count for pass/fail and inspect whether English paths, JSON keys, Markdown, or workbench traces leaked into the body. A machine mapping can explain front-end or platform counters, but it must never promote an under-target scene.
 
 Check route readiness before bulk scene generation:
 
@@ -236,11 +236,14 @@ Use `task-next --route review-and-audit` as the formal controller when available
 ```powershell
 python -m literary_engineering_workbench agent-task-status <project>
 python -m literary_engineering_workbench route-audit <project> --route scene-development
+python -m literary_engineering_workbench workflow-dashboard <project>
 ```
 
 `agent-task-status` scans project `.agent_tasks.md` files, checks whether their expected artifact paths exist, and writes `workflow/agent_task_status.md` / `.json`. `route-audit` writes `workflow/route_audit.md` / `.json` and adds route-specific gates such as word-budget expansion, scene sidecar completion, promotion candidate review, mounted-style adherence review, chapter readiness, and export readiness. These commands are diagnostic; the platform agent must still complete creative tasks or record why they remain pending.
 
 `workflow-state` writes `workflow/route_state.md` / `.json` as a persistent route ledger. It records the current step per scene, planning item, source import, style profile, asset candidate, review route, or chapter release target and the next action, including missing sidecar completion markers, missing budget contracts, missing review outputs, missing approvals, missing export artifacts, and missing state patches.
+
+`workflow-dashboard` writes `workflow/dashboard/workflow_dashboard.md` / `.json` / `.html`. It refreshes overall route state, sidecar status, seven route-audit snapshots, and recent task events into a read-only cockpit. Use it when a platform Agent, user, or frontend needs one current view of blockers and next actions. It does not submit artifacts, complete sidecars, approve releases, or advance workflow state.
 
 `task-next` reads that state ledger and writes a CLI-mediated task package under `workflow/tasks/`. `task-open` marks the package as opened. `task-submit` records the artifacts produced by the platform Agent. `task-complete` checks expected outputs and writes the task completion marker. `workflow-events` renders `workflow/events/task_events.jsonl` as a readable event report.
 

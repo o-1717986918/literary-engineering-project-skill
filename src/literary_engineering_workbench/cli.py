@@ -94,6 +94,7 @@ from .task_registry import (
 )
 from .workflow_runner import WORKFLOW_MODES, run_workflow
 from .workflow_contract import validate_workflow_contract
+from .workflow_dashboard import build_workflow_dashboard
 from .workflow_state import build_workflow_state
 from .word_budget import build_word_budget
 
@@ -357,6 +358,12 @@ def build_parser() -> argparse.ArgumentParser:
     workflow_events = sub.add_parser("workflow-events", help="Render CLI-mediated task event history.")
     workflow_events.add_argument("project", help="Work project directory.")
     workflow_events.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/events.md.")
+
+    workflow_dashboard = sub.add_parser("workflow-dashboard", help="Build a cross-route read-only workflow dashboard.")
+    workflow_dashboard.add_argument("project", help="Work project directory.")
+    workflow_dashboard.add_argument("--out", default="", help="Output markdown path. Defaults to workflow/dashboard/workflow_dashboard.md.")
+    workflow_dashboard.add_argument("--json-out", default="", help="Output JSON path. Defaults to workflow/dashboard/workflow_dashboard.json.")
+    workflow_dashboard.add_argument("--html-out", default="", help="Output HTML path. Defaults to workflow/dashboard/workflow_dashboard.html.")
 
     workflow_validate = sub.add_parser("workflow-validate", help="Validate workflow state, task, submission, completion, and event ledgers.")
     workflow_validate.add_argument("project", help="Work project directory.")
@@ -1341,6 +1348,28 @@ def main(argv=None) -> int:
         print(f"events: {result.events_path}")
         print(f"report: {result.markdown_path}")
         print(f"count: {result.event_count}")
+        return 0
+
+    if args.command == "workflow-dashboard":
+        out = Path(args.out) if args.out else None
+        json_out = Path(args.json_out) if args.json_out else None
+        html_out = Path(args.html_out) if args.html_out else None
+        try:
+            result = build_workflow_dashboard(
+                Path(args.project),
+                output=out,
+                json_output=json_out,
+                html_output=html_out,
+            )
+        except FileNotFoundError as exc:
+            parser.error(str(exc))
+        print(f"workflow_dashboard: {result.markdown_path}")
+        print(f"json: {result.json_path}")
+        print(f"html: {result.html_path}")
+        print(f"routes: {result.route_count}")
+        print(f"blocking: {result.blocking_count}")
+        print(f"pending_tasks: {result.pending_task_count}")
+        print(f"next_actions: {result.next_action_count}")
         return 0
 
     if args.command == "workflow-validate":

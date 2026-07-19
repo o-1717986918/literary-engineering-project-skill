@@ -33,8 +33,9 @@ Use these dashboards together:
 - `agent-task-status <project>` shows pending sidecars and missing expected artifacts.
 - `route-audit <project> --route <route>` checks route-specific gates.
 - `workflow-validate <project> --route <route>` checks state schema, event schema, task schema, submitted artifacts, completion markers, and downstream-pass-before-upstream-pass inconsistencies.
+- `workflow-dashboard <project>` writes a cross-route JSON/Markdown/HTML cockpit under `workflow/dashboard/` by aggregating overall state, pending sidecars, every formal route audit, and recent task events.
 
-`workflow-validate` is read-only. It must not advance the project. Treat any validation error as a route repair task before bulk generation, promotion, export, or release.
+`workflow-validate` and `workflow-dashboard` are read-only. They must not advance the project. Treat any validation error or dashboard blocking row as a route repair task before bulk generation, promotion, export, or release.
 
 ## State Integrity Rules
 
@@ -76,3 +77,9 @@ Run `workflow-validate` when:
 - route state says `ready` but artifacts look suspicious;
 - a release or export depends on many previous task submissions;
 - you need a stable snapshot for a frontend dashboard or audit report.
+
+Run `workflow-dashboard` when:
+
+- the platform Agent needs one page showing which formal route is blocked next;
+- the user wants to watch project maintenance progress without reading raw task files;
+- a local frontend or external orchestrator needs a stable JSON source for route state, sidecar status, route audit summaries, and next actions.

@@ -144,6 +144,7 @@ def write_platform_scene_review_task(
   }},
   "word_budget_adherence": {{
     "status": "pass | not_required | under_target | over_target | revise_required",
+    "formal_count_policy": "pass/fail uses clean_body_chinese_chars against target_chinese_chars/min_chinese_chars/max_chinese_chars; target_words/min_words/max_words are legacy aliases only",
     "target_words": {word_budget_adherence.get("target_words", 0)},
     "min_words": {word_budget_adherence.get("min_words", 0)},
     "max_words": {word_budget_adherence.get("max_words", 0)},

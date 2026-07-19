@@ -374,6 +374,7 @@ task_routes:
       - revision plan
       - agent task status dashboard when sidecar state is unclear
       - route audit dashboard when gate state is unclear
+      - workflow dashboard when cross-route next actions are unclear
       - approval gates
     completion_gates:
       - for formal review-and-audit, task-next/task-open/task-submit/task-complete controls canon lint, canon review, longform audit, committee review, and final pass checks when available
@@ -422,7 +423,7 @@ task_routes:
   optional_cli:
     protocol: optional-cli
     when:
-      - 需要确定性命令、回归测试、Dify/LangGraph、本地前端或批处理
+      - 需要确定性命令、回归测试、Dify/LangGraph、本地前端、跨路线 dashboard 或批处理
     read:
       - references/workflows.md
       - references/orchestration.md
@@ -434,6 +435,7 @@ task_routes:
       - exact command
       - command result summary
       - generated artifact paths
+      - read-only workflow dashboard when requested
     completion_gates:
       - CLI command selected from route needs, not convenience
       - stdout paths inspected

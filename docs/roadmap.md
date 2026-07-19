@@ -278,4 +278,8 @@
 
 `v0.88.0` 已实现 Reader Experience Contract。长篇规划不再只完成 word-budget 与 scene inventory：`word-budget` 会生成 `plot/chapter_obligations/chapter_obligations.agent_tasks.md`，`longform-planning` route 新增 `chapter-obligation-agent-task` 与 `chapter-obligation-review`；单章正文生成前，`chapter-obligation --chapter-id <chapter_id>` 会生成章节义务和逐场读者体验契约侧车。prompt manifest、生成任务、AgentReview、promotion、route-audit、chapter-workspace 和 export readiness 均接入 reader gate，防止“字数目标有了，但正文仍被压缩成摘要”。
 
-下一步规划：Phase 89-90 将继续推进最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。
+`v0.89.0` 已实现 Workflow Dashboard。`workflow-dashboard <project>` 会刷新 overall route state、agent task status、七条 route audit 和最近 task events，输出 `workflow/dashboard/workflow_dashboard.json`、`.md`、`.html`。它是只读 cockpit，不推进任务、不批准发布、不创建创作产物；作用是把跨路线 blocker 和 next actions 集中给平台 Agent、用户或本地前端查看。
+
+`v0.89.1` 已实现 Count Unit Bridge 硬化。文风提示词质量门禁和长篇正文预算以中文内容字符为正式单位；机器非空白字符只作为诊断桥，输出观测比例、1:1 基准范围和粗略机器范围，用于解释 UI/platform 计数差异，不能作为 pass/fail 依据。
+
+下一步规划：Phase 90 将继续推进失败模式回归测试和前端轮询 dashboard 的集成。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。

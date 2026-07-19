@@ -6,7 +6,7 @@
 目标读者：维护本 Skill 的平台 Agent、项目开发者、后续代码实现者  
 生成背景：基于当前 Skill 架构复盘，以及对 ProseForge、ai-novel-writer、AI-Novel-Writing-Assistant 三个外部项目的互补性分析。
 
-执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`；`v0.86.0` 已完成 Context Broker / Context Trace，详见 `docs/implementation/phase86-context-broker.md`；`v0.86.1` 已完成 New Character Register，详见 `docs/implementation/phase86-1-new-character-register.md`；`v0.87.0` 已完成 Workflow Contract Validation 与中文内容字符计数口径修正，详见 `docs/implementation/phase87-workflow-contract-validation.md`；`v0.88.0` 已完成 Reader Experience / Chapter Obligation Contract，详见 `docs/implementation/phase88-reader-experience-contract.md`。Phase 89-90 仍按本计划继续推进。
+执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`；`v0.86.0` 已完成 Context Broker / Context Trace，详见 `docs/implementation/phase86-context-broker.md`；`v0.86.1` 已完成 New Character Register，详见 `docs/implementation/phase86-1-new-character-register.md`；`v0.87.0` 已完成 Workflow Contract Validation 与中文内容字符计数口径修正，详见 `docs/implementation/phase87-workflow-contract-validation.md`；`v0.88.0` 已完成 Reader Experience / Chapter Obligation Contract，详见 `docs/implementation/phase88-reader-experience-contract.md`；`v0.89.0` 已完成 Workflow Dashboard，详见 `docs/implementation/phase89-workflow-dashboard.md`；`v0.89.1` 已完成 Count Unit Bridge 硬化，详见 `docs/implementation/phase89-1-count-unit-bridge-hardening.md`。Phase 90 仍按本计划继续推进。
 
 ## 1. 背景与判断
 
@@ -552,9 +552,10 @@ Phase 84 后续横向接入顺序：
 3. Phase 86 Context Broker：让 CLI task 能稳定携带必读上下文、context trace、文风、字数预算和角色背景。
 4. Phase 87 Workflow State Machine：把 Phase 84 的最小任务闭环扩展为完整 scene/chapter/longform 状态机。
 5. Phase 88 Reader Experience Contract：强化长篇剧情质量和字数承载，并接入 task-open / task-submit / review gate。`v0.88.0` 已完成。
-6. Phase 90 Regression Tests：把门禁和历史问题固化，尤其测试“Agent 不经 CLI 手写正式产物”的失败模式。
-7. Phase 89 Minimal Cockpit：等 task registry、状态机和 audit 输出稳定后再做面板，否则前端会跟着内部接口反复改。
-8. 外部项目 Research Docs 可以穿插完成，但必须在引入外部架构概念前先落文档。
+6. Phase 89 Workflow Dashboard：跨路线只读 cockpit，汇总 overall state、sidecars、route audits、events 和 next actions。`v0.89.0` 已完成。
+7. Phase 89.1 Count Unit Bridge：硬化中文内容字符正式门禁与机器字符诊断映射。`v0.89.1` 已完成。
+8. Phase 90 Regression Tests：把门禁和历史问题固化，尤其测试“Agent 不经 CLI 手写正式产物”的失败模式。
+9. 外部项目 Research Docs 可以穿插完成，但必须在引入外部架构概念前先落文档。
 
 ## 14. 验证计划
 

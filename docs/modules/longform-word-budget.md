@@ -39,7 +39,7 @@ python -m literary_engineering_workbench word-budget "<work-dir>" --target-words
 - 机器非空白字符数只作为诊断映射，记录在 `machine_count_mapping`、`clean_body_machine_chars` 等字段中。
 - 若机器非空白字符数与中文内容字符数不一致，正式 pass/fail 使用中文内容字符数。
 
-粗略映射原则：中文文学正文通常机器非空白字符数接近中文内容字符数；但一旦正文混入英文标签、路径、JSON key、Markdown 标记或工作流痕迹，机器数会被抬高。因此预算审查要同时看 `clean_body_chinese_chars` 和 `clean_body_machine_chars`，并优先追问差异来源。
+粗略映射原则：中文文学正文通常机器非空白字符数接近中文内容字符数；但一旦正文混入英文标签、路径、JSON key、Markdown 标记或工作流痕迹，机器数会被抬高。因此预算审查要同时看 `clean_body_chinese_chars` 和 `clean_body_machine_chars`，并优先追问差异来源。`machine_count_mapping` 会给出两组辅助值：`baseline_machine_chars_1_to_1_range` 是普通中文正文的 1:1 基准，`rough_expected_machine_chars_range` 是按当前清洗正文的机器/中文比例推导出的粗略机器范围。两者都只是诊断桥，不是正式通过条件。
 
 ## 文学理论约束
 

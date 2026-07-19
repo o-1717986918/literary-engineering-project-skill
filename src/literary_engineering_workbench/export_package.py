@@ -11,7 +11,7 @@ from typing import Sequence
 
 from .chapter_pipeline import build_chapter_workspace
 from .docx_export import export_markdown_to_docx
-from .draft_text import count_delivery_chars, final_body_from_draft_text
+from .draft_text import count_delivery_chars, count_delivery_chinese_content_chars, final_body_from_draft_text
 from .flow_gates import FlowGateError
 from .punctuation_standard import normalize_punctuation_for_delivery
 
@@ -289,6 +289,7 @@ def _render_video_prompt_pack(root: Path, chapter_id: str, scenes: list[dict], s
 
 
 def _scene_manifest(root: Path, scene: dict) -> dict:
+    body = _draft_body(root, scene)
     return {
         "scene_id": scene.get("scene_id", ""),
         "status": scene.get("status", ""),
@@ -297,7 +298,11 @@ def _scene_manifest(root: Path, scene: dict) -> dict:
         "agent_review_schema_status": scene.get("agent_review_schema_status", ""),
         "agent_review_json": scene.get("agent_review_json", ""),
         "draft_path": scene.get("draft_path", ""),
-        "draft_chars": count_delivery_chars(_draft_body(root, scene)),
+        "draft_chars": count_delivery_chinese_content_chars(body),
+        "draft_chinese_chars": count_delivery_chinese_content_chars(body),
+        "draft_machine_chars": count_delivery_chars(body),
+        "count_unit": "chinese_content_chars_including_chinese_punctuation",
+        "machine_count_unit": "machine_nonspace_chars",
     }
 
 

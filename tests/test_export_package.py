@@ -35,7 +35,31 @@ class ExportPackageTests(TempProjectMixin, unittest.TestCase):
         self.assertNotIn("场景目标", screenplay_text)
         manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(len(manifest["exported_scenes"]), 1)
+        self.assertEqual(manifest["exported_scenes"][0]["count_unit"], "chinese_content_chars_including_chinese_punctuation")
+        self.assertEqual(manifest["exported_scenes"][0]["machine_count_unit"], "machine_nonspace_chars")
+        self.assertEqual(
+            manifest["exported_scenes"][0]["draft_chars"],
+            manifest["exported_scenes"][0]["draft_chinese_chars"],
+        )
         self.assertEqual(result.docx_outputs, {})
+
+    def test_export_manifest_keeps_machine_count_as_diagnostic(self):
+        project = self.make_project()
+        draft = make_reviewed_passing_scene(project)
+        text = draft.read_text(encoding="utf-8")
+        text = text.replace(
+            "他把手电压低，沿着墙边移动，心里清楚每一步都会改变同伴明天能否继续调查。",
+            "他把手电压低，沿着墙边移动。ASCIIEXTRA",
+        )
+        draft.write_text(text, encoding="utf-8")
+        build_chapter_workspace(project, chapter_id="chapter_0001")
+
+        result = build_export_package(project, chapter_id="chapter_0001")
+        manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+        scene = manifest["exported_scenes"][0]
+
+        self.assertEqual(scene["draft_chars"], scene["draft_chinese_chars"])
+        self.assertGreater(scene["draft_machine_chars"], scene["draft_chinese_chars"])
 
     def test_final_export_filters_accidental_workbench_traces_from_body(self):
         project = self.make_project()

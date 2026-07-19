@@ -163,8 +163,11 @@ class WordBudgetTests(TempProjectMixin, unittest.TestCase):
         self.assertGreater(adherence["clean_body_machine_chars"], 6)
         self.assertEqual(adherence["target_chinese_chars"], 6)
         self.assertEqual(adherence["machine_count_mapping"]["target_unit"], "chinese_content_chars_including_chinese_punctuation")
-        self.assertEqual(adherence["machine_count_mapping"]["rough_expected_machine_chars_range"], [6, 7])
+        self.assertEqual(adherence["machine_count_mapping"]["rough_expected_machine_chars"], 16)
+        self.assertEqual(adherence["machine_count_mapping"]["rough_expected_machine_chars_range"], [15, 17])
+        self.assertEqual(adherence["machine_count_mapping"]["baseline_machine_chars_1_to_1_range"], [6, 7])
         self.assertEqual(adherence["machine_count_mapping"]["diagnostic_warning"], "machine_count_inflated_by_non_chinese_or_workbench_content")
+        self.assertIn("pass/fail uses clean_body_chinese_chars", adherence["formal_count_policy"])
 
 
 def _prepare_generation_ready(project: Path):

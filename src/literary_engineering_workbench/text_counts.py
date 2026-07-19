@@ -51,7 +51,10 @@ def chinese_machine_count_mapping(text: str, *, target_chinese_chars: int = 0) -
     machine_chars = count_nonspace_chars(text)
     ratio = round(machine_chars / chinese_chars, 3) if chinese_chars else 0.0
     expected_machine_chars = round(target_chinese_chars * (ratio or 1.0)) if target_chinese_chars else 0
-    expected_machine_range = (
+    expected_low = round(expected_machine_chars * 0.95) if target_chinese_chars else 0
+    expected_high = round(expected_machine_chars * 1.05) if target_chinese_chars else 0
+    expected_machine_range = [min(expected_low, expected_high), max(expected_low, expected_high)]
+    baseline_machine_range = (
         [round(target_chinese_chars * 0.95), round(target_chinese_chars * 1.15)]
         if target_chinese_chars
         else [0, 0]
@@ -73,9 +76,13 @@ def chinese_machine_count_mapping(text: str, *, target_chinese_chars: int = 0) -
         "target_chinese_chars": int(target_chinese_chars or 0),
         "rough_expected_machine_chars": expected_machine_chars,
         "rough_expected_machine_chars_range": expected_machine_range,
+        "baseline_machine_chars_1_to_1_range": baseline_machine_range,
+        "mapping_basis": "current_text_observed_machine_to_chinese_ratio" if ratio else "baseline_1_to_1",
         "note": (
             "Formal gates compare Chinese content characters, including Chinese punctuation. "
-            "Machine nonspace characters are diagnostic only because markdown traces, ASCII labels, "
-            "paths, or mixed-language fragments can inflate them."
+            "Machine nonspace characters are diagnostic only. rough_expected_machine_chars is mapped "
+            "from the current cleaned text ratio when text exists; baseline_machine_chars_1_to_1_range "
+            "is a simple Chinese-prose baseline. Inspect large gaps for markdown traces, ASCII labels, "
+            "paths, or mixed-language fragments."
         ),
     }

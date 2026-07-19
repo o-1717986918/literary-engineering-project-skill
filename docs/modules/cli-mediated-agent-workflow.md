@@ -55,6 +55,7 @@ python -m literary_engineering_workbench task-submit <project> --task-id <task-i
 python -m literary_engineering_workbench task-complete <project> --task-id <task-id>
 python -m literary_engineering_workbench workflow-advance <project> --route scene-development
 python -m literary_engineering_workbench workflow-events <project>
+python -m literary_engineering_workbench workflow-dashboard <project>
 ```
 
 长篇规划路线使用同一套控制面：
@@ -115,6 +116,8 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 从 `v0.84.2` 起，`task_registry.py` 使用 route registry 分发表、选择器、任务构建器和门禁函数。`longform-planning` 已接入同一生命周期：`word-budget-file`、`budget-agent-task`、`budget-review`、`scene-inventory-agent-task`、`scene-inventory-review`。预算 sidecar 的 completion marker 不能单独放行；预算化大纲候选、分场景库存候选和对应 clean `pass` review 也必须存在。
 
 从 `v0.88.0` 起，`longform-planning` 在 scene inventory 后新增 `chapter-obligation-agent-task` 和 `chapter-obligation-review`。`word-budget` 会生成 `plot/chapter_obligations/chapter_obligations.agent_tasks.md`，平台 Agent 必须完成章节义务规划、写 clean review 和 completion marker。单章正式生成前还要通过 `chapter-obligation --chapter-id <chapter_id>` 建立 per-chapter reader contract；缺失时 scene-development 会停在 `reader-experience-contract`，不会进入正文候选生成。
+
+从 `v0.89.0` 起，`workflow-dashboard` 提供跨路线只读 cockpit。它会把 `workflow-state --route overall`、`agent-task-status`、七条正式 route audit 和最近 event log 汇总到 `workflow/dashboard/workflow_dashboard.json`、`.md`、`.html`。这个 dashboard 只展示状态，不完成任务、不创建创作产物、不允许跳过 `task-next/task-open/task-submit/task-complete`。
 
 从 `v0.84.3` 起，`source-ingest` 已接入同一生命周期：`source-manifest`、`extraction-agent-task`、`extraction-review`。已有作品导入只负责源文本、chunk 和 extraction sidecar；反推出的项目简报、人物/背景、世界观、大纲、时间线、伏笔、文风 notes 和 extraction review 必须由平台 Agent 写入候选区。completion marker、候选文件和 clean `pass` review 缺一项都不能 ready。
 
@@ -411,3 +414,4 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
    - `v0.88.0` 已完成 chapter-obligation sidecar、reader-experience scene gate、prompt/generation/review/promotion/readiness 接入。
 5. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
 6. 扩展跨路线 dashboard：把七条正式路线的缺口压缩成用户可读的下一步队列。
+   - `v0.89.0` 已完成 `workflow-dashboard` JSON/Markdown/HTML 只读 cockpit；后续可以让本地前端通过 HTTP 轮询该 JSON。
