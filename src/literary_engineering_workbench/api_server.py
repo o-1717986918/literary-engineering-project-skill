@@ -3,6 +3,7 @@
 import json
 import re
 import secrets
+import time
 from pathlib import Path
 
 from . import __version__
@@ -271,6 +272,11 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
             ".css": "text/css; charset=utf-8",
             ".js": "application/javascript; charset=utf-8",
             ".html": "text/html; charset=utf-8",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+            ".svg": "image/svg+xml; charset=utf-8",
         }.get(suffix, "text/plain; charset=utf-8")
         return _frontend_file(path, content_type)
 
@@ -537,14 +543,27 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/project/library/stream")
-    def project_library_stream(project_root: str, http_request: Request):
+    def project_library_stream(
+        project_root: str,
+        http_request: Request,
+        interval_seconds: float = 6.0,
+        max_events: int = 0,
+    ):
         _require_api_token(http_request, token)
         root = _safe_project_root(project_root, root_policy)
+        interval = max(2.0, min(60.0, float(interval_seconds or 6.0)))
+        limit = max(0, int(max_events or 0))
 
         def stream():
-            payload = {"ok": True, **build_project_library(root)}
-            yield "event: library\n"
-            yield "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
+            sent = 0
+            while True:
+                payload = {"ok": True, **build_project_library(root)}
+                yield "event: library\n"
+                yield "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
+                sent += 1
+                if limit and sent >= limit:
+                    break
+                time.sleep(interval)
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 
@@ -1196,6 +1215,8 @@ def _frontend_file(path: str, content_type: str):
     target = (frontend_root / path).resolve()
     if not _is_relative_to(target, frontend_root) or not target.is_file():
         raise HTTPException(status_code=404, detail=f"frontend asset not found: {path}")
+    if content_type.startswith("image/") and "svg" not in content_type:
+        return Response(content=target.read_bytes(), media_type=content_type)
     return Response(content=target.read_text(encoding="utf-8"), media_type=content_type)
 
 

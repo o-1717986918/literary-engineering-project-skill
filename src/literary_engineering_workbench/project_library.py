@@ -113,6 +113,8 @@ def _draft_items(root: Path, overrides: dict[str, object]) -> list[dict[str, obj
         if not folder.exists():
             continue
         for path in sorted(folder.glob("*.md"))[:200]:
+            if _is_placeholder_artifact(path):
+                continue
             items.append(_draft_item_from_path(root, overrides, path, status=status, label=label))
     for folder, status, label in [
         (root / "exports", "exported", "正式导出正文"),
@@ -122,9 +124,21 @@ def _draft_items(root: Path, overrides: dict[str, object]) -> list[dict[str, obj
             continue
         paths = sorted(folder.glob("**/*_novel.md"), key=lambda path: path.stat().st_mtime, reverse=True)
         for path in paths[:80]:
+            if _is_placeholder_artifact(path):
+                continue
             item_id = f"{status}__{_safe_item_id(path, root)}"
             items.append(_draft_item_from_path(root, overrides, path, status=status, label=label, item_id=item_id))
     return items
+
+
+def _is_placeholder_artifact(path: Path) -> bool:
+    """Exclude directory instructions from reader-facing draft views."""
+
+    name = path.name.lower()
+    if name in {"readme.md", "readme.txt", "placeholder.md", "placeholder.txt"}:
+        return True
+    stem = path.stem.lower()
+    return stem in {"readme", "placeholder", "_placeholder"}
 
 
 def _draft_item_from_path(
@@ -152,6 +166,7 @@ def _draft_item_from_path(
         "badges": [label, f"{counts['chinese_content_chars']} 字"],
         "excerpt": summarize_text(body, limit=220) or "正文为空或只有工程说明。",
         "body": body,
+        "reader_facing": not _is_placeholder_artifact(path),
         "metrics": counts,
         "facts": [
             {"label": "正文口径", "value": "已过滤工程痕迹"},
@@ -169,7 +184,9 @@ def _completed_prose_summary(draft_items: list[dict[str, object]]) -> dict[str, 
     items = [
         item
         for item in draft_items
-        if str(item.get("status") or "") in completed_statuses and (item.get("body") or item.get("excerpt"))
+        if str(item.get("status") or "") in completed_statuses
+        and item.get("reader_facing", True)
+        and (item.get("body") or item.get("excerpt"))
     ]
     items.sort(key=lambda item: (priority.get(str(item.get("status") or ""), 9), str(item.get("path") or "")))
     promoted_items = [item for item in items if item.get("status") == "promoted"]

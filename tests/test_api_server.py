@@ -112,6 +112,9 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         selection.unlink()
         export_dir = project / "exports" / "chapter_0001"
         export_dir.mkdir(parents=True, exist_ok=True)
+        chapter_readme = project / "drafts" / "chapters" / "README.md"
+        chapter_readme.parent.mkdir(parents=True, exist_ok=True)
+        chapter_readme.write_text("chapters\n\n章节级工作台和章节草稿放在这里。", encoding="utf-8")
         (export_dir / "chapter_0001_novel.md").write_text(
             "# 第一章\n\n林舟把已经完成的章节正文放在桌上。\n\n## 工作流程\n\n- scene_0001 已处理。",
             encoding="utf-8",
@@ -134,10 +137,16 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(completed["status"], "available")
         self.assertGreaterEqual(completed["count"], 1)
         self.assertGreater(completed["total_chinese_content_chars"], 0)
+        completed_paths = [item["path"] for item in completed["items"]]
+        self.assertNotIn("drafts/chapters/README.md", completed_paths)
         self.assertEqual(completed["items"][0]["status"], "exported")
         self.assertIn("林舟", completed["items"][0]["body"])
         self.assertNotIn("#", completed["items"][0]["body"])
         self.assertNotIn("scene_0001", completed["items"][0]["body"])
+
+        stream = client.get("/project/library/stream", params={"project_root": str(project), "max_events": 1})
+        self.assertEqual(stream.status_code, 200)
+        self.assertIn("event: library", stream.text)
 
         item = client.get(
             "/project/library/item",
@@ -254,16 +263,21 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertIn("连接设置", ui.text)
                 self.assertIn("已完成正文", ui.text)
                 self.assertIn("滑动阅览框", ui.text)
-                self.assertIn("这里不会裸露原始 JSON", ui.text)
-                self.assertIn("项目证据柜", ui.text)
+                self.assertIn("这里不会把机器记录原样摊开", ui.text)
+                self.assertIn("流程证据柜", ui.text)
+                self.assertIn("assets/editorial-icons/dashboard-board.png", ui.text)
                 self.assertIn("需要你决定的节点", ui.text)
-                self.assertIn("安全标注", ui.text)
+                self.assertIn("我的备注", ui.text)
                 self.assertIn("可挂载文风", ui.text)
                 self.assertNotIn('data-view="config"', ui.text)
                 self.assertNotIn("模型配置", ui.text)
-                self.assertIn("JSON 信息经过包装后展示", ui.text)
+                self.assertIn("机器记录已包装成证据卡", ui.text)
                 self.assertNotIn("创作总监", ui.text)
                 self.assertNotIn("Dashboard JSON", ui.text)
+                icon = client.get("/ui/assets/editorial-icons/dashboard-board.png")
+                self.assertEqual(icon.status_code, 200)
+                self.assertEqual(icon.headers["content-type"], "image/png")
+                self.assertTrue(icon.content.startswith(b"\x89PNG"))
                 self.assertNotIn("设定工坊", ui.text)
 
                 script = client.get("/ui/app.js")

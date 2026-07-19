@@ -1,11 +1,14 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+const UI_VERSION = "0.98.0";
 let dashboardTimer = null;
 let libraryTimer = null;
+let libraryStream = null;
 let librarySnapshot = null;
 let activeLibraryKind = "drafts";
 let currentChoices = [];
 let selectedLibraryItem = null;
+let serverHealth = null;
 
 const routeNames = {
   "scene-development": "场景开发",
@@ -29,6 +32,27 @@ const sectionNames = {
   rhythm: "节奏衔接",
   canon_patches: "写回候选",
 };
+
+const sectionIcons = {
+  drafts: "manuscript-page",
+  characters: "character-dossier",
+  world: "archive-folder",
+  scenes: "dashboard-board",
+  branches: "branch-cards",
+  style: "style-card",
+  reviews: "style-card",
+  word_budget: "dashboard-board",
+  rhythm: "branch-cards",
+  canon_patches: "archive-folder",
+};
+
+function iconPath(name) {
+  return `/ui/assets/editorial-icons/${name}.png`;
+}
+
+function sectionIcon(kind) {
+  return iconPath(sectionIcons[kind] || "archive-folder");
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -79,9 +103,15 @@ function sharedProjectRoot() {
 async function loadHealth() {
   try {
     const health = await api("/health");
+    serverHealth = health;
+    const serverVersion = health.version || "unknown";
+    const stale = serverVersion !== UI_VERSION;
     $("#healthDot").classList.add("ok");
-    $("#healthText").textContent = "本地服务已连接";
+    $("#healthText").textContent = stale
+      ? `本地服务已连接，版本 ${serverVersion}，建议重启到 ${UI_VERSION}`
+      : `本地服务已连接，版本 ${serverVersion}`;
   } catch {
+    serverHealth = null;
     $("#healthDot").classList.remove("ok");
     $("#healthText").textContent = "API 未连接";
   }
@@ -211,7 +241,7 @@ function renderDashboard(result, library = null) {
   $("#dashboardRoutes").innerHTML = routes.length ? routes.map(renderRouteCard).join("") : "暂无流程数据";
 
   $("#dashboardNextActions").classList.toggle("empty", !actions.length);
-  $("#dashboardNextActions").innerHTML = actions.length ? actions.slice(0, 12).map(renderActionCard).join("") : "目前没有新的下一步建议。";
+  $("#dashboardNextActions").innerHTML = actions.length ? renderActionQueue(actions) : "目前没有新的下一步建议。";
 
   const events = result.recent_events || [];
   $("#dashboardEvents").classList.toggle("empty", !events.length);
@@ -240,6 +270,7 @@ function renderDashboardProse(library) {
     target.className = "completed-prose empty";
     target.innerHTML = `
       <article class="completed-empty">
+        <img src="${iconPath("manuscript-page")}" alt="" />
         <b>还没有已完成正文</b>
         <p>等候选稿通过正式审查并晋升，或章节导出/发布后，这里会自动出现正文预览。</p>
       </article>
@@ -253,6 +284,7 @@ function renderDashboardProse(library) {
   target.innerHTML = `
     <article class="completed-main">
       <div class="completed-cover">
+        <img class="completed-cover-icon" src="${iconPath("manuscript-page")}" alt="" />
         <span>正文</span>
         <b>${escapeHtml(metrics.chinese_content_chars || 0)}</b>
         <small>中文内容字数</small>
@@ -308,8 +340,15 @@ function renderDashboardEvidence(result, { dashboard, summary, actions, routes, 
     ["状态机摘要", dashboard.route_state?.path],
     ["平台任务摘要", dashboard.agent_task_status?.path],
   ].filter(([, value]) => value);
+  const versionStale = serverHealth?.version && serverHealth.version !== UI_VERSION;
 
   $("#dashboardEvidence").innerHTML = [
+    evidenceCard(
+      "版本一致性",
+      versionStale ? "服务进程可能偏旧" : "前端与服务版本正常",
+      evidenceText(versionStale ? `当前页面是 ${UI_VERSION}，本地服务报告 ${serverHealth.version}。建议重启服务后再判断接口问题。` : `当前页面版本 ${UI_VERSION}；服务版本 ${serverHealth?.version || "未知"}。`),
+      versionStale ? ["建议重启", "防误判"] : ["已连接"]
+    ),
     evidenceCard(
       "状态机读数",
       `${Number(routeState.ready_count || summary.ready_count || 0)} 条路线就绪`,
@@ -332,7 +371,7 @@ function renderDashboardEvidence(result, { dashboard, summary, actions, routes, 
       "输出与索引",
       "报告、网页和机器索引都保留",
       evidenceList(outputItems.map(([label, value]) => `${label}：${shortPath(value)}`)),
-      ["可追溯", "不裸露 JSON"]
+      ["可追溯", "证据卡展示"]
     ),
     evidenceCard(
       "使用边界",
@@ -399,6 +438,65 @@ function renderRouteCard(route) {
   `;
 }
 
+function renderActionQueue(actions) {
+  const visible = actions.slice(0, 12);
+  const groups = groupActions(visible);
+  const lead = visible[0] || {};
+  return `
+    <article class="action-lead">
+      <span>现在先看这里</span>
+      <b>${escapeHtml(actionCategory(lead).label)}</b>
+      <p>${escapeHtml(friendlyMessage(lead.next_action || "按正式状态机继续领取下一项任务。"))}</p>
+      <small>${escapeHtml(routeName(lead.route))} · ${escapeHtml(lead.target ? friendlyTarget(lead.target) : "项目整体")}</small>
+    </article>
+    <div class="action-clusters">
+      ${groups.map((group) => `
+        <article class="action-cluster ${escapeHtml(group.key)}">
+          <b>${escapeHtml(group.label)}</b>
+          <span>${group.items.length} 项</span>
+          <p>${escapeHtml(group.hint)}</p>
+        </article>
+      `).join("")}
+    </div>
+    ${visible.slice(0, 8).map(renderActionCard).join("")}
+  `;
+}
+
+function groupActions(actions) {
+  const byKey = new Map();
+  actions.forEach((action) => {
+    const category = actionCategory(action);
+    const existing = byKey.get(category.key) || { ...category, items: [] };
+    existing.items.push(action);
+    byKey.set(category.key, existing);
+  });
+  return Array.from(byKey.values()).sort((a, b) => actionPriority(a.key) - actionPriority(b.key));
+}
+
+function actionCategory(action) {
+  const text = `${action.route || ""} ${action.target || ""} ${action.next_action || ""}`.toLowerCase();
+  if (text.includes("review") || text.includes("审查") || text.includes("audit")) {
+    return { key: "review", label: "先补审查证据", hint: "这类问题会挡住晋升、导出和发布。" };
+  }
+  if (text.includes("style") || text.includes("文风")) {
+    return { key: "style", label: "先确认文风", hint: "文风不稳，后面的正文会越写越偏。" };
+  }
+  if (text.includes("word") || text.includes("budget") || text.includes("字数")) {
+    return { key: "budget", label: "先核对字数预算", hint: "长篇规模必须先有场景库存支撑。" };
+  }
+  if (text.includes("canon") || text.includes("世界") || text.includes("writeback")) {
+    return { key: "canon", label: "先处理世界观写回", hint: "耐久设定不能只留在草稿里。" };
+  }
+  if (text.includes("agent") || text.includes("sidecar") || text.includes("任务")) {
+    return { key: "task", label: "先完成平台任务", hint: "未处理的任务包会让正式路线停住。" };
+  }
+  return { key: "flow", label: "先补流程产物", hint: "按任务包补齐缺失文件，再刷新总控。" };
+}
+
+function actionPriority(key) {
+  return { task: 0, review: 1, canon: 2, style: 3, budget: 4, flow: 5 }[key] ?? 9;
+}
+
 function renderActionCard(action, index) {
   return `
     <article class="action-item">
@@ -444,7 +542,7 @@ function renderLibrary(result) {
   const projectBadges = Array.isArray(project.badges) ? project.badges.filter(Boolean) : [];
   $("#librarySummary").innerHTML = `
     <article class="library-cover">
-      <div class="cover-stamp">作品</div>
+      <div class="cover-stamp"><img src="${iconPath("archive-folder")}" alt="" /></div>
       <div>
         <span class="eyebrow light">当前项目</span>
         <h3>${escapeHtml(project.title || "未命名作品")}</h3>
@@ -452,10 +550,10 @@ function renderLibrary(result) {
         <footer>${projectBadges.map((badge) => `<span>${escapeHtml(badge)}</span>`).join("")}</footer>
       </div>
     </article>
-    <article class="library-stat"><b>${escapeHtml(counts.drafts || 0)}</b><span>正文与候选</span></article>
-    <article class="library-stat"><b>${escapeHtml(counts.characters || 0)}</b><span>人物档案</span></article>
-    <article class="library-stat"><b>${escapeHtml(counts.scenes || 0)}</b><span>场景设定</span></article>
-    <article class="library-stat"><b>${escapeHtml(counts.branches || 0)}</b><span>分支推演</span></article>
+    <article class="library-stat"><img src="${sectionIcon("drafts")}" alt="" /><b>${escapeHtml(counts.drafts || 0)}</b><span>正文与候选</span></article>
+    <article class="library-stat"><img src="${sectionIcon("characters")}" alt="" /><b>${escapeHtml(counts.characters || 0)}</b><span>人物档案</span></article>
+    <article class="library-stat"><img src="${sectionIcon("scenes")}" alt="" /><b>${escapeHtml(counts.scenes || 0)}</b><span>场景设定</span></article>
+    <article class="library-stat"><img src="${sectionIcon("branches")}" alt="" /><b>${escapeHtml(counts.branches || 0)}</b><span>分支推演</span></article>
   `;
 
   $("#libraryTabs").innerHTML = Object.entries(sectionNames).map(([key, label]) => {
@@ -483,7 +581,13 @@ function renderLibraryList(items) {
 function renderLibraryEmpty() {
   selectedLibraryItem = null;
   $("#libraryDetail").className = "library-detail empty";
-  $("#libraryDetail").innerHTML = "这个分类暂时没有内容。";
+  $("#libraryDetail").innerHTML = `
+    <article class="detail-empty">
+      <img src="${sectionIcon(activeLibraryKind)}" alt="" />
+      <b>这个分类暂时没有内容</b>
+      <p>刷新项目或切换其他档案分类后，可以在这里查看正文、设定、推演和审查摘要。</p>
+    </article>
+  `;
 }
 
 function selectLibraryItem(item) {
@@ -507,9 +611,12 @@ function selectLibraryItem(item) {
   $("#libraryDetail").className = "library-detail";
   $("#libraryDetail").innerHTML = `
     <article class="detail-head">
-      <span>${escapeHtml(item.subtitle || sectionNames[item.kind] || "档案")}</span>
-      <h3>${escapeHtml(item.title || item.id)}</h3>
-      <footer>${renderBadges(item.badges)}</footer>
+      <img class="detail-icon" src="${sectionIcon(item.kind || activeLibraryKind)}" alt="" />
+      <div>
+        <span>${escapeHtml(item.subtitle || sectionNames[item.kind] || "档案")}</span>
+        <h3>${escapeHtml(item.title || item.id)}</h3>
+        <footer>${renderBadges(item.badges)}</footer>
+      </div>
     </article>
     ${item.user_note ? `<aside class="user-note">你的备注：${escapeHtml(item.user_note)}</aside>` : ""}
     ${Object.keys(metrics).length ? renderMetricStrip(metrics) : ""}
@@ -574,8 +681,9 @@ async function loadChoices(root = "") {
 
 function renderChoices(choices, recent = []) {
   const list = $("#choiceList");
-  list.classList.toggle("empty", !choices.length && !recent.length);
-  if (!choices.length && !recent.length) {
+  const recentUnique = uniqueRecentChoices(recent);
+  list.classList.toggle("empty", !choices.length && !recentUnique.length);
+  if (!choices.length && !recentUnique.length) {
     list.innerHTML = "暂无等待用户选择的节点。正式流程需要你决定时，这里会出现分支卡、审批卡或扩纲方向卡。";
     return;
   }
@@ -596,13 +704,44 @@ function renderChoices(choices, recent = []) {
       <textarea class="choice-rationale" rows="3" placeholder="可选：写下你为什么这样选，平台 Agent 后续会读取这条理由。"></textarea>
     </article>
   `).join("");
-  const recentCards = recent.length ? `
+  const recentCards = recentUnique.length ? `
     <div class="recent-choice">
-      <b>最近记录</b>
-      ${recent.slice(-4).reverse().map((item) => `<p>${escapeHtml(item.decision_type || "选择")}：${escapeHtml(item.selected || item.decision || "")}</p>`).join("")}
+      <b>最近决定</b>
+      ${recentUnique.slice(0, 4).map((item) => `
+        <p>
+          <strong>${escapeHtml(decisionTypeLabel(item.decision_type || "选择"))}</strong>
+          <span>${escapeHtml(item.selected || item.decision || "已记录")}</span>
+        </p>
+      `).join("")}
     </div>
   ` : "";
   list.innerHTML = choiceCards + recentCards;
+}
+
+function uniqueRecentChoices(recent = []) {
+  const seen = new Set();
+  return (Array.isArray(recent) ? recent : [])
+    .slice()
+    .reverse()
+    .filter((item) => {
+      const key = `${item.decision_type || ""}:${JSON.stringify(item.target || {})}:${item.selected || item.decision || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function decisionTypeLabel(value) {
+  const labels = {
+    branch_selection: "分支选择",
+    style_mount: "文风挂载",
+    asset_approval: "资产审批",
+    release_approval: "发布审批",
+    word_budget_direction: "字数方向",
+    revision_direction: "修订方向",
+    state_patch_confirmation: "状态确认",
+  };
+  return labels[value] || friendlyMessage(value || "选择");
 }
 
 async function submitHumanChoice(choice, selected, rationale) {
@@ -664,16 +803,59 @@ async function saveUiNote(event) {
 
 function toggleLibraryPoll() {
   const button = $("#toggleLibraryPoll");
-  if (libraryTimer) {
-    clearInterval(libraryTimer);
-    libraryTimer = null;
-    button.textContent = "开始流式观察";
+  if (libraryTimer || libraryStream) {
+    stopLibraryObservation();
+    button.textContent = "观察档案变化";
     $("#libraryStatus").textContent = "已停止观察";
     return;
   }
+  startLibraryObservation();
+}
+
+function stopLibraryObservation() {
+  if (libraryStream) {
+    libraryStream.close();
+    libraryStream = null;
+  }
+  if (libraryTimer) {
+    clearInterval(libraryTimer);
+    libraryTimer = null;
+  }
+}
+
+function startLibraryObservation() {
+  const root = sharedProjectRoot();
+  if (!root) throw new Error("请先填写当前项目目录。");
+  const button = $("#toggleLibraryPoll");
+  const token = localStorage.getItem("lewApiToken") || "";
+  stopLibraryObservation();
+  if (window.EventSource && !token) {
+    const url = `/project/library/stream?project_root=${encodeURIComponent(root)}&interval_seconds=6`;
+    libraryStream = new EventSource(url);
+    libraryStream.addEventListener("library", (event) => {
+      const result = JSON.parse(event.data);
+      librarySnapshot = result;
+      renderLibrary(result);
+      loadChoices(root).catch(() => {});
+      $("#libraryStatus").textContent = result.generated_at ? `实时更新 ${formatTime(result.generated_at)}` : "实时更新中";
+    });
+    libraryStream.onerror = () => {
+      stopLibraryObservation();
+      startLibraryPolling();
+      $("#libraryStatus").textContent = "流式连接中断，已切换为安全轮询。";
+    };
+    button.textContent = "停止观察";
+    $("#libraryStatus").textContent = "正在建立流式连接";
+    return;
+  }
+  startLibraryPolling();
+}
+
+function startLibraryPolling() {
+  const button = $("#toggleLibraryPoll");
   guarded(loadLibrary);
   libraryTimer = setInterval(() => guarded(loadLibrary), 6000);
-  button.textContent = "停止流式观察";
+  button.textContent = "停止观察";
 }
 
 async function loadStyleStatus() {
@@ -693,7 +875,11 @@ function renderStyleStatus(result) {
   $("#styleStatusText").textContent = "已检查";
   if (!active.style_id) {
     $("#styleStatus").className = "style-status empty";
-    $("#styleStatus").innerHTML = "这个项目还没有挂载文风。正式长篇创作前，建议先完成文风学习并挂载 Style Skill。";
+    $("#styleStatus").innerHTML = `
+      <img class="style-empty-icon" src="${iconPath("style-card")}" alt="" />
+      <b>还没有挂载文风</b>
+      <p>正式长篇创作前，建议先完成文风学习并挂载 Style Skill。</p>
+    `;
     return;
   }
   $("#styleStatus").className = `style-status ${ready ? "pass" : "warn"}`;
@@ -767,14 +953,14 @@ function toggleDashboardPoll() {
   if (dashboardTimer) {
     clearInterval(dashboardTimer);
     dashboardTimer = null;
-    button.textContent = "开始实时观察";
+    button.textContent = "观察项目变化";
     $("#dashboardStatus").textContent = "已停止观察";
     return;
   }
   const seconds = Math.max(3, Math.min(60, Number($("#dashboardForm").refresh_seconds.value) || 8));
   guarded(loadDashboard);
   dashboardTimer = setInterval(() => guarded(loadDashboard), seconds * 1000);
-  button.textContent = "停止实时观察";
+  button.textContent = "停止观察";
 }
 
 function routeName(route) {
@@ -885,7 +1071,7 @@ function bind() {
     }
   });
   $("#refreshLibrary").addEventListener("click", () => guarded(loadLibrary));
-  $("#toggleLibraryPoll").addEventListener("click", () => toggleLibraryPoll());
+  $("#toggleLibraryPoll").addEventListener("click", () => guarded(toggleLibraryPoll));
   $("#libraryForm").section.addEventListener("change", (event) => {
     activeLibraryKind = event.target.value;
     if (librarySnapshot) renderLibrary(librarySnapshot);
