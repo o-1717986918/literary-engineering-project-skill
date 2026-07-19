@@ -891,6 +891,7 @@ def _scene_state(root: Path, scene_path: Path) -> dict[str, object]:
     candidate = _promotion_candidate_path(root, scene_id) or _latest_scene_candidate(root, scene_id)
     steps = [
         _file_step("context-packet", root / "memory" / "context_packets" / f"{scene_id}.md", "run context --scene scenes/{scene}.yaml".format(scene=scene_id)),
+        _file_step("context-trace", root / "memory" / "context_packets" / f"{scene_id}.trace.json", "rerun context --scene scenes/{scene}.yaml and inspect context trace".format(scene=scene_id)),
         _file_step("roleplay-simulation", root / "branches" / scene_id / "roleplay_simulation.md", "run simulate-scene --agent"),
         _task_step("roleplay-agent-task", root, root / "branches" / scene_id / "roleplay_simulation.agent_tasks.md", "complete roleplay_simulation.agent_tasks.md and marker"),
         _file_step("branch-manifest", root / "branches" / scene_id / "branch_manifest.json", "run branch-simulate --agent"),

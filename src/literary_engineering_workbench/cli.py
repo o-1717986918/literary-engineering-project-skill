@@ -19,6 +19,7 @@ from .candidate_promotion import promote_scene_candidate
 from .character_state_apply import apply_character_state_patch
 from .character_state_evolver import build_character_state_patch
 from .chapter_pipeline import build_chapter_workspace
+from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 from .demo_project import build_demo_project
 from .director_agent import build_director_status, run_director_turn
@@ -154,6 +155,7 @@ def build_parser() -> argparse.ArgumentParser:
     context.add_argument("--top-k", type=int, default=8)
     context.add_argument("--rebuild-index", action="store_true")
     context.add_argument("--out", default="", help="Output markdown path.")
+    context.add_argument("--trace-out", default="", help="Output context trace JSON path. Defaults to the context packet sidecar.")
 
     for command, help_text in (
         ("source-ingest", "Import an existing work and write a platform-agent reverse extraction task."),
@@ -808,6 +810,7 @@ def main(argv=None) -> int:
 
     if args.command == "context":
         out = Path(args.out) if args.out else None
+        trace_out = Path(args.trace_out) if args.trace_out else None
         result = build_context_packet(
             Path(args.project),
             scene=Path(args.scene),
@@ -815,8 +818,10 @@ def main(argv=None) -> int:
             top_k=args.top_k,
             rebuild_index=args.rebuild_index,
             output=out,
+            trace_output=trace_out,
         )
         print(f"context: {result.output_path}")
+        print(f"context_trace: {result.trace_path}")
         print(f"retrievals: {result.retrieval_count}")
         return 0
 
@@ -1549,7 +1554,7 @@ def main(argv=None) -> int:
             scene_path = _cli_path(root, args.scene)
             scene_id = scene_path.stem
             context_path = _cli_path(root, args.context) if args.context else root / "memory" / "context_packets" / f"{scene_id}.md"
-            if args.rebuild_context or not context_path.exists():
+            if args.rebuild_context or not context_path.exists() or not default_context_trace_path(context_path).exists():
                 context_path = build_context_packet(root, scene=scene_path, query=args.query, rebuild_index=True, output=context_path).output_path
             composition = _cli_path(root, args.composition) if args.composition else None
             candidate = _cli_path(root, args.out) if args.out else root / "drafts" / "candidates" / f"{scene_id}-platform-agent.md"

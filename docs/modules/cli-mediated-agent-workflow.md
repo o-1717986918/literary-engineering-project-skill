@@ -126,28 +126,31 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 
 从 `v0.85.0` 起，`task-open` 会解析 `prompt_asset_id` 并把 Prompt Registry 中的资产正文写进任务包。`templates/prompt_assets/*.md` 现在覆盖七条正式路线，`prompt-registry-validate` 会检查所有 task registry prompt id 是否有 exact 或 wildcard asset 可用。这样 prompt id 不再只是占位符，而是 CLI 输出给平台 Agent 的实际提示词资产。
 
+从 `v0.86.0` 起，`context` 会同时写出 Markdown context packet 和相邻的 `*.trace.json`。`task-next`、`workflow-state`、`route-audit`、`compose-scene`、`generate-scene`、`agent-review-scene`、`revise-scene`、chapter readiness 和 export readiness 都把缺失或无效 context trace 视为 blocking。平台 Agent 不能只凭一份看似完整的 context packet 继续写作；必须先确认 trace 证明本场景实际加载了 scene、canon、character、style、word-budget 和检索来源。
+
 ## 4. Scene-development 样板状态
 
 第一版按 `workflow_state.py` 已有推导状态发任务。典型顺序：
 
 1. `context-packet`
-2. `roleplay-simulation`
-3. `roleplay-agent-task`
-4. `branch-manifest`
-5. `branch-agent-task`
-6. `branch-selection`
-7. `composition-json`
-8. `composition-agent-task`
-9. `scene-word-budget-contract`
-10. `candidate-generation-provenance`
-11. `generation-agent-task`
-12. `candidate-review`
-13. `agent-review-task`
-14. `promotion-manifest`
-15. `promoted-draft`
-16. `static-review`
-17. `state-patch-json`
-18. `state-agent-task`
+2. `context-trace`
+3. `roleplay-simulation`
+4. `roleplay-agent-task`
+5. `branch-manifest`
+6. `branch-agent-task`
+7. `branch-selection`
+8. `composition-json`
+9. `composition-agent-task`
+10. `scene-word-budget-contract`
+11. `candidate-generation-provenance`
+12. `generation-agent-task`
+13. `candidate-review`
+14. `agent-review-task`
+15. `promotion-manifest`
+16. `promoted-draft`
+17. `static-review`
+18. `state-patch-json`
+19. `state-agent-task`
 
 状态不是靠 CLI 手写推进，而是由真实项目文件、sidecar completion marker 和现有 gate 推导。`workflow-advance` 只是刷新账本，不允许把未完成状态强行改成完成。
 
@@ -391,6 +394,7 @@ python -m literary_engineering_workbench task-complete <project> --task-id <task
 1. Prompt Registry：让 `prompt_asset_id` 不再只是标识，而是真正可验证的提示词资产。
    - `v0.85.0` 已完成文件型 registry、CLI list/validate/preview、task-open 注入；后续可以为高风险任务补 exact prompt asset。
 2. Context Broker：让 `task-open` 输出稳定的 context trace。
+   - `v0.86.0` 已完成 context packet / context trace 双产物、下游读取、route gate、workflow state 和生成/审查/revision 链路接入。
 3. Reader Experience Contract：让字数和章节义务进入 `task-open` 与 `task-complete`。
 4. route-audit：逐步从“文件存在检查”升级为“task registry provenance 检查”。
 5. 扩展跨路线 dashboard：把七条正式路线的缺口压缩成用户可读的下一步队列。

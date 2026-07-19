@@ -4,7 +4,7 @@
 
 > Current project-type skill override: `agent-review-scene` writes a platform-agent task sidecar and expected review paths. It does not call local `dry-run`, `http-chat`, or external agent services.
 
-把单场景审查扩展为 LLM/Agent 语义审查。Agent 会读取 scene YAML、草稿、上下文包和文风提示词，输出符合 `scene_review.v1` 的结构化审查结果。
+把单场景审查扩展为 LLM/Agent 语义审查。Agent 会读取 scene YAML、草稿、上下文包、上下文来源证明和文风提示词，输出符合 `scene_review.v1` 的结构化审查结果。`v0.86.0` 起，缺失或无效 context trace 时不得给出 clean pass。
 
 ## 新增能力
 

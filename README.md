@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.85.0`
+- 当前版本：`0.86.0`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -104,7 +104,7 @@ context packet
 
 `route-audit` 会检查场景是否漏掉角色扮演推演、分支模拟、正式分支选择、文风审查、候选专属审查和晋升门禁。`promote-candidate` 也要求候选正文必须有对应的、干净通过的 AgentReview，避免“写完就合并”。
 
-`v0.73.0` 起，章节 ready 和正式导出也使用同一组强门禁：上下文包、RP 读取回执、分支 manifest、正式 `branch_selection.md`、ready composition、静态 review clean `pass`、平台 AgentReview clean `pass` 且引用当前草稿。`pass_with_notes`、warnings、revision_actions、style_notes 或文风偏差会进入 `needs_revision`，不能直接导出。
+`v0.73.0` 起，章节 ready 和正式导出也使用同一组强门禁：上下文包、context trace、RP 读取回执、分支 manifest、正式 `branch_selection.md`、ready composition、静态 review clean `pass`、平台 AgentReview clean `pass` 且引用当前草稿。`pass_with_notes`、warnings、revision_actions、style_notes 或文风偏差会进入 `needs_revision`，不能直接导出。
 
 `v0.75.0` 起，反 AI 腔规则升级为“核心禁区 + 密度门禁”：机械“不是……而是……”和“不是……——是……”等生硬对照变体不再被判断为合理修辞，文风学习只能提取其背后的纠偏、讽刺、信息反转或节奏功能，不能把模板句式授权给生成模型。器官轮岗、万能占位、比喻依赖、抽象总结、景物强制同步、模板转折和金句化收束按约 2% 叙事单元密度控制，孤立风险点进入复核，密集出现必须修订。语义级修订仍必须由平台 Agent 逐句判断，避免脚本把否定关系改坏。
 
@@ -139,6 +139,8 @@ context packet
 `v0.84.6` 起，`review-and-audit` 与 `export-and-release` 也接入 CLI-mediated task loop。项目级审查现在必须经过 canon-lint、平台 Agent canon review、longform-audit 和 committee approve；章节交付必须经过 chapter-workspace、export-package、人类 release approval 和 publish-chapter。`task-complete` / `route-audit` 会阻塞带 warnings 的 canon review、committee action items、`include_blocked` 导出、缺 approval 发布，以及最终正文泄漏 scene ID、canon/workflow/review/writeback 痕迹。
 
 `v0.85.0` 起，`prompt_asset_id` 不再只是任务包里的字符串。新增文件型 Prompt Registry：`templates/prompt_assets/*.md` 注册路由级提示词资产，`prompt-registry-validate` 会检查资产字段并确认 task registry 中 56 个 prompt id 都能解析，`prompt-preview` 可预览任一任务 ID 的实际提示词资产，`task-open` 生成的任务包会自动附带解析后的 Prompt Asset、输出契约和正文提示。
+
+`v0.86.0` 起，场景上下文升级为 Context Broker 双产物：`context` 同时生成 `memory/context_packets/{scene_id}.md` 和 `memory/context_packets/{scene_id}.trace.json`。trace 会记录本次上下文实际加载的 project、scene、canon、character、plot、style、word-budget 与 retrieval 来源。`task-next`、`task-complete`、`workflow-state`、`route-audit`、`chapter-workspace`、`generate-scene`、`compose-scene` 和 AgentReview 都会把缺失或无效 trace 视为正式链路问题；只有 context md 而没有 trace 的场景不能进入正式生成、审查、章节 ready 或导出。
 
 ### 4. 文风是可挂载能力，不是临时修饰
 
@@ -377,7 +379,7 @@ CLI 是可选工具箱，不是必须入口。正常使用时，推荐让 Codex 
 ### 推进一个场景
 
 1. 读取场景目标、参与人物、相关 canon、剧情上下文和已挂载文风。
-2. 生成上下文包。
+2. 生成上下文包和 context trace。
 3. 执行带平台 Agent reading receipt 的角色扮演推演。
 4. 执行分支模拟，给出多个剧情分支及代价。
 5. 在 `branch_selection.md` 中记录正式分支选择。
@@ -471,7 +473,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.85.0`。
+- 当前版本：`0.86.0`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -481,6 +483,7 @@ literary-engineering-project-skill/
 - 平台 Agent 任务总控、route gate 审计、正式 `revise-scene` 修订闭环、分章分场景字数绑定：已完成。
 - 场景晋升强门禁：已要求候选正文必须具备候选专属、干净通过的 AgentReview。
 - Prompt Registry：已完成文件型提示词资产、校验、预览，并接入 `task-open`。
+- Context Broker：已完成 context trace 双产物、状态机门禁、route-audit/chapter/generation/review 接入。
 - 文风挂载强门禁：已要求正式场景审查包含 `style_adherence`，并把文风约束放入生成标准。
 - 标点与反 AI 腔约束：已纳入生成、审查、修订和导出参考；机械对照句式和破折号转折变体作为核心禁区在生成层拦截，不判断为合理修辞；器官轮岗、万能占位、比喻依赖、模板转折和景物强制同步按约 2% 密度门禁审查，语义级清洗禁止用正则脚本批量执行。
 - 横排中文引号统一、DOCX layout plan、DOCX inspection、基础 Markdown 表格转 Word 表格：已完成。

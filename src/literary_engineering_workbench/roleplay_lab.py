@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 
 from .agent_tasks import default_agent_tasks_path, write_agent_tasks
+from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
 
@@ -212,6 +213,7 @@ def _agent_mode_execution_gate(
     root: Path,
     scene_rel: str,
     context_rel: str,
+    context_trace_rel: str,
     cards: list[CharacterCard],
 ) -> str:
     if not enabled:
@@ -223,11 +225,12 @@ def _agent_mode_execution_gate(
 
 1. 读取场景文件 `{scene_rel}`。
 2. 读取上下文包 `{context_rel}`。
-3. 读取本轮参与角色或所有正式人物档案：
+3. 读取上下文来源证明 `{context_trace_rel}`，核对本轮实际加载的 canon、character、style、plot、word-budget 与 retrieval 文件。
+4. 读取本轮参与角色或所有正式人物档案：
 {character_files}
-4. 读取存在的 canon/world_rules.yaml、canon/forbidden_changes.yaml、plot/outline.md、plot/foreshadowing.csv。
-5. 用下方“读取回执”列出已读文件、缺失文件、不可突破硬约束和写回边界。
-6. 若关键资料缺失，仍可提出候选推演，但必须标注“依据不足”，不得把候选当成 canon。
+5. 读取存在的 canon/world_rules.yaml、canon/forbidden_changes.yaml、plot/outline.md、plot/foreshadowing.csv。
+6. 用下方“读取回执”列出已读文件、缺失文件、不可突破硬约束和写回边界。
+7. 若关键资料缺失，仍可提出候选推演，但必须标注“依据不足”，不得把候选当成 canon。
 
 ### 读取回执
 
@@ -305,10 +308,13 @@ def _write_roleplay_agent_tasks(
 ) -> Path:
     scene_rel = scene_path.relative_to(root).as_posix()
     context_rel = context_path.relative_to(root).as_posix()
+    context_trace_path = default_context_trace_path(context_path)
+    context_trace_rel = context_trace_path.relative_to(root).as_posix()
     character_sources = [card.file for card in cards]
     source_paths = [
         scene_path,
         context_path,
+        context_trace_path,
         *character_sources,
         root / "canon" / "world_rules.yaml",
         root / "canon" / "forbidden_changes.yaml",
@@ -333,7 +339,7 @@ def _write_roleplay_agent_tasks(
         tasks=[
             (
                 "完成读取回执",
-                f"""读取 `{scene_rel}`、`{context_rel}`、参与角色文件、canon/world_rules.yaml、canon/forbidden_changes.yaml、plot/outline.md 和 plot/foreshadowing.csv。更新 `{output_path.relative_to(root).as_posix()}` 的“读取回执”：已读文件、缺失文件、不可突破硬约束、写回边界。""",
+                f"""读取 `{scene_rel}`、`{context_rel}`、`{context_trace_rel}`、参与角色文件、canon/world_rules.yaml、canon/forbidden_changes.yaml、plot/outline.md 和 plot/foreshadowing.csv。先用 context trace 核对本次上下文实际加载的文件，再更新 `{output_path.relative_to(root).as_posix()}` 的“读取回执”：已读文件、缺失文件、不可突破硬约束、写回边界。""",
             ),
             (
                 "补全 Character Agent 行动提案",
@@ -392,7 +398,7 @@ def build_roleplay_simulation(
     context_path = context if context and context.is_absolute() else (
         root / context if context else root / "memory" / "context_packets" / f"{sid}.md"
     )
-    if rebuild_context or not context_path.exists():
+    if rebuild_context or not context_path.exists() or not default_context_trace_path(context_path).exists():
         context_result = build_context_packet(root, scene=scene_path, query=query, rebuild_index=True, output=context_path)
         context_path = context_result.output_path
 
@@ -407,6 +413,7 @@ def build_roleplay_simulation(
         character_sections = "未发现正式人物档案。请先在 `characters/` 下创建非 `_template.yaml` 的人物文件。"
     scene_rel = scene_path.relative_to(root).as_posix()
     context_rel = context_path.relative_to(root).as_posix()
+    context_trace_rel = default_context_trace_path(context_path).relative_to(root).as_posix()
 
     content = f"""# 角色推演实验室：{sid}
 
@@ -416,6 +423,7 @@ def build_roleplay_simulation(
 
 场景文件：`{scene_rel}`
 上下文包：`{context_rel}`
+上下文 Trace：`{context_trace_rel}`
 
 ## 使用规则
 
@@ -427,7 +435,7 @@ def build_roleplay_simulation(
 - 合并任何分支前必须人工确认。
 {_agent_mode_usage_rule(agent_mode)}
 
-{_agent_mode_execution_gate(agent_mode, root=root, scene_rel=scene_rel, context_rel=context_rel, cards=cards)}
+{_agent_mode_execution_gate(agent_mode, root=root, scene_rel=scene_rel, context_rel=context_rel, context_trace_rel=context_trace_rel, cards=cards)}
 ## 场景摘要
 
 ```yaml

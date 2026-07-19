@@ -6,7 +6,7 @@
 
 ## 目标
 
-把上下文包、人物 BDI / `background_story`、多分支剧情推演和场景 YAML 组合成一个可直接指导正文生成的创作编排包。它解决的是“已经知道场景要发生什么，但还不知道怎样写得稳、怎样让人物动机进入文字”的中间层问题。
+把上下文包、上下文来源证明、人物 BDI / `background_story`、多分支剧情推演和场景 YAML 组合成一个可直接指导正文生成的创作编排包。它解决的是“已经知道场景要发生什么，但还不知道怎样写得稳、怎样让人物动机进入文字”的中间层问题。
 
 ## 命令
 
@@ -17,7 +17,7 @@ python -m literary_engineering_workbench compose-scene work/demo-work --scene sc
 
 可选参数：
 
-- `--context`：复用已有上下文包。
+- `--context`：复用已有上下文包；正式链路中必须存在相邻 context trace。
 - `--query`：补充检索查询。
 - `--branch-manifest`：指定 `branch_manifest.json`。
 - `--branch-selection`：指定 `branch_selection.md`。
@@ -29,6 +29,7 @@ python -m literary_engineering_workbench compose-scene work/demo-work --scene sc
 
 - `scenes/{scene_id}.yaml`
 - `memory/context_packets/{scene_id}.md`
+- `memory/context_packets/{scene_id}.trace.json`
 - `characters/*.yaml`
 - `branches/{scene_id}/branch_manifest.json`
 - `branches/{scene_id}/branch_selection.md`

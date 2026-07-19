@@ -49,11 +49,27 @@ class TaskRegistryTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(payload["route"], "scene-development")
         self.assertEqual(payload["prompt_asset_id"], "route.scene-development.context.v1")
         self.assertIn("memory/context_packets/scene_0001.md", payload["expected_outputs"])
+        self.assertIn("memory/context_packets/scene_0001.trace.json", payload["expected_outputs"])
+        self.assertEqual(payload["context_trace"], "memory/context_packets/scene_0001.trace.json")
         self.assertIn("task-submit", payload["submission_command"])
 
         task_text = result.task_markdown_path.read_text(encoding="utf-8")
         self.assertIn("[AGENT_TASK:", task_text)
         self.assertIn("创建或覆盖 `memory/context_packets/scene_0001.md`", task_text)
+        self.assertIn("创建或覆盖 `memory/context_packets/scene_0001.trace.json`", task_text)
+
+    def test_task_next_repairs_context_trace_when_packet_exists_without_trace(self):
+        project = self.make_project()
+        context = build_context_packet(project, scene=Path("scenes/scene_0001.yaml"), rebuild_index=True)
+        context.trace_path.unlink()
+
+        result = issue_next_task(project, route="scene-development")
+
+        self.assertEqual(result.status, "issued")
+        self.assertEqual(result.current_state, "context-trace")
+        payload = json.loads(result.task_json_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["prompt_asset_id"], "route.scene-development.context.trace.v1")
+        self.assertIn("memory/context_packets/scene_0001.trace.json", payload["expected_outputs"])
 
     def test_task_open_marks_task_opened(self):
         project = self.make_project()

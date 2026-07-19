@@ -8,7 +8,7 @@
 
 `v0.67.0` 起，`--agent` 模式会先生成“平台 Agent 执行门禁”：
 
-- 平台 agent 必须先读取 scene、context packet、正式人物档案和可用 canon/outline/foreshadowing 文件。
+- 平台 agent 必须先读取 scene、context packet、context trace、正式人物档案和可用 canon/outline/foreshadowing 文件。
 - 平台 agent 必须在“读取回执”中列出已读文件、缺失文件、不可突破硬约束和写回边界。
 - 缺少关键资料时，仍可提出候选推演，但必须标注依据不足，不得把候选当作 canon。
 - RP 输出仍是工作笔记，不是正文；推荐分支必须再经平台 agent 和用户/审批链确认。

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+from .context_broker import default_context_trace_path
 from .draft_text import count_delivery_chars, final_body_from_draft_text
 from .platform_agent_tasks import write_platform_scene_review_task
 from .review_ci import review_scene_draft
@@ -25,6 +26,7 @@ class SceneChapterRecord:
     participants: tuple[str, ...]
     scene_goal: str
     context_path: str
+    context_trace_path: str
     simulation_path: str
     draft_path: str
     review_path: str
@@ -148,6 +150,7 @@ def _build_scene_record(
     chapter_id = _scene_chapter_id(scene_text) or requested_chapter_id
 
     context_path = root / "memory" / "context_packets" / f"{scene_id}.md"
+    context_trace_path = default_context_trace_path(context_path)
     draft_path = root / "drafts" / "scenes" / f"{scene_id}.md"
     review_path = root / "reviews" / f"{scene_id}-review.md"
     agent_review_path = root / "reviews" / "agent" / f"{scene_id}_scene_review.md"
@@ -194,6 +197,7 @@ def _build_scene_record(
         participants=tuple(_list_after(scene_text, "participants")),
         scene_goal=_scalar(scene_text, "scene_goal"),
         context_path=_existing_rel(context_path, root),
+        context_trace_path=_existing_rel(context_trace_path, root),
         simulation_path=_existing_rel(simulation_path, root),
         draft_path=_existing_rel(draft_path, root),
         review_path=_existing_rel(review_path, root),

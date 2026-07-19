@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .agent_tasks import default_agent_tasks_path, write_agent_tasks
+from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 from .flow_gates import ensure_agent_task_completed, selected_branch_from
 from .roleplay_lab import CharacterCard, _load_characters, _read
@@ -97,7 +98,7 @@ def build_branch_simulation(
     context_path = context if context and context.is_absolute() else (
         root / context if context else root / "memory" / "context_packets" / f"{scene_facts.scene_id}.md"
     )
-    if rebuild_context or not context_path.exists():
+    if rebuild_context or not context_path.exists() or not default_context_trace_path(context_path).exists():
         context_result = build_context_packet(root, scene=scene_path, query=query, rebuild_index=True, output=context_path)
         context_path = context_result.output_path
     if agent_tasks:
@@ -136,6 +137,7 @@ def build_branch_simulation(
         "scene_id": scene_facts.scene_id,
         "scene_file": _rel(scene_path, root),
         "context_packet": _rel(context_path, root),
+        "context_trace": _rel(default_context_trace_path(context_path), root),
         "branch_count": len(candidates),
         "recommended_branch": recommended,
         "selection_record": _rel(selection_path, root),
@@ -180,11 +182,12 @@ def _write_branch_agent_tasks(
     selection_path: Path,
     payload: dict[str, object],
 ) -> Path:
+    context_trace_path = default_context_trace_path(context_path)
     return write_agent_tasks(
         default_agent_tasks_path(manifest_path),
         title=f"branch-simulate {payload['scene_id']}",
         root=root,
-        source_paths=[scene_path, context_path, report_path, manifest_path, selection_path],
+        source_paths=[scene_path, context_path, context_trace_path, report_path, manifest_path, selection_path],
         notes=[
             "branch_manifest.json 是机器契约，不能写入 AGENT_TASK 标记。",
             "推荐分支只是启发式建议，平台 agent 必须独立审查后再决定是否询问用户。",
@@ -192,7 +195,7 @@ def _write_branch_agent_tasks(
         tasks=[
             (
                 "审查分支候选",
-                """读取 branch_simulation.md 和 branch_manifest.json，逐条检查每个分支是否符合 scene_goal、participants、canon_refs、next_hooks 与人物 BDI。指出每个分支最强处、最弱处和需要补证据的地方。""",
+                """读取 context trace、branch_simulation.md 和 branch_manifest.json，先确认分支候选使用的上下文来源完整，再逐条检查每个分支是否符合 scene_goal、participants、canon_refs、next_hooks 与人物 BDI。指出每个分支最强处、最弱处和需要补证据的地方。""",
             ),
             (
                 "复核评分偏置",
@@ -462,6 +465,7 @@ def _render_markdown(root: Path, scene_path: Path, context_path: Path, payload: 
         "- 正式 CLI 来源：`branch-simulate`",
         f"- 场景文件：`{_rel(scene_path, root)}`",
         f"- 上下文包：`{_rel(context_path, root)}`",
+        f"- 上下文 Trace：`{payload.get('context_trace', '')}`",
         f"- 推荐分支：`{payload['recommended_branch'] or 'n/a'}`",
         f"- 人工选择记录：`{payload['selection_record']}`",
         "",

@@ -14,6 +14,7 @@ from .agent_schema import validate_payload
 from .anti_ai_style import style_lint_gate, style_lint_gate_message
 from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, PROMOTABLE_GROUPS
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
+from .context_broker import context_trace_status
 from .draft_text import final_body_from_draft_path
 from .flow_gates import FlowGateError, branch_selection_status, ensure_composition_ready_for_generation
 from .prompt_registry import resolve_prompt_asset
@@ -802,6 +803,7 @@ def _build_export_release_task_payload(root: Path, route: str, state: dict[str, 
 
 def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_state: str, next_action: str) -> dict[str, object]:
     context = f"memory/context_packets/{scene_id}.md"
+    context_trace = f"memory/context_packets/{scene_id}.trace.json"
     branch_dir = f"branches/{scene_id}"
     composition = f"drafts/compositions/{scene_id}_composition"
     candidate = f"drafts/candidates/{scene_id}-platform-agent"
@@ -814,17 +816,34 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "prompt_asset_id": "route.scene-development.context.v1",
             "command": f"python -m literary_engineering_workbench context <project> --scene {scene_rel}",
             "source_paths": common_sources,
-            "expected_outputs": [context],
-            "hard_constraints": ["Run the documented context command; inspect the output path before submitting."],
+            "context_trace": context_trace,
+            "expected_outputs": [context, context_trace],
+            "hard_constraints": ["Run the documented context command; inspect both the context packet and context trace before submitting."],
             "style_constraints": [],
-            "validation_gates": ["context packet exists"],
+            "validation_gates": ["context packet exists", "context trace exists and validates loaded source groups"],
+            "next_allowed_states": ["roleplay-simulation"],
+        },
+        "context-trace": {
+            "task_type": "deterministic-cli",
+            "prompt_asset_id": "route.scene-development.context.trace.v1",
+            "command": f"python -m literary_engineering_workbench context <project> --scene {scene_rel}",
+            "source_paths": [scene_rel, context],
+            "context_trace": context_trace,
+            "expected_outputs": [context, context_trace],
+            "hard_constraints": [
+                "The existing context packet is not formal without its context trace.",
+                "Rerun the documented context command and inspect the trace before moving to roleplay.",
+            ],
+            "style_constraints": [],
+            "validation_gates": ["context trace exists", "context trace validates loaded source groups"],
             "next_allowed_states": ["roleplay-simulation"],
         },
         "roleplay-simulation": {
             "task_type": "deterministic-cli",
             "prompt_asset_id": "route.scene-development.roleplay.prepare.v1",
             "command": f"python -m literary_engineering_workbench simulate-scene <project> --scene {scene_rel} --agent",
-            "source_paths": [scene_rel, context],
+            "source_paths": [scene_rel, context, context_trace],
+            "context_trace": context_trace,
             "expected_outputs": [f"{branch_dir}/roleplay_simulation.md", f"{branch_dir}/roleplay_simulation.agent_tasks.md"],
             "hard_constraints": ["Use --agent so the platform-agent RP task is emitted as a sidecar."],
             "style_constraints": [],
@@ -835,7 +854,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "platform-agent-judgment",
             "prompt_asset_id": "route.scene-development.roleplay.execute.v1",
             "command": "",
-            "source_paths": [scene_rel, context, f"{branch_dir}/roleplay_simulation.md", f"{branch_dir}/roleplay_simulation.agent_tasks.md"],
+            "source_paths": [scene_rel, context, context_trace, f"{branch_dir}/roleplay_simulation.md", f"{branch_dir}/roleplay_simulation.agent_tasks.md"],
+            "context_trace": context_trace,
             "expected_outputs": [f"{branch_dir}/roleplay_simulation.agent_completion.json"],
             "hard_constraints": [
                 "Read the roleplay sidecar and fill roleplay/world/branch/canon/writeback reasoning as platform agent.",
@@ -849,7 +869,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "deterministic-cli",
             "prompt_asset_id": "route.scene-development.branch.prepare.v1",
             "command": f"python -m literary_engineering_workbench branch-simulate <project> --scene {scene_rel} --agent",
-            "source_paths": [scene_rel, context, f"{branch_dir}/roleplay_simulation.md"],
+            "source_paths": [scene_rel, context, context_trace, f"{branch_dir}/roleplay_simulation.md"],
+            "context_trace": context_trace,
             "expected_outputs": [f"{branch_dir}/branch_simulation.md", f"{branch_dir}/branch_manifest.json", f"{branch_dir}/branch_manifest.agent_tasks.md"],
             "hard_constraints": ["Use --agent so branch review and selection tasks are emitted."],
             "style_constraints": [],
@@ -860,7 +881,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "platform-agent-judgment",
             "prompt_asset_id": "route.scene-development.branch.execute.v1",
             "command": "",
-            "source_paths": [scene_rel, context, f"{branch_dir}/branch_simulation.md", f"{branch_dir}/branch_manifest.json", f"{branch_dir}/branch_manifest.agent_tasks.md"],
+            "source_paths": [scene_rel, context, context_trace, f"{branch_dir}/branch_simulation.md", f"{branch_dir}/branch_manifest.json", f"{branch_dir}/branch_manifest.agent_tasks.md"],
+            "context_trace": context_trace,
             "expected_outputs": [f"{branch_dir}/branch_selection.md", f"{branch_dir}/branch_manifest.agent_completion.json"],
             "hard_constraints": ["Read branch candidates, write formal selected decision, and complete the branch sidecar marker."],
             "style_constraints": [],
@@ -882,7 +904,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "deterministic-cli",
             "prompt_asset_id": "route.scene-development.composition.prepare.v1",
             "command": f"python -m literary_engineering_workbench compose-scene <project> --scene {scene_rel} --agent-tasks",
-            "source_paths": [scene_rel, context, f"{branch_dir}/branch_manifest.json", f"{branch_dir}/branch_selection.md"],
+            "source_paths": [scene_rel, context, context_trace, f"{branch_dir}/branch_manifest.json", f"{branch_dir}/branch_selection.md"],
+            "context_trace": context_trace,
             "expected_outputs": [f"{composition}.md", f"{composition}.json", f"{composition}.agent_tasks.md"],
             "hard_constraints": ["Composition must use formal branch_selection and created_by=compose-scene provenance."],
             "style_constraints": [],
@@ -893,7 +916,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "platform-agent-judgment",
             "prompt_asset_id": "route.scene-development.composition.execute.v1",
             "command": "",
-            "source_paths": [scene_rel, context, f"{composition}.md", f"{composition}.json", f"{composition}.agent_tasks.md"],
+            "source_paths": [scene_rel, context, context_trace, f"{composition}.md", f"{composition}.json", f"{composition}.agent_tasks.md"],
+            "context_trace": context_trace,
             "expected_outputs": [f"{composition}.agent_completion.json"],
             "hard_constraints": ["Read the composition sidecar, perform platform-agent composition review, and complete the marker."],
             "style_constraints": [],
@@ -904,7 +928,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "deterministic-cli-plus-platform-review",
             "prompt_asset_id": "route.longform-planning.scene-budget.v1",
             "command": "python -m literary_engineering_workbench word-budget <project> --target-words <target>",
-            "source_paths": [scene_rel, "project.yaml", "plot/word_budget/word_budget.json"],
+            "source_paths": [scene_rel, context, context_trace, "project.yaml", "plot/word_budget/word_budget.json"],
+            "context_trace": context_trace,
             "expected_outputs": ["plot/word_budget/word_budget.json"],
             "hard_constraints": ["Longform scenes must carry word_count_target/min/max before formal generation."],
             "style_constraints": [],
@@ -915,7 +940,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "main-platform-agent-prose",
             "prompt_asset_id": "route.scene-development.prose.generate.v1",
             "command": f"python -m literary_engineering_workbench generate-scene <project> --scene {scene_rel}",
-            "source_paths": [scene_rel, context, f"{composition}.md", f"{composition}.json"],
+            "source_paths": [scene_rel, context, context_trace, f"{composition}.md", f"{composition}.json"],
+            "context_trace": context_trace,
             "expected_outputs": [f"{candidate}.md", f"{candidate}.json", f"{candidate}.prompt.json", f"{candidate}.agent_tasks.md", f"{candidate}.agent_completion.json"],
             "hard_constraints": [
                 "Run generate-scene to obtain prompt manifest and sidecar, then the main platform agent personally writes the candidate body.",
@@ -932,7 +958,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "main-platform-agent-prose",
             "prompt_asset_id": "route.scene-development.prose.complete.v1",
             "command": "",
-            "source_paths": [scene_rel, f"{candidate}.prompt.json", f"{candidate}.agent_tasks.md"],
+            "source_paths": [scene_rel, context, context_trace, f"{candidate}.prompt.json", f"{candidate}.agent_tasks.md"],
+            "context_trace": context_trace,
             "expected_outputs": [f"{candidate}.md", f"{candidate}.json", f"{candidate}.agent_completion.json"],
             "hard_constraints": ["Complete the generate-scene sidecar after candidate Markdown and manifest are checked."],
             "style_constraints": ["Candidate must satisfy style, punctuation, word budget, and anti-evasion protocol before completion."],
@@ -943,7 +970,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "platform-agent-review",
             "prompt_asset_id": "route.scene-development.agent-review.v1",
             "command": f"python -m literary_engineering_workbench agent-review-scene <project> --scene {scene_rel} --draft {candidate}.md",
-            "source_paths": [scene_rel, f"{candidate}.md", f"{candidate}.json", context],
+            "source_paths": [scene_rel, f"{candidate}.md", f"{candidate}.json", context, context_trace],
+            "context_trace": context_trace,
             "expected_outputs": [f"{review}.json", f"{review}.md", f"{review}.agent_tasks.md", f"{review}.agent_completion.json"],
             "hard_constraints": ["Review the exact candidate path; pass_with_notes, warnings, or revision actions block promotion."],
             "style_constraints": ["Handle deterministic Style Lint evidence and anti-evasion risks explicitly."],
@@ -954,7 +982,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "platform-agent-review",
             "prompt_asset_id": "route.scene-development.agent-review.complete.v1",
             "command": "",
-            "source_paths": [scene_rel, f"{review}.agent_tasks.md", f"{candidate}.md"],
+            "source_paths": [scene_rel, context, context_trace, f"{review}.agent_tasks.md", f"{candidate}.md"],
+            "context_trace": context_trace,
             "expected_outputs": [f"{review}.json", f"{review}.md", f"{review}.agent_completion.json"],
             "hard_constraints": ["Complete AgentReview sidecar only after writing JSON/Markdown review for the exact candidate."],
             "style_constraints": ["Medium+ Style Lint findings are blocking unless revised and re-reviewed."],
@@ -965,7 +994,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "deterministic-cli",
             "prompt_asset_id": "route.scene-development.promote.v1",
             "command": f"python -m literary_engineering_workbench promote-candidate <project> --scene {scene_rel}",
-            "source_paths": [scene_rel, f"{candidate}.md", f"{review}.json"],
+            "source_paths": [scene_rel, context, context_trace, f"{candidate}.md", f"{review}.json"],
+            "context_trace": context_trace,
             "expected_outputs": [f"drafts/promotions/{scene_id}_promotion.json", f"drafts/promotions/{scene_id}_promotion.md", f"drafts/scenes/{scene_id}.md"],
             "hard_constraints": ["Do not use --allow-unreviewed or --allow-review-notes."],
             "style_constraints": [],
@@ -976,7 +1006,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "deterministic-cli",
             "prompt_asset_id": "route.scene-development.promote.v1",
             "command": f"python -m literary_engineering_workbench promote-candidate <project> --scene {scene_rel}",
-            "source_paths": [scene_rel, f"{candidate}.md", f"{review}.json"],
+            "source_paths": [scene_rel, context, context_trace, f"{candidate}.md", f"{review}.json"],
+            "context_trace": context_trace,
             "expected_outputs": [f"drafts/scenes/{scene_id}.md"],
             "hard_constraints": ["Promoted draft must come from promote-candidate, not manual copy."],
             "style_constraints": [],
@@ -987,7 +1018,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "deterministic-review",
             "prompt_asset_id": "route.scene-development.static-review.v1",
             "command": f"python -m literary_engineering_workbench review-scene <project> drafts/scenes/{scene_id}.md",
-            "source_paths": [scene_rel, f"drafts/scenes/{scene_id}.md"],
+            "source_paths": [scene_rel, context, context_trace, f"drafts/scenes/{scene_id}.md"],
+            "context_trace": context_trace,
             "expected_outputs": [f"reviews/{scene_id}-review.md"],
             "hard_constraints": ["Static review must be clean before chapter/export readiness."],
             "style_constraints": ["Apply punctuation and Style Lint concerns surfaced by review."],
@@ -998,7 +1030,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "deterministic-cli-plus-platform-review",
             "prompt_asset_id": "route.scene-development.state-evolve.prepare.v1",
             "command": f"python -m literary_engineering_workbench state-evolve <project> --scene {scene_rel} --agent-tasks",
-            "source_paths": [scene_rel, f"drafts/scenes/{scene_id}.md"],
+            "source_paths": [scene_rel, context, context_trace, f"drafts/scenes/{scene_id}.md"],
+            "context_trace": context_trace,
             "expected_outputs": [f"{state_patch}.md", f"{state_patch}.json", f"{state_patch}.agent_tasks.md"],
             "hard_constraints": ["State patch is candidate material until reviewed and approved."],
             "style_constraints": [],
@@ -1009,7 +1042,8 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
             "task_type": "platform-agent-review",
             "prompt_asset_id": "route.scene-development.state-evolve.execute.v1",
             "command": "",
-            "source_paths": [scene_rel, f"{state_patch}.md", f"{state_patch}.json", f"{state_patch}.agent_tasks.md"],
+            "source_paths": [scene_rel, context, context_trace, f"{state_patch}.md", f"{state_patch}.json", f"{state_patch}.agent_tasks.md"],
+            "context_trace": context_trace,
             "expected_outputs": [f"{state_patch}.agent_completion.json"],
             "hard_constraints": ["Review state patch consequences and complete the marker; do not apply state without approval."],
             "style_constraints": [],
@@ -1022,6 +1056,7 @@ def _blueprint_for_state(root: Path, scene_id: str, scene_rel: str, current_stat
         "prompt_asset_id": "route.scene-development.repair.v1",
         "command": next_action,
         "source_paths": common_sources,
+        "context_trace": context_trace,
         "expected_outputs": [],
         "hard_constraints": [next_action or "Inspect workflow-state and route-audit, then repair the missing formal gate."],
         "style_constraints": [],
@@ -1703,6 +1738,7 @@ def _render_task_markdown(task: dict[str, object], root: Path) -> str:
         f"- current_state: `{task.get('current_state', '')}`",
         f"- task_type: `{task.get('task_type', '')}`",
         f"- prompt_asset_id: `{task.get('prompt_asset_id', '')}`",
+        f"- context_trace: `{task.get('context_trace', '') or 'n/a'}`",
         f"- status: `{task.get('status', '')}`",
         f"- completion_marker: `{_rel(completion, root)}`",
         "",
@@ -1936,6 +1972,8 @@ def _state_gate_validation(root: Path, task: dict[str, object]) -> tuple[list[st
     if not current_state:
         return errors, notes
 
+    if current_state in {"context-packet", "context-trace"}:
+        errors.extend(_context_trace_gate_errors(root, scene_id))
     if current_state == "roleplay-simulation":
         errors.extend(_roleplay_gate_errors(root, scene_id))
     if current_state in {"branch-manifest", "branch-agent-task"}:
@@ -2726,6 +2764,18 @@ def _approval_record_for_run(root: Path, run_id: str) -> dict[str, object]:
         if isinstance(payload, dict) and payload.get("run_id") == run_id:
             latest = payload
     return latest
+
+
+def _context_trace_gate_errors(root: Path, scene_id: str) -> list[str]:
+    if not scene_id:
+        return ["context task missing scene_id; cannot validate context trace"]
+    context = root / "memory" / "context_packets" / f"{scene_id}.md"
+    if not context.exists():
+        return [f"context packet is missing: {_rel(context, root)}"]
+    status = context_trace_status(root, scene_id, context)
+    if not status.passed:
+        return [status.message]
+    return []
 
 
 def _roleplay_gate_errors(root: Path, scene_id: str) -> list[str]:

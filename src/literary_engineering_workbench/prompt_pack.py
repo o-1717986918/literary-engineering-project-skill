@@ -11,6 +11,7 @@ from string import Formatter
 from typing import Any
 
 from .anti_ai_style import ANTI_AI_STYLE_PROMPT, ANTI_EVASION_REVISION_PROTOCOL
+from .context_broker import default_context_trace_path
 from .flow_gates import ensure_composition_ready_for_generation
 from .punctuation_standard import render_punctuation_standard_for_prompt
 from .word_budget import (
@@ -32,7 +33,7 @@ STYLE_GENERATION_STANDARD = """# 文风生成标准（生成前硬约束）
 执行顺序：
 
 1. 先读取文风约束提示词，提取本场景可执行的六类表达机制：叙述距离、句法与段落节奏、意象/感官系统、心理呈现方式、对白密度与语气、标点停顿节奏。
-2. 再读取 scene.yaml、context packet 和 composition，确认 canon、人物 BDI、background_story 隐性动因、场景目标和禁止改动项。
+2. 再读取 scene.yaml、context packet、context trace 和 composition，确认 canon、人物 BDI、background_story 隐性动因、场景目标、已加载来源和禁止改动项。
 3. 写作时每个段落至少承担一种具体叙事功能：推进行动、改变信息、暴露关系压力、呈现人物选择、加固意象或留下后果；不得只承担“文艺化润色”功能。
 4. 文风要通过叙事机制生效，不靠复用高频词、套用金句、堆叠形容词或复制原文片段。
 5. 文风可以改变句长、停顿、意象密度和对白疏密，但不能突破标准中文标点规范，不能制造密集句号、长逗号链、破折号、机械转折或器官轮岗。
@@ -84,6 +85,7 @@ class PromptPack:
     project_root: Path
     scene_path: Path
     context_path: Path
+    context_trace_path: Path
     composition_path: Path | None
     style_profile_path: Path | None
     word_budget_path: Path | None
@@ -112,6 +114,12 @@ def build_scene_prompt_pack(
     root = project_root.resolve()
     scene_path = _resolve(root, scene_path)
     context_path = _resolve(root, context_path)
+    context_trace_path = default_context_trace_path(context_path)
+    if not context_trace_path.exists():
+        raise FileNotFoundError(
+            f"context trace not found: {_rel(context_trace_path, root)}. "
+            "Run context again so formal generation can audit loaded canon/character/style/word-budget inputs."
+        )
     scene_id = scene_path.stem or "scene"
     default_composition = root / "drafts" / "compositions" / f"{scene_id}_composition.md"
     composition_path = _resolve(root, composition) if composition else default_composition
@@ -132,6 +140,7 @@ def build_scene_prompt_pack(
         "scene_id": scene_id,
         "scene_text": _read(scene_path),
         "context_text": _limit(_read(context_path), DEFAULT_CONTEXT_LIMIT),
+        "context_trace_text": _limit(_read(context_trace_path), DEFAULT_CONTEXT_LIMIT),
         "composition_text": _limit(_read(composition_path), DEFAULT_COMPOSITION_LIMIT) if composition_path else "内部实验模式：未加载场景创作编排包。正式生成必须先运行 simulate-scene --agent、branch-simulate --agent、记录 branch_selection.md，并重建 compose-scene。",
         "style_profile": _render_style_constraint(root, style_profile_path),
         "style_generation_standard": _render_style_generation_standard(root, style_profile_path),
@@ -152,11 +161,13 @@ def build_scene_prompt_pack(
     user_prompt = _ensure_scene_word_budget_contract(user_prompt, values["scene_word_budget_contract"])
     user_prompt = _ensure_review_notes_standard(user_prompt, values["review_notes_standard"])
     user_prompt = _ensure_generation_constraint_brief(user_prompt, values["generation_constraint_brief"])
-    sources = _sources(root, scene_path, context_path, composition_path, style_profile_path, word_budget_path, review_notes_path)
+    user_prompt = _ensure_context_trace(user_prompt, values["context_trace_text"])
+    sources = _sources(root, scene_path, context_path, context_trace_path, composition_path, style_profile_path, word_budget_path, review_notes_path)
     return PromptPack(
         project_root=root,
         scene_path=scene_path,
         context_path=context_path,
+        context_trace_path=context_trace_path,
         composition_path=composition_path,
         style_profile_path=style_profile_path,
         word_budget_path=word_budget_path,
@@ -184,6 +195,7 @@ def write_prompt_manifest(pack: PromptPack, output: Path, provider: str, model: 
         "model": model,
         "scene": _rel(pack.scene_path, pack.project_root),
         "context": _rel(pack.context_path, pack.project_root),
+        "context_trace": _rel(pack.context_trace_path, pack.project_root),
         "composition": _rel(pack.composition_path, pack.project_root) if pack.composition_path else "",
         "style_profile": _rel(pack.style_profile_path, pack.project_root) if pack.style_profile_path else "",
         "generation_standards": {
@@ -199,6 +211,7 @@ def write_prompt_manifest(pack: PromptPack, output: Path, provider: str, model: 
             "review_notes_path": _rel(pack.review_notes_path, pack.project_root) if pack.review_notes_path else "",
             "anti_evasion": ANTI_EVASION_REVISION_PROTOCOL,
             "hard_constraints": pack.generation_constraint_brief,
+            "context_trace_loaded": pack.context_trace_path.exists(),
         },
         "sources": pack.sources,
         "messages": [
@@ -258,16 +271,31 @@ def _ensure_generation_constraint_brief(user_prompt: str, brief: str) -> str:
     return user_prompt.rstrip() + "\n\n## 生成前最终硬约束摘要\n\n" + brief.strip() + "\n"
 
 
+def _ensure_context_trace(user_prompt: str, trace_text: str) -> str:
+    if "## Context Trace" in user_prompt or "## 上下文来源证明" in user_prompt:
+        return user_prompt
+    return (
+        user_prompt.rstrip()
+        + "\n\n## 上下文来源证明 Context Trace\n\n"
+        + "正式生成前必须读取本 trace，确认 context packet 实际加载了哪些 canon、character、style、plot、word-budget 和 retrieval 文件。"
+        + "如果 trace 显示缺少 required context，停止正文生成并修复上下文。\n\n"
+        + "```json\n"
+        + trace_text.strip()
+        + "\n```\n"
+    )
+
+
 def _sources(
     root: Path,
     scene_path: Path,
     context_path: Path,
+    context_trace_path: Path,
     composition_path: Path | None,
     style_profile_path: Path | None,
     word_budget_path: Path | None,
     review_notes_path: Path | None,
 ) -> list[dict[str, Any]]:
-    paths = [scene_path, context_path]
+    paths = [scene_path, context_path, context_trace_path]
     if composition_path:
         paths.append(composition_path)
     if style_profile_path:

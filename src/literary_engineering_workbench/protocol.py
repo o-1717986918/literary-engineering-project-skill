@@ -342,7 +342,7 @@ PROTOCOL_ROUTES: dict[str, ProtocolRoute] = {
             "When task-next issues a workflow/tasks/ package for formal scene-development, that package must be task-submitted and task-completed before the next formal state.",
             "task-submit records every platform-agent output used to satisfy the current task.",
             "task-complete succeeds before the platform agent moves to the next formal state.",
-            "CLI-generated context packet or recorded CLI-equivalent workaround exists.",
+            "CLI-generated context packet plus valid context trace, or a recorded CLI-equivalent workaround for both artifacts, exists.",
             "simulate-scene --agent roleplay simulation exists, includes CLI provenance, includes a platform-agent reading receipt, and has no unresolved AGENT_TASK directives.",
             "branch-simulate --agent branch manifest exists with CLI provenance, and branch_selection.md records decision: selected plus selected_branch before composition or generation.",
             "compose-scene --agent-tasks composition exists with selection_source=selection, ready_for_generation=true, and formal_cli_provenance.created_by=compose-scene before generate-scene or state writeback.",

@@ -161,7 +161,7 @@ WORKFLOW_NODES: tuple[WorkflowNode, ...] = (
         primary_engine="LangGraph",
         dify_mapping="Template node or HTTP Request node calling the workbench CLI/API.",
         human_gate="optional context inspection",
-        persistent_artifact="memory/context_packets/{scene_id}.md",
+        persistent_artifact="memory/context_packets/{scene_id}.md plus memory/context_packets/{scene_id}.trace.json",
     ),
     WorkflowNode(
         node_id="character_simulation",

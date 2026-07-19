@@ -140,7 +140,7 @@ Do not solve an undersized outline by making each scene verbose. If the project 
 For a scene:
 
 1. Read scene yaml, relevant characters, canon, selected branch, style, and recent context.
-2. Build or refresh context packet.
+2. Build or refresh context packet and context trace.
 3. Simulate character choices from state and hidden background.
 4. Produce 2-5 plausible branches when the direction is open.
 5. Select or ask the user to select a branch.
@@ -151,7 +151,7 @@ For a scene:
 
 If formal CLI commands produce roleplay, branch, composition, generation, or state artifacts, inspect their raw output and manifests before using them. Do not let the highest score or recommended branch replace the platform agent's own continuity and story judgment. Do not hand-write formal route artifacts merely to avoid the CLI; manual equivalents require a recorded command failure and CLI-equivalent workaround marker.
 
-When using `simulate-scene --agent`, fill the platform-agent execution gate first: list read scene/context/character/canon files, missing files, hard constraints, and writeback boundaries before treating RP notes as usable evidence.
+When using `simulate-scene --agent`, fill the platform-agent execution gate first: list read scene/context packet/context trace/character/canon files, missing files, hard constraints, and writeback boundaries before treating RP notes as usable evidence.
 
 ## Review Checklist
 

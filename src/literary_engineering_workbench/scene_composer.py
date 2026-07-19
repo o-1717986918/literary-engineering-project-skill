@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_tasks import default_agent_tasks_path, write_agent_tasks
+from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 from .flow_gates import FlowGateError, branch_selection_status, ensure_agent_task_completed, selected_branch_from
 from .roleplay_lab import CharacterCard, _load_characters, _read
@@ -42,6 +43,7 @@ class SceneCompositionResult:
     json_path: Path
     agent_tasks_path: Path | None
     context_path: Path
+    context_trace_path: Path
     scene_id: str
     selected_branch: str
     character_count: int
@@ -79,9 +81,11 @@ def build_scene_composition(
         context,
         root / "memory" / "context_packets" / f"{facts.scene_id}.md",
     )
-    if rebuild_context or not context_path.exists():
+    context_trace_path = default_context_trace_path(context_path)
+    if rebuild_context or not context_path.exists() or not context_trace_path.exists():
         context_result = build_context_packet(root, scene=scene_path, query=query, rebuild_index=True, output=context_path)
         context_path = context_result.output_path
+        context_trace_path = context_result.trace_path or default_context_trace_path(context_path)
 
     all_cards = _load_characters(root)
     active_cards = _active_cards(all_cards, facts.participants)
@@ -126,6 +130,7 @@ def build_scene_composition(
         "scene_id": facts.scene_id,
         "scene_file": _rel(scene_path, root),
         "context_packet": _rel(context_path, root),
+        "context_trace": _rel(context_trace_path, root),
         "branch_manifest": _rel(branch["manifest_path"], root) if branch.get("manifest_path") else "",
         "branch_selection": _rel(branch["selection_path"], root) if branch.get("selection_path") else "",
         "selected_branch": branch["branch_id"],
@@ -145,10 +150,10 @@ def build_scene_composition(
         "guardrails": guardrails,
     }
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    output_path.write_text(_render_markdown(root, scene_path, context_path, payload), encoding="utf-8")
+    output_path.write_text(_render_markdown(root, scene_path, context_path, context_trace_path, payload), encoding="utf-8")
     agent_tasks_path = None
     if agent_tasks:
-        agent_tasks_path = _write_composition_agent_tasks(root, scene_path, context_path, output_path, json_path, payload)
+        agent_tasks_path = _write_composition_agent_tasks(root, scene_path, context_path, context_trace_path, output_path, json_path, payload)
 
     return SceneCompositionResult(
         project_root=root,
@@ -156,6 +161,7 @@ def build_scene_composition(
         json_path=json_path,
         agent_tasks_path=agent_tasks_path,
         context_path=context_path,
+        context_trace_path=context_trace_path,
         scene_id=facts.scene_id,
         selected_branch=str(branch["branch_id"] or "none"),
         character_count=len(active_cards or all_cards),
@@ -167,11 +173,12 @@ def _write_composition_agent_tasks(
     root: Path,
     scene_path: Path,
     context_path: Path,
+    context_trace_path: Path,
     output_path: Path,
     json_path: Path,
     payload: dict[str, Any],
 ) -> Path:
-    source_paths = [scene_path, context_path, output_path, json_path]
+    source_paths = [scene_path, context_path, context_trace_path, output_path, json_path]
     branch_manifest = str(payload.get("branch_manifest") or "")
     branch_selection = str(payload.get("branch_selection") or "")
     if branch_manifest:
@@ -526,7 +533,7 @@ def _serializable_branch(branch: dict[str, Any], root: Path) -> dict[str, Any]:
     return result
 
 
-def _render_markdown(root: Path, scene_path: Path, context_path: Path, payload: dict[str, Any]) -> str:
+def _render_markdown(root: Path, scene_path: Path, context_path: Path, context_trace_path: Path, payload: dict[str, Any]) -> str:
     facts = payload["scene_facts"]
     branch = payload["branch"]
     lines = [
@@ -535,6 +542,7 @@ def _render_markdown(root: Path, scene_path: Path, context_path: Path, payload: 
         f"- 生成时间：{payload['generated_at']}",
         f"- 场景文件：`{_rel(scene_path, root)}`",
         f"- 上下文包：`{_rel(context_path, root)}`",
+        f"- 上下文 Trace：`{_rel(context_trace_path, root)}`",
         f"- 选用分支：`{payload['selected_branch'] or 'none'}`（{payload['selection_source']}）",
         f"- JSON：`drafts/compositions/{payload['scene_id']}_composition.json`",
         "",

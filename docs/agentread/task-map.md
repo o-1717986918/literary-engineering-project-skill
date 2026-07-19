@@ -56,7 +56,7 @@ Do not write directly to confirmed canon or final character files unless the use
 
 Read: `docs/modules/plot-scene-engine.md`, `docs/modules/character-engine.md`, `docs/implementation/phase20-branch-simulation.md`, `docs/implementation/phase22-scene-composer.md`, `docs/implementation/phase23-model-provider-prompt-pack.md`, `docs/implementation/phase24-character-state-evolution.md`, `docs/implementation/phase25-candidate-promotion-state-apply.md`.
 
-Output: context packet, branch candidates, scene composition packet, draft candidate, review report, state patch.
+Output: context packet, context trace, branch candidates, scene composition packet, draft candidate, review report, state patch.
 
 ## Review And Audit
 

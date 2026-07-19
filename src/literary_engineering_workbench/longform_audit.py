@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .context_broker import context_trace_status
 from .draft_text import count_delivery_chars, final_body_from_draft_text
 from .scene_readiness import agent_review_gate_state, scene_flow_gate_issues, scene_readiness_status
 from .word_budget import load_word_budget_summary
@@ -325,6 +326,17 @@ def _audit_issues(
         context_path = root / "memory" / "context_packets" / f"{scene.scene_id}.md"
         if not context_path.exists():
             issues.append(LongformIssue("medium", "memory_context", scene.scene_id, "缺少场景上下文包。", "运行 context 或 draft-scene --rebuild-context。"))
+        trace_status = context_trace_status(root, scene.scene_id, context_path=context_path)
+        if not trace_status.passed:
+            issues.append(
+                LongformIssue(
+                    "high",
+                    "memory_context",
+                    scene.scene_id,
+                    f"场景上下文来源证明无效：{trace_status.message}",
+                    "重跑 context 并检查 memory/context_packets/{scene_id}.trace.json。",
+                )
+            )
 
     chapter_ids = sorted({scene.chapter_id for scene in scenes if scene.chapter_id != "unassigned"})
     available_chapters = {path.stem for path in chapter_files}

@@ -33,7 +33,7 @@
 drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json
 ```
 
-该文件记录 system/user messages、场景、上下文包、场景创作编排包、文风 profile、`generation_standards.style`、`generation_standards.word_budget`、`generation_standards.review_notes`、`generation_standards.hard_constraints` 和来源清单，便于复盘模型输入。
+该文件记录 system/user messages、场景、上下文包、上下文来源证明、场景创作编排包、文风 profile、`generation_standards.style`、`generation_standards.word_budget`、`generation_standards.review_notes`、`generation_standards.hard_constraints` 和来源清单，便于复盘模型输入。
 
 `generation_standards.style` 是生成前置契约，不是审查后置清单。平台 agent 或 provider 在写正文候选前，应先把 Style Skill / style profile 转译为本场景的叙述距离、句法节奏、意象系统、心理呈现、对白密度和标点停顿策略；这些策略只用于指导写作，不应作为工作流痕迹输出到候选正文。
 
@@ -50,6 +50,8 @@ drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json
 `v0.70.0` 起，正式 `generate-scene` / prompt pack 默认要求已经存在 ready composition：场景必须先完成 context、`simulate-scene --agent`、`branch-simulate --agent`、正式 `branch_selection.md` 和 `compose-scene`。缺失 composition、fallback composition、recommended-only composition 或未正式选择的 composition 都会阻塞正式生成；`--allow-missing-composition` 与 `--allow-unselected-composition` 只用于内部实验，产物不得直接晋升或发布。
 
 `v0.71.0` 起，挂载 Style Skill 的项目还需要在生成后的正式平台场景审查中写入 `style_adherence`。这让文风从“生成前硬约束”延伸到“生成后验收门禁”：prompt pack 负责把文风压进写作任务，`scene_review.v1` 与 `route-audit` 负责检查它是否真的改变了正文表达。
+
+`v0.86.0` 起，Prompt Pack 要求正式 context packet 必须有相邻 context trace。传入 `--context` 但缺少 `*.trace.json` 时会阻塞，prompt manifest 会写入 `context_trace`，平台 Agent 在动笔前必须先用 trace 复核实际加载来源。
 
 ### Provider
 

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import re
 
+from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 
 
@@ -61,7 +62,7 @@ def build_scene_draft(
     context_path = context if context and context.is_absolute() else (
         root / context if context else root / "memory" / "context_packets" / f"{sid}.md"
     )
-    if rebuild_context or not context_path.exists():
+    if rebuild_context or not context_path.exists() or not default_context_trace_path(context_path).exists():
         context_result = build_context_packet(root, scene=scene_path, query=query, rebuild_index=True, output=context_path)
         context_path = context_result.output_path
 

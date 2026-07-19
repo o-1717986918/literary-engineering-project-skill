@@ -6,7 +6,7 @@
 目标读者：维护本 Skill 的平台 Agent、项目开发者、后续代码实现者  
 生成背景：基于当前 Skill 架构复盘，以及对 ProseForge、ai-novel-writer、AI-Novel-Writing-Assistant 三个外部项目的互补性分析。
 
-执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`。Phase 86-90 仍按本计划继续推进。
+执行记录：`v0.84.0` 已完成 Phase 84 的 `scene-development` 最小 CLI 中介闭环；`v0.84.1` 已把 `task-complete` 接入按 `current_state` 的真实门禁校验；`v0.84.2` 已把 task registry 插件化为 route registry，并将 `longform-planning` 接入同一套任务循环；`v0.84.3` 已将 `source-ingest` 接入任务循环；`v0.84.4` 已将 `style-engineering` 接入任务循环；`v0.84.5` 已将 `character-and-world-assets` 接入任务循环；`v0.84.6` 已将 `review-and-audit` 与 `export-and-release` 接入任务循环，详见 `docs/implementation/phase84-cli-mediated-agent-workflow.md`；`v0.85.0` 已完成文件型 Prompt Registry，详见 `docs/implementation/phase85-prompt-registry.md`；`v0.86.0` 已完成 Context Broker / Context Trace，详见 `docs/implementation/phase86-context-broker.md`。Phase 87-90 仍按本计划继续推进。
 
 ## 1. 背景与判断
 
@@ -318,6 +318,8 @@ Phase 84 后续横向接入顺序：
 
 ## 8. Phase 86：Context Broker 与 Context Trace
 
+状态：`v0.86.0` 已完成。
+
 ### 8.1 目标
 
 解决“Agent 不知道该读什么、读太多、漏读文风或字数预算、上下文不可复盘”的问题。Context Broker 不替 Agent 判断，只负责把正式路线需要的上下文打包并留下 trace。
@@ -358,6 +360,18 @@ Phase 84 后续横向接入顺序：
 1. 每个正式场景都有 context packet 和 context trace。
 2. Agent 可以通过 trace 快速知道“这次写作到底读了什么”。
 3. 缺失 Style Skill、word budget 或关键角色文件时，route-audit 阻塞。
+
+### 8.6 执行记录
+
+`v0.86.0` 已实现以下内容：
+
+1. 新增 `context_broker.py` 与 `schemas/context_trace.v1.json`，为每个 context packet 写出相邻 `*.trace.json`。
+2. `context` 命令输出 `context_trace:` 路径，并记录 scene、canon、character、style mount、word budget、检索摘要、排除文件和 missing required context。
+3. `workflow-state` / `task-next` 新增 `context-trace` 状态；只有 context packet 没有 trace 时，会派发修复任务而不是继续进入 RP。
+4. `agent-task-status`、`route-audit`、scene readiness、chapter workspace、export readiness 均把无效 trace 视为 blocking gate。
+5. `compose-scene`、`generate-scene`、prompt pack、platform generation task、AgentReview、`revise-scene`、RP、branch、state-evolve 相关任务都把 context trace 写入 source paths 或 prompt manifest。
+6. `build_scene_prompt_pack` 在外部传入 context packet 时要求相邻 trace 存在，防止手写 context packet 绕过正式来源证明。
+7. 文档层新增 `docs/modules/context-broker.md`，并更新 `SKILL.md`、`AGENTS.md`、`agentread.yaml`、`references/workflows.md`、`references/artifact-contracts.md` 和 CLI run protocol。
 
 ## 9. Phase 87：持续工作流状态机
 

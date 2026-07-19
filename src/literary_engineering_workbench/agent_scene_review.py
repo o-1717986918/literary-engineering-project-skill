@@ -10,6 +10,7 @@ from pathlib import Path
 from .anti_ai_style import ANTI_EVASION_REVISION_PROTOCOL, ANTI_EVASION_SHORT_RULE, lint_ai_style, render_ai_style_lint_block
 from .agent_provider import run_agent_task
 from .agent_schema import validate_agent_run
+from .context_broker import default_context_trace_path
 from .draft_text import final_body_from_workbench_text
 from .word_budget import word_budget_adherence_for_body
 
@@ -41,12 +42,15 @@ def review_scene_with_agent(
     scene_id = scene_path.stem
     draft_path = _resolve_draft(root, scene_id, draft)
     context_path = root / "memory" / "context_packets" / f"{scene_id}.md"
+    context_trace_path = default_context_trace_path(context_path)
     style_prompt_path = _first_existing(_style_source_candidates(root))
     source_paths = [_rel_str(scene_path, root)]
     if draft_path.exists():
         source_paths.append(_rel_str(draft_path, root))
     if context_path.exists():
         source_paths.append(_rel_str(context_path, root))
+    if context_trace_path.exists():
+        source_paths.append(_rel_str(context_trace_path, root))
     if style_prompt_path and style_prompt_path.exists():
         source_paths.append(_rel_str(style_prompt_path, root))
 
@@ -54,6 +58,7 @@ def review_scene_with_agent(
     draft_text = _read(draft_path) if draft_path.exists() else ""
     draft_body = final_body_from_workbench_text(draft_text) or draft_text
     context_text = _read(context_path) if context_path.exists() else ""
+    context_trace_text = _read(context_trace_path) if context_trace_path.exists() else ""
     style_text = _read(style_prompt_path) if style_prompt_path else ""
     word_budget_adherence = word_budget_adherence_for_body(root, scene_path, draft_body)
     dry_payload = _dry_scene_review(scene_id, draft_text, source_paths, word_budget_adherence)
@@ -62,7 +67,7 @@ def review_scene_with_agent(
         agent_id="scene-reviewer",
         task=f"review-scene:{scene_id}",
         system_prompt=_system_prompt(),
-        user_prompt=_user_prompt(scene_text, draft_text, context_text, style_text, source_paths, word_budget_adherence),
+        user_prompt=_user_prompt(scene_text, draft_text, context_text, context_trace_text, style_text, source_paths, word_budget_adherence),
         provider=provider,
         metadata={"schema_name": "scene_review.v1", "scene_id": scene_id, "source_paths": source_paths},
         dry_run_output=dry_payload,
@@ -99,6 +104,7 @@ def _user_prompt(
     scene_text: str,
     draft_text: str,
     context_text: str,
+    context_trace_text: str,
     style_text: str,
     source_paths: list[str],
     word_budget_adherence: dict[str, object],
@@ -138,6 +144,12 @@ def _user_prompt(
 
 ```markdown
 {context_text[:6000] or "Context packet missing."}
+```
+
+## Context Trace
+
+```json
+{context_trace_text[:6000] or "Context trace missing. Clean pass is forbidden for formal review until `context` is rerun and the trace is inspected."}
 ```
 
 ## Style Prompt / Profile

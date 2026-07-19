@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import re
 
+from .context_broker import default_context_trace_path, write_context_trace
 from .memory_index import build_memory_index, search_memory
 from .word_budget import render_scene_word_budget_contract
 
@@ -14,6 +15,7 @@ class ContextPacketResult:
     project_root: Path
     output_path: Path
     retrieval_count: int
+    trace_path: Path | None = None
 
 
 def _read(path: Path, missing: str = "") -> str:
@@ -202,6 +204,7 @@ def build_context_packet(
     top_k: int = 8,
     rebuild_index: bool = False,
     output: Path | None = None,
+    trace_output: Path | None = None,
 ) -> ContextPacketResult:
     root = project_root.resolve()
     if not root.is_dir():
@@ -314,4 +317,177 @@ def build_context_packet(
 """
 
     output_path.write_text(content, encoding="utf-8")
-    return ContextPacketResult(project_root=root, output_path=output_path, retrieval_count=len(hits))
+    trace_path = trace_output or default_context_trace_path(output_path)
+    write_context_trace(
+        trace_path,
+        _context_trace_payload(
+            root=root,
+            scene_path=scene_path,
+            scene_id=scene_id,
+            context_path=output_path,
+            top_k=top_k,
+            query=query,
+            content=content,
+            hits=hits,
+            loaded_character_ids=loaded_character_ids,
+        ),
+    )
+    return ContextPacketResult(project_root=root, output_path=output_path, retrieval_count=len(hits), trace_path=trace_path)
+
+
+def _context_trace_payload(
+    *,
+    root: Path,
+    scene_path: Path,
+    scene_id: str,
+    context_path: Path,
+    top_k: int,
+    query: str,
+    content: str,
+    hits,
+    loaded_character_ids: set[str],
+) -> dict[str, object]:
+    project_files = _existing_rel_paths(root, ["project.yaml"])
+    canon_files = _existing_rel_paths(
+        root,
+        [
+            "canon/world_rules.yaml",
+            "canon/timeline.yaml",
+            "canon/facts.json",
+            "canon/forbidden_changes.yaml",
+        ],
+    )
+    plot_files = _existing_rel_paths(
+        root,
+        [
+            "plot/outline.md",
+            "plot/foreshadowing.csv",
+            "plot/conflict_matrix.md",
+        ],
+    )
+    style_files = _existing_rel_paths(root, ["style/style-profile.md", "style/style_prompt.md", "style/active_style_skill.json"])
+    style_files.extend(_mounted_style_prompt_paths(root))
+    word_budget_files = _existing_rel_paths(root, ["plot/word_budget/word_budget.json", "plot/word_budget/word_budget.md"])
+    character_files = _loaded_character_paths(root, loaded_character_ids)
+    excluded_character_files = _excluded_character_paths(root, loaded_character_ids)
+    scene_rel = _rel(scene_path, root)
+    summarized_files = sorted({str(getattr(hit, "source", "")) for hit in hits if str(getattr(hit, "source", "")).strip()})
+    loaded_files = sorted(
+        {
+            *project_files,
+            scene_rel,
+            *canon_files,
+            *plot_files,
+            *style_files,
+            *word_budget_files,
+            *character_files,
+            *summarized_files,
+        }
+    )
+    groups = [
+        _context_group("project", True, project_files, "project.yaml anchors title, genre, target length, and provider-neutral project rules."),
+        _context_group("scene", True, [scene_rel] if scene_path.exists() else [], "Current scene YAML is the formal scene contract."),
+        _context_group("canon", False, canon_files, "Canon files are hard constraints when present."),
+        _context_group("characters", False, character_files, "Major characters plus scene-referenced secondary/cameo files."),
+        _context_group("plot", False, plot_files, "Approved or working outline, foreshadowing, and conflict scaffolds."),
+        _context_group("style", False, style_files, "Mounted Style Skill or project style profile."),
+        _context_group("word_budget", False, word_budget_files, "Longform target-length and scene-budget evidence."),
+        _context_group("retrieval", False, summarized_files, "Soft memory retrieval; never overrides hard canon."),
+    ]
+    missing_required = [str(group["name"]) for group in groups if group["required"] and not group["loaded"]]
+    return {
+        "route": "scene-development",
+        "scene_id": scene_id,
+        "context_packet": _rel(context_path, root),
+        "scene_file": scene_rel,
+        "required_context_groups": groups,
+        "loaded_files": loaded_files,
+        "summarized_files": summarized_files,
+        "excluded_files": excluded_character_files,
+        "style_mounts": style_files,
+        "word_budget_source": word_budget_files[0] if word_budget_files else "",
+        "character_files": character_files,
+        "canon_files": canon_files,
+        "previous_scene_tail": "",
+        "token_or_length_budget": {
+            "top_k": top_k,
+            "query": query,
+            "retrieval_count": len(hits),
+            "context_chars": len(content),
+        },
+        "missing_required_context": missing_required,
+    }
+
+
+def _context_group(name: str, required: bool, files: list[str], notes: str) -> dict[str, object]:
+    return {
+        "name": name,
+        "required": required,
+        "loaded": bool(files),
+        "files": sorted(dict.fromkeys(files)),
+        "notes": notes,
+    }
+
+
+def _existing_rel_paths(root: Path, rels: list[str]) -> list[str]:
+    existing: list[str] = []
+    for rel in rels:
+        path = root / rel
+        if path.exists() and (path.is_dir() or _read(path)):
+            existing.append(rel)
+    return existing
+
+
+def _mounted_style_prompt_paths(root: Path) -> list[str]:
+    active = root / "style" / "active_style_skill.json"
+    if not active.exists():
+        return []
+    text = _read(active)
+    paths: list[str] = []
+    for key in ("prompt", "style_skill", "mount_path"):
+        match = re.search(rf'"?{re.escape(key)}"?\s*[:=]\s*["\']?([^"\'\n,}}]+)', text)
+        if not match:
+            continue
+        value = match.group(1).strip()
+        if not value:
+            continue
+        candidate = root / value
+        if candidate.is_dir():
+            for name in ("prompt.md", "STYLE.md", "style_skill.json"):
+                item = candidate / name
+                if item.exists():
+                    paths.append(_rel(item, root))
+        elif candidate.exists():
+            paths.append(_rel(candidate, root))
+    return sorted(dict.fromkeys(paths))
+
+
+def _loaded_character_paths(root: Path, loaded_character_ids: set[str]) -> list[str]:
+    paths: list[str] = []
+    for character_id in sorted(loaded_character_ids):
+        for suffix in (".yaml", ".yml"):
+            path = root / "characters" / f"{character_id}{suffix}"
+            if path.exists():
+                paths.append(_rel(path, root))
+                break
+    return paths
+
+
+def _excluded_character_paths(root: Path, loaded_character_ids: set[str]) -> list[str]:
+    chars_dir = root / "characters"
+    if not chars_dir.exists():
+        return []
+    excluded: list[str] = []
+    for path in sorted(chars_dir.glob("*.y*ml")):
+        if path.name.startswith("_"):
+            continue
+        if path.stem not in loaded_character_ids:
+            excluded.append(_rel(path, root))
+    return excluded
+
+
+def _rel(path: Path, root: Path) -> str:
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return str(path).replace("\\", "/")

@@ -95,7 +95,7 @@ Dify is a frontend reviewer console, not the source of truth.
 Good Dify uses:
 
 - collect `project_root`, `chapter_id`, `scene_id`, task type;
-- display context packets, simulations, drafts, reviews, audits, and exports;
+- display context packets, context traces, simulations, drafts, reviews, audits, and exports;
 - collect `Approve`, `Revise`, `Reject`, and comments through Human Input;
 - call a workbench backend through HTTP Request.
 
@@ -149,6 +149,7 @@ Short term:
 
 - `memory/index.json` is the lightweight index.
 - `memory/context_packets/*.md` are working memory packets.
+- `memory/context_packets/*.trace.json` are machine-readable context provenance records and are required for formal scene work.
 - `plot/longform_graph.json` is the portable graph.
 
 Later:

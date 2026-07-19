@@ -9,6 +9,7 @@ from typing import Any
 
 from .agent_schema import validate_payload
 from .anti_ai_style import style_lint_gate, style_lint_gate_message
+from .context_broker import context_trace_status
 from .flow_gates import branch_selection_status
 from .word_budget import word_budget_adherence_for_body
 
@@ -25,6 +26,9 @@ def scene_flow_gate_issues(root: Path, scene_id: str) -> tuple[str, ...]:
 
     if not context.exists():
         issues.append(f"missing context packet: memory/context_packets/{scene_id}.md")
+    trace = context_trace_status(root, scene_id, context)
+    if not trace.passed:
+        issues.append(trace.message)
 
     roleplay_text = _read_text(roleplay)
     if not roleplay.exists():

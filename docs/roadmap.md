@@ -270,4 +270,6 @@
 
 `v0.85.0` 已实现文件型 Prompt Registry。`templates/prompt_assets/*.md` 提供路由级提示词资产，`schemas/prompt_asset.v1.json` 定义资产契约，`prompt-registry-list` / `prompt-registry-validate` / `prompt-preview` 提供 CLI 管理面，`task-open` 会把解析后的 Prompt Asset、输出契约和提示正文直接写进平台 Agent 任务包。这样“prompt_asset_id 只是装饰字符串、Agent 仍靠读散文档理解怎么做”的问题进入正式闭环。
 
-下一步规划：Phase 86-90 将继续推进 Context Broker、Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。
+`v0.86.0` 已实现 Context Broker / Context Trace。`context` 会同时生成 `memory/context_packets/{scene_id}.md` 与相邻 `*.trace.json`，trace 记录 scene、canon、character、style mount、word budget、检索摘要、排除文件和 missing required context。`task-next`、`workflow-state`、`route-audit`、`compose-scene`、`generate-scene`、`agent-review-scene`、`revise-scene`、chapter readiness 与 export readiness 均把缺失或无效 trace 作为 blocking gate，防止平台 Agent 只凭一份手写 context packet 继续正式写作。
+
+下一步规划：Phase 87-90 将继续推进持续状态机增强、Reader Experience Contract、最小项目总控面板和失败模式回归测试。详细计划见 `docs/plans/phase84-90-skill-kernel-hardening-plan.md`。

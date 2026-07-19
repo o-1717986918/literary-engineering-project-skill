@@ -237,7 +237,7 @@ def init_work_project(options: InitOptions) -> InitResult:
     _write(root / "drafts" / "chapters" / "README.md", "# chapters\n\n章节级工作台和章节草稿放在这里。\n", files)
     _write(root / "memory" / "README.md", "# memory\n\n向量索引、摘要和检索日志放在这里。\n", files)
     _write(root / "memory" / "retrieval_logs" / "README.md", "# retrieval_logs\n\n每次生成前的检索记录放在这里。\n", files)
-    _write(root / "memory" / "context_packets" / "README.md", "# context_packets\n\n场景上下文包放在这里。\n", files)
+    _write(root / "memory" / "context_packets" / "README.md", "# context_packets\n\n场景上下文包和 `.trace.json` 来源证明放在这里。正式 scene-development 必须同时具备 context packet 与 context trace。\n", files)
     _write(root / "sources" / "README.md", "# sources\n\n已有文本、完整作品、改写/续写源材料的导入清单放在这里。使用 `source-ingest` 生成 `imports/{work_id}/` 后，由平台 Agent 反推候选设定。\n", files)
     _write(root / "sources" / "imports" / "README.md", "# imports\n\n每次导入一个已有作品或源文本，生成 raw、chunks、manifest、report 和平台 Agent 提取任务。\n", files)
     _write(root / "style" / "candidates" / "README.md", "# style candidates\n\n从已有文本或作品反推的可生成文风说明候选放在这里。正式挂载前应转化为合格 Style Skill。\n", files)

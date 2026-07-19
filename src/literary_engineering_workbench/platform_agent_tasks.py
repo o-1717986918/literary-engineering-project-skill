@@ -16,6 +16,7 @@ import re
 from .agent_tasks import write_agent_tasks
 from .anti_ai_style import ANTI_EVASION_REVISION_PROTOCOL, ANTI_EVASION_SHORT_RULE, render_ai_style_lint_block
 from .asset_workshop import ASSET_CANDIDATE_DIRS, ASSET_SCHEMA_NAMES, ASSET_TYPES
+from .context_broker import default_context_trace_path
 from .draft_text import count_delivery_chars, final_body_from_workbench_text
 from .punctuation_standard import PUNCTUATION_STANDARD_SHORT_RULE
 from .style_prompt import STYLE_PROMPT_LENGTH_RULE, STYLE_PROMPT_QUALITY_RULE
@@ -41,9 +42,12 @@ def write_platform_scene_review_task(
     report = report_path or root / "reviews" / "agent" / f"{scene_id}_scene_review.md"
     json_output = json_path or root / "reviews" / "agent" / f"{scene_id}_scene_review.json"
     context_path = root / "memory" / "context_packets" / f"{scene_id}.md"
+    context_trace_path = default_context_trace_path(context_path)
     source_paths = [scene_path, draft_path]
     if context_path.exists():
         source_paths.append(context_path)
+    if context_trace_path.exists():
+        source_paths.append(context_trace_path)
     _extend_unique(source_paths, _style_source_paths(root))
     draft_text = _read_optional(draft_path)
     body = final_body_from_workbench_text(draft_text)
@@ -64,7 +68,7 @@ def write_platform_scene_review_task(
         tasks=[
             (
                 "读取审查材料",
-                """读取 scene.yaml、draft markdown、context packet 和已挂载 style prompt/profile。确认本场景的 canon 约束、人物 BDI、hidden background_story、场景目标、输出状态和用户约束。""",
+                """读取 scene.yaml、draft markdown、context packet、context trace 和已挂载 style prompt/profile。先用 context trace 核对本次上下文实际加载了哪些 canon、character、style、plot、word-budget 和 retrieval 文件；若 trace 缺失或显示 required context 未加载，审查不得给出 clean pass。确认本场景的 canon 约束、人物 BDI、hidden background_story、场景目标、输出状态和用户约束。""",
             ),
             (
                 "进行语义审查",
@@ -158,7 +162,10 @@ def write_platform_scene_generation_task(
     scene_id = scene_path.stem
     candidate = candidate_path or root / "drafts" / "candidates" / f"{scene_id}-platform-agent.md"
     manifest = manifest_path or candidate.with_suffix(".json")
+    context_trace_path = default_context_trace_path(context_path)
     source_paths = [scene_path, context_path]
+    if context_trace_path.exists():
+        source_paths.append(context_trace_path)
     if composition_path and composition_path.exists():
         source_paths.append(composition_path)
     if prompt_manifest_path and prompt_manifest_path.exists():
@@ -180,11 +187,11 @@ def write_platform_scene_generation_task(
         tasks=[
             (
                 "确认正式路线 provenance",
-                """在写正文前，先确认本任务来自 `generate-scene`，并且 source artifacts 中存在 prompt manifest、context packet、composition packet。composition JSON 必须包含 `formal_cli_provenance.created_by=compose-scene`，且本候选的 `.agent_tasks.md`、`.prompt.json`、预期 candidate manifest 路径齐全。若缺失，停止正文生成，把本轮标记为 formal route blocked，不得手写文件冒充正式候选。""",
+                """在写正文前，先确认本任务来自 `generate-scene`，并且 source artifacts 中存在 prompt manifest、context packet、context trace、composition packet。composition JSON 必须包含 `formal_cli_provenance.created_by=compose-scene`，且本候选的 `.agent_tasks.md`、`.prompt.json`、预期 candidate manifest 路径齐全。若缺失，停止正文生成，把本轮标记为 formal route blocked，不得手写文件冒充正式候选。""",
             ),
             (
                 "读取创作材料",
-                f"""读取 scene.yaml、context packet、composition packet、prompt manifest、style prompt/profile、长篇字数预算、上一轮 AgentReview 小修约束、生成前最终硬约束摘要、标点规范和相关 canon/character 文件。确认人物 BDI、hidden background_story、scene goal、output_state、用户约束、文风生成标准、长篇字数预算标准、pass_with_notes 小修项和标点边界。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
+                f"""读取 scene.yaml、context packet、context trace、composition packet、prompt manifest、style prompt/profile、长篇字数预算、上一轮 AgentReview 小修约束、生成前最终硬约束摘要、标点规范和相关 canon/character 文件。用 context trace 复核上下文实际来源：若 trace 缺少 scene/project required context，或没有加载本场参与角色、必要 canon、已挂载文风或场景字数预算，停止正文生成并先修复 context。确认人物 BDI、hidden background_story、scene goal、output_state、用户约束、文风生成标准、长篇字数预算标准、pass_with_notes 小修项和标点边界。标点规则：{PUNCTUATION_STANDARD_SHORT_RULE}""",
             ),
             (
                 "执行生成前最终硬约束摘要",

@@ -11,6 +11,7 @@ from typing import Any
 
 from .agent_tasks import write_agent_tasks
 from .anti_ai_style import ANTI_EVASION_REVISION_PROTOCOL, ANTI_EVASION_SHORT_RULE, render_ai_style_lint_block
+from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 from .draft_text import count_delivery_chars, final_body_from_draft_text
 from .punctuation_standard import render_punctuation_standard_for_prompt
@@ -55,8 +56,11 @@ def build_scene_revision_task(
         raise FileNotFoundError(f"draft not found: {draft_path}")
     review_path = _resolve(root, review) if review else _find_review(root, scene_id)
     context_path = root / "memory" / "context_packets" / f"{scene_id}.md"
-    if rebuild_context or not context_path.exists():
-        context_path = build_context_packet(root, scene=scene_path, query=query, rebuild_index=True, output=context_path).output_path
+    context_trace_path = default_context_trace_path(context_path)
+    if rebuild_context or not context_path.exists() or not context_trace_path.exists():
+        packet = build_context_packet(root, scene=scene_path, query=query, rebuild_index=True, output=context_path)
+        context_path = packet.output_path
+        context_trace_path = packet.trace_path or default_context_trace_path(context_path)
 
     out_dir = root / "drafts" / "revisions"
     candidate = _resolve(root, output) if output else out_dir / f"{scene_id}_revision.md"
@@ -66,8 +70,20 @@ def build_scene_revision_task(
     task_path = _resolve(root, task_output) if task_output else candidate.with_suffix(".agent_tasks.md")
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    sources = _source_paths(root, scene_path, draft_path, context_path, review_path)
-    payload = _prompt_manifest(root, scene_id, scene_path, draft_path, context_path, review_path, sources, candidate, report, manifest)
+    sources = _source_paths(root, scene_path, draft_path, context_path, context_trace_path, review_path)
+    payload = _prompt_manifest(
+        root,
+        scene_id,
+        scene_path,
+        draft_path,
+        context_path,
+        context_trace_path,
+        review_path,
+        sources,
+        candidate,
+        report,
+        manifest,
+    )
     prompt_manifest.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     _write_revision_task(root, scene_id, task_path, prompt_manifest, sources, candidate, report, manifest)
     return SceneRevisionTaskResult(
@@ -88,6 +104,7 @@ def _prompt_manifest(
     scene_path: Path,
     draft_path: Path,
     context_path: Path,
+    context_trace_path: Path,
     review_path: Path | None,
     sources: list[Path],
     candidate: Path,
@@ -105,6 +122,7 @@ def _prompt_manifest(
         "scene": _rel(scene_path, root),
         "draft": _rel(draft_path, root),
         "context": _rel(context_path, root) if context_path.exists() else "",
+        "context_trace": _rel(context_trace_path, root) if context_trace_path.exists() else "",
         "review": _rel(review_path, root) if review_path else "",
         "draft_body_chars": count_delivery_chars(body),
         "expected_outputs": {
@@ -159,7 +177,7 @@ def _write_revision_task(
         tasks=[
             (
                 "读取修订材料并写 reading receipt",
-                """读取 scene.yaml、draft、context packet、AgentReview/静态 review、style prompt/profile、word budget、canon/world_rules.yaml、canon/forbidden_changes.yaml、plot/outline.md 和 punctuation-standard.md。在修订报告中写 reading receipt：route=scene-development，已读文件，缺失文件，仍未处理的 sidecar。""",
+                """读取 scene.yaml、draft、context packet、context trace、AgentReview/静态 review、style prompt/profile、word budget、canon/world_rules.yaml、canon/forbidden_changes.yaml、plot/outline.md 和 punctuation-standard.md。若 context trace 缺失、指向错误场景或报告 missing_required_context，不得继续修订，先重跑 context。在修订报告中写 reading receipt：route=scene-development，已读文件，缺失文件，仍未处理的 sidecar。""",
             ),
             (
                 "诊断草稿与 review notes",
@@ -187,11 +205,19 @@ def _write_revision_task(
     )
 
 
-def _source_paths(root: Path, scene_path: Path, draft_path: Path, context_path: Path, review_path: Path | None) -> list[Path]:
+def _source_paths(
+    root: Path,
+    scene_path: Path,
+    draft_path: Path,
+    context_path: Path,
+    context_trace_path: Path,
+    review_path: Path | None,
+) -> list[Path]:
     candidates = [
         scene_path,
         draft_path,
         context_path,
+        context_trace_path,
         review_path,
         root / "canon" / "world_rules.yaml",
         root / "canon" / "forbidden_changes.yaml",

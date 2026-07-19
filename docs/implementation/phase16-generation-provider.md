@@ -30,7 +30,7 @@ drafts/candidates/{scene_id}-{provider}-{timestamp}.json
 
 后续 provider 应实现同一协议：
 
-- 输入：项目根目录、场景文件、上下文包、provider 名称。
+- 输入：项目根目录、场景文件、上下文包、上下文来源证明、provider 名称。
 - 输出：候选正文 markdown 和 manifest JSON。
 - 约束：只能写 `drafts/candidates/`，不能自动覆盖 `drafts/scenes/`，不能写 canon。
 
@@ -40,7 +40,7 @@ drafts/candidates/{scene_id}-{provider}-{timestamp}.json
 drafts/candidates/{scene_id}-{provider}-{timestamp}.prompt.json
 ```
 
-该文件记录 system/user messages、场景、上下文包、场景创作编排包和文风 profile 来源，但不记录 API key。
+该文件记录 system/user messages、场景、上下文包、上下文来源证明、场景创作编排包和文风 profile 来源，但不记录 API key。
 
 ## 边界
 

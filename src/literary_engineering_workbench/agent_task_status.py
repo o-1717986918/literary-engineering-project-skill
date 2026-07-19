@@ -11,6 +11,7 @@ import re
 from .agent_tasks import agent_task_completion_status, default_agent_completion_path
 from .asset_workshop import ASSET_CANDIDATE_DIRS
 from .candidate_promotion import candidate_generation_gate, candidate_review_gate
+from .context_broker import context_trace_status
 from .flow_gates import branch_selection_status
 from .anti_ai_style import style_lint_gate_message
 from .agent_schema import validate_payload
@@ -691,6 +692,7 @@ def _scene_files(root: Path) -> list[Path]:
 def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_path: Path) -> None:
     scene_id = _scene_id(scene_path)
     context = root / "memory" / "context_packets" / f"{scene_id}.md"
+    context_trace = context_trace_status(root, scene_id, context)
     roleplay = root / "branches" / scene_id / "roleplay_simulation.md"
     roleplay_task = root / "branches" / scene_id / "roleplay_simulation.agent_tasks.md"
     roleplay_text = _read_text(roleplay)
@@ -741,6 +743,14 @@ def _add_scene_development_gates(gates: list[dict[str, str]], root: Path, scene_
         "blocking",
         f"{scene_id} context packet exists",
         f"{scene_id} 缺少 memory/context_packets/{scene_id}.md；先运行 context 或 rebuild-context。",
+    )
+    _add_gate(
+        gates,
+        f"{scene_id}:context-trace",
+        context_trace.passed,
+        "blocking",
+        f"{scene_id} context trace validates loaded source groups",
+        f"{scene_id} 上下文来源证明无效：{context_trace.message}。先重跑 context，并检查 trace 是否列出 scene/project/canon/character/style/word-budget 来源。",
     )
     _add_gate(
         gates,

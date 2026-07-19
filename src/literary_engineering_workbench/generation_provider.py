@@ -11,6 +11,7 @@ from urllib import error, request
 
 from .agent_tasks import default_agent_tasks_path, write_agent_tasks
 from .anti_ai_style import ANTI_EVASION_SHORT_RULE
+from .context_broker import default_context_trace_path
 from .context_packet import build_context_packet
 from .model_config import MODEL_PROVIDER_CHOICES, get_model_settings, resolve_model_provider
 from .prompt_pack import build_scene_prompt_pack, write_prompt_manifest
@@ -154,7 +155,7 @@ def generate_scene_candidate(
     context_path = context if context and context.is_absolute() else (
         root / context if context else root / "memory" / "context_packets" / f"{scene_id}.md"
     )
-    if rebuild_context or not context_path.exists():
+    if rebuild_context or not context_path.exists() or not default_context_trace_path(context_path).exists():
         context_result = build_context_packet(root, scene=scene_path, query=query, rebuild_index=True, output=context_path)
         context_path = context_result.output_path
     context_text = context_path.read_text(encoding="utf-8", errors="ignore").strip()
@@ -248,7 +249,10 @@ def _write_generation_agent_tasks(
     composition_path: Path | None,
     style_profile_path: Path | None,
 ) -> Path:
+    context_trace_path = default_context_trace_path(context_path)
     sources = [scene_path, context_path, candidate_path, manifest_path, prompt_manifest_path]
+    if context_trace_path.exists():
+        sources.insert(2, context_trace_path)
     if composition_path:
         sources.append(composition_path)
     if style_profile_path:
@@ -289,7 +293,7 @@ def _write_generation_agent_tasks(
             ),
             (
                 "审查候选正文",
-                """读取候选正文，判断它是否服从 prompt manifest、scene.yaml、context packet、composition 和 style prompt。标出人物 OOC、canon 冲突、background_story 直白化、风格偏离和不确定新增事实。""",
+                """读取候选正文，判断它是否服从 prompt manifest、scene.yaml、context packet、context trace、composition 和 style prompt。标出人物 OOC、canon 冲突、background_story 直白化、风格偏离和不确定新增事实。若 trace 缺失或显示必需上下文未加载，不得建议进入 promote。""",
             ),
             (
                 "决定下一步",

@@ -22,6 +22,7 @@ core_references:
   orchestration: references/orchestration.md
   punctuation_standard: references/punctuation-standard.md
   prompt_registry: docs/modules/prompt-registry.md
+  context_broker: docs/modules/context-broker.md
   project_type_skill_architecture: docs/architecture/project-type-skill.md
 
 core_project_files:
@@ -324,7 +325,7 @@ task_routes:
       - templates/prompts/scene_generation_user.md
       - references/punctuation-standard.md
     output:
-      - context packet
+      - context packet and context trace
       - branch candidates
       - scene composition packet
       - draft candidate
@@ -333,7 +334,7 @@ task_routes:
       - character state patch
     completion_gates:
       - for formal scene-development, task-next/task-open/task-submit/task-complete controls the next formal operation when available
-      - CLI-generated context packet or recorded CLI-equivalent workaround completed
+      - CLI-generated context packet and context trace or recorded CLI-equivalent workaround completed
       - simulate-scene --agent roleplay, branch-simulate --agent branch manifest, formal branch_selection, and compose-scene --agent-tasks ready composition completed before generation
       - roleplay/branch/composition platform-agent tasks handled before generation; hand-written files are exploratory/debug-only unless command failure and workaround provenance are recorded
       - each handled .agent_tasks.md sidecar has an adjacent .agent_completion.json marker before the next formal step

@@ -430,7 +430,10 @@ def _artifact(key: str, path: Path, root: Path) -> tuple[dict[str, str], str]:
 
 def _context_artifact(root: Path, scene_path: Path) -> tuple[dict[str, str], str]:
     result = build_context_packet(root, scene=scene_path, rebuild_index=True)
-    return {"context_packet": _rel_str(result.output_path, root)}, f"retrievals={result.retrieval_count}"
+    artifacts = {"context_packet": _rel_str(result.output_path, root)}
+    if result.trace_path:
+        artifacts["context_trace"] = _rel_str(result.trace_path, root)
+    return artifacts, f"retrievals={result.retrieval_count}"
 
 
 def _simulation_artifact(root: Path, scene_path: Path, agent_tasks: bool) -> tuple[dict[str, str], str]:
@@ -468,6 +471,7 @@ def _composition_artifact(root: Path, scene_path: Path, agent_tasks: bool) -> tu
     artifacts = {
         "scene_composition": _rel_str(result.output_path, root),
         "scene_composition_json": _rel_str(result.json_path, root),
+        "context_trace": _rel_str(result.context_trace_path, root),
     }
     if result.agent_tasks_path:
         artifacts["scene_composition_agent_tasks"] = _rel_str(result.agent_tasks_path, root)
@@ -495,6 +499,7 @@ def _generation_artifact(root: Path, scene_path: Path, provider: str, agent_task
     artifacts = {
         "candidate_task": candidate_task,
         "candidate_agent_tasks": candidate_task,
+        "context_trace": _rel_str(prompt_pack.context_trace_path, root),
         "expected_candidate": _rel_str(result.expected_report_path, root),
         "expected_candidate_manifest": _rel_str(result.expected_json_path, root),
         "prompt_manifest": _rel_str(prompt_manifest_path, root),

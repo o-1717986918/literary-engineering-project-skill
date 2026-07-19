@@ -12,6 +12,7 @@ from literary_engineering_workbench.canon_lint import build_canon_lint
 from literary_engineering_workbench.character_state_evolver import build_character_state_patch
 from literary_engineering_workbench.chapter_pipeline import build_chapter_workspace
 from literary_engineering_workbench.cli import build_parser
+from literary_engineering_workbench.context_packet import build_context_packet
 from literary_engineering_workbench.export_package import build_export_package
 from literary_engineering_workbench.longform_audit import build_longform_audit
 from literary_engineering_workbench.platform_agent_tasks import (
@@ -161,6 +162,18 @@ class AgentTaskStatusTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("scene_0001:agent-review-json", failing_keys)
         self.assertIn("scene_0001:promotion-manifest", failing_keys)
         self.assertIn("scene_0001:state-patch-json", failing_keys)
+
+    def test_route_audit_blocks_context_packet_without_trace(self):
+        project = self.make_project()
+        context = build_context_packet(project, scene=Path("scenes/scene_0001.yaml"), rebuild_index=True)
+        context.trace_path.unlink()
+
+        result = build_route_audit(project, route="scene-development")
+        payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            any(gate["key"] == "scene_0001:context-trace" and gate["status"] == "fail" for gate in payload["gates"])
+        )
 
     def test_route_audit_passes_scene_flow_after_full_scene_loop(self):
         project = self.make_project()

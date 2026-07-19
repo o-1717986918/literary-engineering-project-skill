@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 
@@ -19,7 +20,13 @@ class MemoryContextTests(TempProjectMixin, unittest.TestCase):
 
         packet = build_context_packet(project, scene=Path("scenes/scene_0001.yaml"), rebuild_index=True)
         self.assertTrue(packet.output_path.exists())
+        self.assertTrue(packet.trace_path.exists())
         self.assertIn("场景上下文包", packet.output_path.read_text(encoding="utf-8"))
+        trace = json.loads(packet.trace_path.read_text(encoding="utf-8"))
+        self.assertEqual(trace["schema"], "literary-engineering-workbench/context-trace/v1")
+        self.assertEqual(trace["context_packet"], "memory/context_packets/scene_0001.md")
+        self.assertIn("project.yaml", trace["loaded_files"])
+        self.assertIn("scenes/scene_0001.yaml", trace["loaded_files"])
 
     def test_context_packet_loads_major_and_scene_referenced_minor_characters(self):
         project = self.make_project()
@@ -74,12 +81,16 @@ output_state:
 
         packet = build_context_packet(project, scene=Path("scenes/scene_0001.yaml"), rebuild_index=True)
         text = packet.output_path.read_text(encoding="utf-8")
+        trace = json.loads(packet.trace_path.read_text(encoding="utf-8"))
 
         self.assertIn("linzhou.yaml（主要角色常驻）", text)
         self.assertIn("guard.yaml（本场景参与/引用）", text)
         self.assertIn("本场景省略的次要角色", text)
         self.assertIn("bystander", text)
         self.assertNotIn("无关次要角色绝密传闻", text)
+        self.assertIn("characters/linzhou.yaml", trace["character_files"])
+        self.assertIn("characters/guard.yaml", trace["character_files"])
+        self.assertIn("characters/bystander.yaml", trace["excluded_files"])
 
 
 if __name__ == "__main__":
