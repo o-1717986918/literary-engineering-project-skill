@@ -30,6 +30,7 @@ from .project_interaction import (
     save_display_field,
 )
 from .project_library import build_project_library, find_project_library_item
+from .workflow_activity import build_task_package_summary, build_workflow_activity
 from .style_lab import (
     active_project_style,
     build_style_skill,
@@ -698,6 +699,53 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
             },
             "rules": payload.get("rules", []),
         }
+
+    @app.get("/workflow/activity")
+    def workflow_activity(project_root: str, http_request: Request, limit: int = 30):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+        try:
+            return {"ok": True, **build_workflow_activity(root, limit=max(1, min(200, int(limit or 30))))}
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/workflow/activity/stream")
+    def workflow_activity_stream(
+        project_root: str,
+        http_request: Request,
+        interval_seconds: float = 4.0,
+        max_events: int = 0,
+    ):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+        interval = max(2.0, min(60.0, float(interval_seconds or 4.0)))
+        limit = max(0, int(max_events or 0))
+
+        def stream():
+            sent = 0
+            while True:
+                payload = {"ok": True, **build_workflow_activity(root)}
+                yield "event: activity\n"
+                yield "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
+                sent += 1
+                if limit and sent >= limit:
+                    break
+                time.sleep(interval)
+
+        return StreamingResponse(stream(), media_type="text/event-stream")
+
+    @app.get("/workflow/task-package")
+    def workflow_task_package(project_root: str, task_id: str, http_request: Request):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+        try:
+            return {"ok": True, **build_task_package_summary(root, task_id)}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get("/workflow/current-choice")
     def workflow_current_choice(project_root: str, http_request: Request):

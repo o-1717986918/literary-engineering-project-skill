@@ -19,6 +19,7 @@
         </div>
         <nav class="nav" aria-label="主导航">
           <button data-view="dashboard" class="active">项目总控</button>
+          <button data-view="activity">任务推进</button>
           <button data-view="library">作品档案</button>
           <button data-view="style">文风挂载</button>
         </nav>
@@ -57,6 +58,14 @@
               <h3 id="dashboardHeadline">还没有读取项目状态</h3>
               <p id="dashboardNarrative">填写项目目录后刷新，总控面板会告诉你：哪些流程已经就绪，哪些地方需要平台 Agent 继续处理。</p>
             </div>
+          </section>
+
+          <section class="activity-mini" id="dashboardActivity" aria-live="polite">
+            <article class="task-beacon mini empty">
+              <span>当前任务</span>
+              <b>等待读取活动状态</b>
+              <p>刷新项目总控后，这里会显示平台 Agent 现在最应该处理的任务。</p>
+            </article>
           </section>
 
           <section class="completed-prose-panel" aria-live="polite">
@@ -146,6 +155,70 @@
               </section>
             </div>
           </details>
+        </section>
+
+        <section id="view-activity" class="view">
+          <header class="view-header hero-panel activity-hero">
+            <div>
+              <span class="eyebrow">任务推进</span>
+              <h2>看见平台 Agent 正在把项目推到哪里。</h2>
+              <p class="muted">这里读取真实任务事件、路线门禁和用户选择节点。亮起的任务不是装饰动画，而是 CLI 状态机给出的当前现场。</p>
+            </div>
+            <div class="hero-actions">
+              <button id="refreshActivity" class="primary">刷新推进</button>
+              <button id="toggleActivityPoll">观察推进</button>
+            </div>
+          </header>
+
+          <form id="activityForm" class="control-strip">
+            <label>当前项目<input name="project_root" placeholder="选择或粘贴文学项目目录" /></label>
+            <label>刷新间隔<input name="refresh_seconds" type="number" min="3" max="60" value="4" /></label>
+            <div class="dashboard-status" id="activityStatus">等待刷新</div>
+          </form>
+
+          <section id="activityBeacon" class="activity-beacon-slot">
+            <article class="task-beacon empty">
+              <span>当前任务灯塔</span>
+              <b>还没有读取任务现场</b>
+              <p>刷新后会高亮阻塞、等待用户决定、等待平台 Agent 执行或等待 CLI 验收的任务。</p>
+            </article>
+          </section>
+
+          <div class="activity-grid">
+            <section class="panel">
+              <div class="panel-title">
+                <span>正式路线泳道</span>
+                <small>七条路线的实时状态</small>
+              </div>
+              <div id="activityLanes" class="route-lanes empty">暂无路线活动。</div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-title">
+                <span>推进时间线</span>
+                <small>来自 task events</small>
+              </div>
+              <div id="activityTimeline" class="activity-timeline empty">暂无推进记录。</div>
+            </section>
+          </div>
+
+          <div class="activity-grid lower">
+            <section class="panel">
+              <div class="panel-title">
+                <span>任务包摘要</span>
+                <small>默认展示人能读懂的执行要点</small>
+              </div>
+              <div id="activityPackage" class="task-package empty">还没有活跃任务包。领取并打开任务后，这里会显示必读资料、预期产物和禁止捷径。</div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-title">
+                <span>等待你决定</span>
+                <small>分支、审批、字数和发布节点</small>
+              </div>
+              <div id="activityChoices" class="choice-list compact empty">暂无等待用户选择的节点。</div>
+            </section>
+          </div>
         </section>
 
         <section id="view-library" class="view">

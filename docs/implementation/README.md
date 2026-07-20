@@ -95,3 +95,4 @@
 - `phase95-frontend-trust-stream-usability.md`：前端可信度、真实流式观察与亲用户展示优化
 - `phase96-swiss-editorial-frontend.md`：Swiss 编辑部视觉锚点与前端惊艳化
 - `phase97-editorial-icons-palette.md`：墨蓝纸白朱砂配色与 imagegen 编辑部图标
+- `phase98-agent-activity-cockpit.md`：Agent 任务推进驾驶舱、活动读模型与路线泳道

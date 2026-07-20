@@ -1,12 +1,16 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-const UI_VERSION = "0.98.0";
+const UI_VERSION = "0.99.0";
 let dashboardTimer = null;
+let activityTimer = null;
+let activityStream = null;
 let libraryTimer = null;
 let libraryStream = null;
 let librarySnapshot = null;
+let activitySnapshot = null;
 let activeLibraryKind = "drafts";
 let currentChoices = [];
+let activityChoices = [];
 let selectedLibraryItem = null;
 let serverHealth = null;
 
@@ -97,7 +101,7 @@ function setSharedStyleLibraryRoot(value) {
 }
 
 function sharedProjectRoot() {
-  return $("#dashboardForm")?.project_root.value || $("#libraryForm")?.project_root.value || $("#configForm")?.project_root.value || $("#styleForm")?.project_root.value || "";
+  return $("#dashboardForm")?.project_root.value || $("#activityForm")?.project_root.value || $("#libraryForm")?.project_root.value || $("#configForm")?.project_root.value || $("#styleForm")?.project_root.value || "";
 }
 
 async function loadHealth() {
@@ -195,16 +199,18 @@ async function loadDashboard() {
   if (!root) throw new Error("请先填写当前项目目录。");
   setSharedProjectRoot(root);
   $("#dashboardStatus").textContent = "正在刷新";
-  const [result, library] = await Promise.all([
+  const [result, library, activity] = await Promise.all([
     api(`/workflow/dashboard?project_root=${encodeURIComponent(root)}`),
     api(`/project/library?project_root=${encodeURIComponent(root)}`).catch((error) => ({ ok: false, error: error.message || String(error) })),
+    loadActivitySnapshot(root).catch((error) => ({ ok: false, error: error.message || String(error) })),
   ]);
   if (library.ok !== false) librarySnapshot = library;
-  renderDashboard(result, library);
+  if (activity.ok !== false) activitySnapshot = activity;
+  renderDashboard(result, library, activity);
   return result;
 }
 
-function renderDashboard(result, library = null) {
+function renderDashboard(result, library = null, activity = null) {
   const dashboard = result.dashboard || {};
   const summary = result.summary || dashboard.summary || {};
   const actions = result.next_actions || [];
@@ -248,6 +254,7 @@ function renderDashboard(result, library = null) {
   $("#dashboardEvents").innerHTML = events.length ? events.slice(-10).reverse().map(renderEvent).join("") : "暂无事件记录。";
 
   renderDashboardProse(library);
+  renderDashboardActivity(activity);
   renderDashboardEvidence(result, { dashboard, summary, actions, routes, events });
 }
 
@@ -312,6 +319,202 @@ function renderDashboardProse(library) {
       </div>
     ` : ""}
   `;
+}
+
+async function loadActivitySnapshot(root) {
+  const result = await api(`/workflow/activity?project_root=${encodeURIComponent(root)}&limit=32`);
+  const taskId = result.active_task?.task_id || "";
+  if (taskId) {
+    result.task_package = await api(`/workflow/task-package?project_root=${encodeURIComponent(root)}&task_id=${encodeURIComponent(taskId)}`).catch(() => null);
+  }
+  return result;
+}
+
+async function loadActivity() {
+  const form = $("#activityForm");
+  const root = form.project_root.value || $("#dashboardForm").project_root.value || $("#configForm").project_root.value || $("#styleForm").project_root.value;
+  if (!root) throw new Error("请先填写当前项目目录。");
+  setSharedProjectRoot(root);
+  $("#activityStatus").textContent = "正在刷新推进";
+  const result = await loadActivitySnapshot(root);
+  activitySnapshot = result;
+  renderActivity(result);
+  $("#activityStatus").textContent = result.generated_at ? `已刷新 ${formatTime(result.generated_at)}` : "已刷新";
+  return result;
+}
+
+function renderDashboardActivity(activity) {
+  const target = $("#dashboardActivity");
+  if (!target) return;
+  if (!activity || activity.ok === false) {
+    target.innerHTML = `
+      <article class="task-beacon mini empty">
+        <span>当前任务</span>
+        <b>暂时没有读取到推进现场</b>
+        <p>${escapeHtml(activity?.error || "刷新后会显示平台 Agent 当前最应处理的正式任务。")}</p>
+      </article>
+    `;
+    return;
+  }
+  target.innerHTML = renderTaskBeacon(activity.active_task || {}, { mini: true });
+}
+
+function renderActivity(result) {
+  const active = result.active_task || {};
+  const lanes = Array.isArray(result.route_lanes) ? result.route_lanes : [];
+  const timeline = Array.isArray(result.timeline) ? result.timeline : [];
+  activityChoices = Array.isArray(result.waiting_choices) ? result.waiting_choices : [];
+
+  $("#activityBeacon").innerHTML = renderTaskBeacon(active);
+  $("#activityLanes").classList.toggle("empty", !lanes.length);
+  $("#activityLanes").innerHTML = lanes.length ? lanes.map(renderRouteLane).join("") : "暂无路线活动。";
+  $("#activityTimeline").classList.toggle("empty", !timeline.length);
+  $("#activityTimeline").innerHTML = timeline.length ? timeline.slice().reverse().map(renderTimelineEvent).join("") : "暂无推进记录。";
+  renderActivityPackage(result.task_package, active);
+  renderActivityChoices(activityChoices);
+}
+
+function renderTaskBeacon(active, options = {}) {
+  const stage = active.stage || "ready";
+  const steps = Array.isArray(active.progress_steps) ? active.progress_steps : [];
+  const sourceCount = Array.isArray(active.source_paths) ? active.source_paths.length : 0;
+  const outputCount = Array.isArray(active.expected_outputs) ? active.expected_outputs.length : 0;
+  const elapsed = Number(active.elapsed_seconds || 0);
+  const elapsedText = elapsed ? humanDuration(elapsed) : "刚刚";
+  return `
+    <article class="task-beacon ${escapeHtml(stageClass(stage, active.risk))} ${options.mini ? "mini" : ""}">
+      <div class="beacon-head">
+        <span>${escapeHtml(active.stage_label || "当前任务")}</span>
+        <small>${escapeHtml(active.route_label || routeName(active.route))}</small>
+      </div>
+      <b>${escapeHtml(friendlyHeadline(active.headline || "项目等待下一轮创作方向"))}</b>
+      <p>${escapeHtml(friendlyMessage(active.suggested_action || "按正式状态机继续推进。"))}</p>
+      <div class="beacon-meta">
+        <span>${escapeHtml(active.target ? friendlyTarget(active.target) : "项目整体")}</span>
+        <span>${escapeHtml(active.current_step ? friendlyStep(active.current_step) : "ready")}</span>
+        <span>${escapeHtml(elapsedText)}</span>
+        <span>${sourceCount} 份资料 / ${outputCount} 个产物</span>
+      </div>
+      ${steps.length ? `
+        <div class="beacon-steps" aria-label="任务阶段">
+          ${steps.map((step) => `<span class="${escapeHtml(step.state || "todo")}">${escapeHtml(step.label || step.key)}</span>`).join("")}
+        </div>
+      ` : ""}
+    </article>
+  `;
+}
+
+function renderRouteLane(lane) {
+  return `
+    <article class="route-lane ${escapeHtml(lane.status || "ready")} ${lane.active ? "active" : ""}">
+      <div class="lane-label">
+        <b>${escapeHtml(lane.label || routeName(lane.route))}</b>
+        <span>${escapeHtml(laneStatusLabel(lane.status))}</span>
+      </div>
+      <div class="lane-track"><i style="--lane-fill:${laneFill(lane)}%"></i></div>
+      <p>${escapeHtml(friendlyMessage(lane.message || ""))}</p>
+      <footer>
+        <span>阻塞 ${escapeHtml(lane.blocking_count || 0)}</span>
+        <span>待办 ${escapeHtml(lane.pending_task_count || 0)}</span>
+        <span>选择 ${escapeHtml(lane.waiting_choice_count || 0)}</span>
+      </footer>
+    </article>
+  `;
+}
+
+function renderTimelineEvent(event) {
+  return `
+    <article class="timeline-event ${escapeHtml(event.event_type || "")}">
+      <time>${escapeHtml(formatTime(event.created_at || ""))}</time>
+      <div>
+        <b>${escapeHtml(event.label || eventLabel(event.event_type))}</b>
+        <p>${escapeHtml(friendlyMessage(event.summary || ""))}</p>
+        <footer>
+          <span>${escapeHtml(routeName(event.route))}</span>
+          ${event.target ? `<span>${escapeHtml(friendlyTarget(event.target))}</span>` : ""}
+          ${event.task_id ? `<span>${escapeHtml(shortTaskId(event.task_id))}</span>` : ""}
+        </footer>
+      </div>
+    </article>
+  `;
+}
+
+function renderActivityPackage(pkg, active) {
+  const target = $("#activityPackage");
+  if (!target) return;
+  if (!pkg || !pkg.sections) {
+    const outputs = Array.isArray(active.expected_outputs) ? active.expected_outputs : [];
+    const sources = Array.isArray(active.source_paths) ? active.source_paths : [];
+    target.classList.toggle("empty", !active.task_id);
+    target.innerHTML = active.task_id ? `
+      <article class="package-summary">
+        <h3>${escapeHtml(active.task_id)}</h3>
+        <p>${escapeHtml(friendlyMessage(active.suggested_action || "按任务包执行。"))}</p>
+        ${renderPackageList("需要看的资料", sources)}
+        ${renderPackageList("要交付的东西", outputs)}
+      </article>
+    ` : "还没有活跃任务包。领取并打开任务后，这里会显示必读资料、预期产物和禁止捷径。";
+    return;
+  }
+  const sections = pkg.sections || {};
+  target.classList.remove("empty");
+  target.innerHTML = `
+    <article class="package-summary">
+      <span>${escapeHtml(pkg.task?.route_label || routeName(pkg.task?.route))}</span>
+      <h3>${escapeHtml(friendlyHeadline(pkg.task?.headline || pkg.task_id || "任务包"))}</h3>
+      <p>${escapeHtml(friendlyHeadline(friendlyMessage(sections.purpose || "这是当前正式任务的执行包。")))}</p>
+      <div class="package-grid">
+        ${renderPackageList("需要看的资料", sections.required_reading)}
+        ${renderPackageList("来源文件", sections.source_paths)}
+        ${renderPackageList("要交付的东西", sections.expected_outputs)}
+        ${renderPackageList("禁止捷径", sections.forbidden_shortcuts)}
+      </div>
+      <details class="raw-drawer">
+        <summary>查看执行命令证据</summary>
+        <div class="command-stack">
+          ${sections.command ? `<code>${escapeHtml(sections.command)}</code>` : ""}
+          ${sections.submission_command ? `<code>${escapeHtml(sections.submission_command)}</code>` : ""}
+          ${sections.completion_command ? `<code>${escapeHtml(sections.completion_command)}</code>` : ""}
+        </div>
+      </details>
+    </article>
+  `;
+}
+
+function renderPackageList(title, items = []) {
+  const values = (Array.isArray(items) ? items : []).filter(Boolean).slice(0, 8);
+  return `
+    <section class="package-list">
+      <b>${escapeHtml(title)}</b>
+      ${values.length ? `<ul>${values.map((item) => `<li>${escapeHtml(friendlyPackageItem(title, item))}</li>`).join("")}</ul>` : "<p>暂无。</p>"}
+    </section>
+  `;
+}
+
+function renderActivityChoices(choices) {
+  const target = $("#activityChoices");
+  if (!target) return;
+  target.classList.toggle("empty", !choices.length);
+  if (!choices.length) {
+    target.innerHTML = "暂无等待用户选择的节点。正式流程需要你决定时，这里会出现分支卡、审批卡或扩纲方向卡。";
+    return;
+  }
+  target.innerHTML = choices.slice(0, 4).map((choice, index) => `
+    <article class="choice-card" data-choice-index="${index}">
+      <span>${escapeHtml(routeName(choice.route))}</span>
+      <h3>${escapeHtml(choice.title || "等待选择")}</h3>
+      <p>${escapeHtml(choice.summary || choice.next_action || "请选择一个方向。")}</p>
+      <div class="choice-options">
+        ${(choice.options || []).map((option) => `
+          <button type="button" class="activity-choice-option" data-selected="${escapeHtml(option.id)}">
+            <b>${escapeHtml(option.label || option.id)}</b>
+            <small>${escapeHtml(option.summary || "")}</small>
+          </button>
+        `).join("")}
+      </div>
+      <textarea class="choice-rationale" rows="3" placeholder="可选：写下你为什么这样选，平台 Agent 后续会读取这条理由。"></textarea>
+    </article>
+  `).join("");
 }
 
 function renderDashboardEvidence(result, { dashboard, summary, actions, routes, events }) {
@@ -745,6 +948,18 @@ function decisionTypeLabel(value) {
 }
 
 async function submitHumanChoice(choice, selected, rationale) {
+  const result = await recordHumanChoice(choice, selected, rationale);
+  $("#libraryStatus").textContent = result.materialized ? `已记录选择，并写入 ${shortPath(result.materialized)}` : "已记录选择。";
+  await loadLibrary();
+}
+
+async function submitActivityChoice(choice, selected, rationale) {
+  const result = await recordHumanChoice(choice, selected, rationale);
+  $("#activityStatus").textContent = result.materialized ? `已记录选择，并写入 ${shortPath(result.materialized)}` : "已记录选择。";
+  await loadActivity();
+}
+
+async function recordHumanChoice(choice, selected, rationale) {
   const root = sharedProjectRoot();
   if (!root) throw new Error("请先填写当前项目目录。");
   const payload = {
@@ -760,9 +975,7 @@ async function submitHumanChoice(choice, selected, rationale) {
     actor: "user-ui",
     materialize: true,
   };
-  const result = await api("/workflow/human-choice", { method: "POST", body: JSON.stringify(payload) });
-  $("#libraryStatus").textContent = result.materialized ? `已记录选择，并写入 ${shortPath(result.materialized)}` : "已记录选择。";
-  await loadLibrary();
+  return api("/workflow/human-choice", { method: "POST", body: JSON.stringify(payload) });
 }
 
 async function saveDisplayField(event) {
@@ -963,6 +1176,72 @@ function toggleDashboardPoll() {
   button.textContent = "停止观察";
 }
 
+function toggleActivityPoll() {
+  const button = $("#toggleActivityPoll");
+  if (activityTimer || activityStream) {
+    stopActivityObservation();
+    button.textContent = "观察推进";
+    $("#activityStatus").textContent = "已停止观察";
+    return;
+  }
+  startActivityObservation();
+}
+
+function stopActivityObservation() {
+  if (activityStream) {
+    activityStream.close();
+    activityStream = null;
+  }
+  if (activityTimer) {
+    clearInterval(activityTimer);
+    activityTimer = null;
+  }
+}
+
+function startActivityObservation() {
+  const root = sharedProjectRoot();
+  if (!root) throw new Error("请先填写当前项目目录。");
+  const button = $("#toggleActivityPoll");
+  const token = localStorage.getItem("lewApiToken") || "";
+  stopActivityObservation();
+  if (window.EventSource && !token) {
+    const url = `/workflow/activity/stream?project_root=${encodeURIComponent(root)}&interval_seconds=4`;
+    activityStream = new EventSource(url);
+    activityStream.addEventListener("activity", (event) => {
+      const result = JSON.parse(event.data);
+      activitySnapshot = result;
+      renderActivity(result);
+      const taskId = result.active_task?.task_id || "";
+      if (taskId) {
+        api(`/workflow/task-package?project_root=${encodeURIComponent(root)}&task_id=${encodeURIComponent(taskId)}`)
+          .then((pkg) => {
+            result.task_package = pkg;
+            renderActivityPackage(pkg, result.active_task || {});
+          })
+          .catch(() => {});
+      }
+      $("#activityStatus").textContent = result.generated_at ? `实时更新 ${formatTime(result.generated_at)}` : "实时更新中";
+    });
+    activityStream.onerror = () => {
+      stopActivityObservation();
+      startActivityPolling();
+      $("#activityStatus").textContent = "流式连接中断，已切换为安全轮询。";
+    };
+    button.textContent = "停止观察";
+    $("#activityStatus").textContent = "正在建立流式连接";
+    return;
+  }
+  startActivityPolling();
+}
+
+function startActivityPolling() {
+  const button = $("#toggleActivityPoll");
+  guarded(loadActivity);
+  const seconds = Math.max(3, Math.min(60, Number($("#activityForm").refresh_seconds.value) || 4));
+  activityTimer = setInterval(() => guarded(loadActivity), seconds * 1000);
+  button.textContent = "停止观察";
+}
+
 function routeName(route) {
   return routeNames[route] || route || "项目流程";
 }
@@ -993,6 +1272,170 @@ function friendlyMessage(value) {
   return text;
 }
 
+function friendlyHeadline(value) {
+  let text = friendlyMessage(value);
+  const replacements = [
+    [/roleplay agent task/gi, "角色推演任务"],
+    [/branch agent task/gi, "分支研判任务"],
+    [/composition agent task/gi, "编剧态任务"],
+    [/generation agent task/gi, "正文生成任务"],
+    [/agent review task/gi, "正式审查任务"],
+    [/state agent task/gi, "人物状态演化任务"],
+    [/canon agent task/gi, "世界观写回任务"],
+    [/budget agent task/gi, "字数预算细化任务"],
+    [/scene inventory agent task/gi, "场景库存规划任务"],
+    [/chapter obligation agent task/gi, "章节义务规划任务"],
+    [/extraction agent task/gi, "旧文反推任务"],
+    [/style prompt agent task/gi, "文风提示词生成任务"],
+    [/asset creation agent task/gi, "资产创建任务"],
+    [/asset review agent task/gi, "资产审查执行"],
+    [/canon review agent task/gi, "Canon 审查执行"],
+    [/committee agent task/gi, "多视角审查执行"],
+  ];
+  for (const [pattern, replacement] of replacements) {
+    text = text.replace(pattern, replacement);
+  }
+  return text;
+}
+
+function friendlyPackageItem(title, item) {
+  const text = String(item || "");
+  if (title === "禁止捷径") {
+    if (/hand-write same-named formal files/i.test(text)) return "不要手写同名正式产物来绕过 CLI 命令。";
+    if (/debug\/bypass flags/i.test(text)) return "不要使用调试或绕审参数，正式流程必须走完门禁。";
+    if (/task-submit and task-complete/i.test(text)) return "写出产物不等于完成，必须先提交，再由 CLI 验收。";
+    if (/subagents draft|subagents.*creative body text/i.test(text)) return "不要让 subagent 起草、修订、润色、扩写或定稿正文。";
+    if (/API keys|provider secrets/i.test(text)) return "不要把 API Key 或模型密钥写进作品项目。";
+    return friendlyHeadline(text);
+  }
+  if (title === "需要看的资料") return friendlyReference(text);
+  return shortPath(text);
+}
+
+function friendlyReference(value) {
+  const text = String(value || "");
+  const labels = {
+    "SKILL.md": "Skill 操作宪法",
+    "AGENTS.md": "正式运行纪律",
+    "agentread.yaml": "Agent 读取入口",
+    "references/agent-run-protocol.md": "平台 Agent 执行规范",
+    "references/cli-run-protocol.md": "CLI 状态机规范",
+    "references/punctuation-standard.md": "中文标点与行文规范",
+  };
+  return labels[text] || shortPath(text);
+}
+
+function friendlyStep(value) {
+  const text = String(value || "").replace(/[-_]/g, " ").trim();
+  const labels = {
+    "context packet": "上下文包",
+    "context trace": "上下文来源核验",
+    "roleplay simulation": "角色推演",
+    "roleplay agent task": "角色推演任务",
+    "branch manifest": "分支清单",
+    "branch simulation": "分支推演",
+    "branch agent task": "分支研判任务",
+    "branch selection": "分支选择",
+    composition: "编剧态",
+    "composition json": "编剧态方案",
+    "composition agent task": "编剧态任务",
+    "scene word budget contract": "场景字数契约",
+    "reader experience contract": "读者体验契约",
+    "candidate generation provenance": "正文生成来源",
+    "prose candidate": "正文候选",
+    "generation agent task": "正文生成任务",
+    "agent review": "正式审查",
+    "agent review task": "正式审查任务",
+    "candidate review": "正文审查",
+    promotion: "正文晋升",
+    "promotion manifest": "晋升清单",
+    "promoted draft": "正式草稿",
+    "static review": "静态审查",
+    "state evolve": "状态演化",
+    "state patch json": "状态补丁",
+    "state agent task": "人物状态演化任务",
+    "canon writeback": "Canon 写回",
+    "canon patch json": "Canon 补丁",
+    "canon agent task": "世界观写回任务",
+    "route audit": "路线审计",
+    "word budget file": "字数预算",
+    "budget agent task": "字数预算细化任务",
+    "budget review": "预算审查",
+    "scene inventory agent task": "场景库存规划任务",
+    "chapter obligation agent task": "章节义务规划任务",
+    "source manifest": "来源清单",
+    "extraction agent task": "旧文反推任务",
+    "extraction review": "旧文反推审查",
+    "style profile": "文风画像",
+    "style prompt task file": "文风提示词任务",
+    "style prompt agent task": "文风提示词生成任务",
+    "style prompt quality": "文风质量审查",
+    "style eval readiness": "文风评估准备",
+    "asset intake": "资产接收",
+    "asset creation agent task": "资产创建任务",
+    "asset review task file": "资产审查任务",
+    "asset review agent task": "资产审查执行",
+    "asset review pass": "资产审查通过",
+    "asset approval": "资产审批",
+    "asset promotion": "资产晋升",
+    "canon lint file": "Canon 本地检查",
+    "canon review task file": "Canon 审查任务",
+    "canon review agent task": "Canon 审查执行",
+    "canon review pass": "Canon 审查通过",
+    "longform audit file": "长篇全局审计",
+    "committee task file": "多视角审查任务",
+    "committee agent task": "多视角审查执行",
+    "committee pass": "多视角审查通过",
+    "chapter workspace": "章节汇编",
+    "export package": "导出包",
+    "release approval": "发布审批",
+    "publish release": "发布",
+  };
+  return labels[text] || friendlyMessage(text);
+}
+
+function stageClass(stage, risk = "") {
+  if (risk === "blocking" || stage === "blocked") return "blocked";
+  if (stage === "waiting_user") return "waiting-user";
+  if (stage === "waiting_gate") return "waiting-gate";
+  if (stage === "completed" || stage === "ready") return "complete";
+  if (risk === "stale") return "stale";
+  return "active";
+}
+
+function laneStatusLabel(status) {
+  const labels = {
+    blocked: "卡住",
+    waiting_user: "待你决定",
+    pending: "进行中",
+    warning: "需留意",
+    ready: "正常",
+  };
+  return labels[status] || "观察中";
+}
+
+function laneFill(lane) {
+  if (lane.status === "blocked") return 34;
+  if (lane.status === "waiting_user") return 52;
+  if (lane.status === "pending") return 64;
+  if (lane.status === "warning") return 76;
+  return 100;
+}
+
+function humanDuration(seconds) {
+  const value = Number(seconds || 0);
+  if (value < 60) return "刚刚";
+  if (value < 3600) return `${Math.floor(value / 60)} 分钟前`;
+  if (value < 86400) return `${Math.floor(value / 3600)} 小时前`;
+  return `${Math.floor(value / 86400)} 天前`;
+}
+
+function shortTaskId(value) {
+  const text = String(value || "");
+  if (text.length <= 34) return text;
+  return `${text.slice(0, 16)}...${text.slice(-14)}`;
+}
+
 function friendlyRule(value) {
   const text = String(value || "");
   if (text.includes("read-only")) return "总控面板只读，不能绕过任务领取、提交和完成确认。";
@@ -1016,6 +1459,13 @@ function routeReadyText(route) {
 
 function eventLabel(value) {
   const labels = {
+    task_issued: "已派发任务",
+    task_opened: "已打开任务",
+    task_submitted: "已提交产物",
+    task_completed: "已完成任务",
+    task_blocked: "任务被拦截",
+    workflow_state_refreshed: "状态已刷新",
+    workflow_advanced: "工作流已推进",
     issued: "已派发任务",
     opened: "已打开任务",
     submitted: "已提交产物",
@@ -1059,12 +1509,15 @@ function bind() {
     button.addEventListener("click", () => {
       activateView(button.dataset.view);
       if (button.dataset.view === "dashboard" && sharedProjectRoot()) guarded(loadDashboard);
+      if (button.dataset.view === "activity" && sharedProjectRoot()) guarded(loadActivity);
       if (button.dataset.view === "library" && sharedProjectRoot()) guarded(loadLibrary);
       if (button.dataset.view === "style" && sharedProjectRoot()) guarded(loadStyleStatus);
     });
   });
   $("#refreshDashboard").addEventListener("click", () => guarded(loadDashboard));
   $("#toggleDashboardPoll").addEventListener("click", () => toggleDashboardPoll());
+  $("#refreshActivity").addEventListener("click", () => guarded(loadActivity));
+  $("#toggleActivityPoll").addEventListener("click", () => guarded(toggleActivityPoll));
   $("#dashboardProse").addEventListener("click", (event) => {
     if (event.target.closest(".open-library-drafts") || event.target.closest(".completed-mini")) {
       guarded(openLibraryDrafts);
@@ -1098,6 +1551,15 @@ function bind() {
     if (!choice) return;
     const rationale = card.querySelector(".choice-rationale")?.value || "";
     guarded(() => submitHumanChoice(choice, button.dataset.selected, rationale));
+  });
+  $("#activityChoices").addEventListener("click", (event) => {
+    const button = event.target.closest(".activity-choice-option");
+    if (!button) return;
+    const card = button.closest(".choice-card");
+    const choice = activityChoices[Number(card.dataset.choiceIndex)];
+    if (!choice) return;
+    const rationale = card.querySelector(".choice-rationale")?.value || "";
+    guarded(() => submitActivityChoice(choice, button.dataset.selected, rationale));
   });
   $("#saveDisplayField").addEventListener("click", (event) => guarded(() => saveDisplayField(event)));
   $("#saveUiNote").addEventListener("click", (event) => guarded(() => saveUiNote(event)));

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from literary_engineering_workbench.api_server import _director_conversation, _record_approval, create_app
+from literary_engineering_workbench.task_registry import issue_next_task
 
 from helpers import TempProjectMixin, add_character, make_passing_scene, make_reviewed_passing_scene, prepare_formal_scene_flow
 
@@ -97,6 +98,35 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         self.assertTrue((project / payload["paths"]["json"]).exists())
         self.assertTrue((project / payload["paths"]["markdown"]).exists())
         self.assertTrue((project / payload["paths"]["html"]).exists())
+
+    def test_fastapi_workflow_activity_endpoints(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi test client is not installed")
+
+        project = self.make_project()
+        issued = issue_next_task(project, route="scene-development")
+        app = create_app(allowed_roots=[project.parent])
+        client = TestClient(app)
+
+        activity = client.get("/workflow/activity", params={"project_root": str(project)})
+        self.assertEqual(activity.status_code, 200)
+        payload = activity.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["schema"], "literary-engineering-workbench/workflow-activity/v0.1")
+        self.assertEqual(payload["active_task"]["task_id"], issued.task_id)
+        self.assertIn("route_lanes", payload)
+        self.assertIn("timeline", payload)
+
+        package = client.get("/workflow/task-package", params={"project_root": str(project), "task_id": issued.task_id})
+        self.assertEqual(package.status_code, 200)
+        self.assertEqual(package.json()["schema"], "literary-engineering-workbench/task-package-summary/v0.1")
+        self.assertEqual(package.json()["task"]["task_id"], issued.task_id)
+
+        stream = client.get("/workflow/activity/stream", params={"project_root": str(project), "max_events": 1})
+        self.assertEqual(stream.status_code, 200)
+        self.assertIn("event: activity", stream.text)
 
     def test_fastapi_project_library_and_human_choice_endpoints(self):
         try:
@@ -258,6 +288,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertEqual(ui.status_code, 200)
                 self.assertIn("文学工程控制台", ui.text)
                 self.assertIn("项目总控", ui.text)
+                self.assertIn("任务推进", ui.text)
                 self.assertIn("作品档案", ui.text)
                 self.assertIn("文风挂载", ui.text)
                 self.assertIn("连接设置", ui.text)
@@ -265,6 +296,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertIn("滑动阅览框", ui.text)
                 self.assertIn("这里不会把机器记录原样摊开", ui.text)
                 self.assertIn("流程证据柜", ui.text)
+                self.assertIn("当前任务灯塔", ui.text)
                 self.assertIn("assets/editorial-icons/dashboard-board.png", ui.text)
                 self.assertIn("需要你决定的节点", ui.text)
                 self.assertIn("我的备注", ui.text)
@@ -284,6 +316,8 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertEqual(script.status_code, 200)
                 self.assertIn("localStorage", script.text)
                 self.assertIn("/workflow/dashboard", script.text)
+                self.assertIn("/workflow/activity", script.text)
+                self.assertIn("/workflow/task-package", script.text)
                 self.assertIn("/project/library", script.text)
                 self.assertIn("/workflow/current-choice", script.text)
                 self.assertIn("/workflow/human-choice", script.text)
@@ -306,6 +340,8 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertEqual(style.status_code, 200)
                 self.assertIn(".completed-preview", style.text)
                 self.assertIn(".reader-body", style.text)
+                self.assertIn(".task-beacon", style.text)
+                self.assertIn(".route-lane", style.text)
                 self.assertIn("overflow-y: auto", style.text)
 
                 cfg = client.get("/config")
