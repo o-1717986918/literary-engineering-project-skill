@@ -6,7 +6,7 @@
 
 这不是一个“万能写小说提示词”，也不是一个把前端、模型、Agent loop 全部塞进本地的创作平台。它是一套面向工具层 Agent 的大型项目型 Skill：把世界观、人物、剧情、文风、场景、审查、字数预算和发布产物拆成可读、可审查、可版本管理的工程资产，让平台 Agent 负责真实创作、判断、推演和维护。
 
-- 当前版本：`0.99.0`
+- 当前版本：`0.100.0`
 - 核心形态：Codex / Claude / 类似工具层 Agent 的长篇文学工程操作系统
 - 适用对象：小说、剧本、伪记录文本、短剧、长视频提示词、长篇世界观项目
 
@@ -161,6 +161,8 @@ context packet
 `v0.97.0` 起，前端采用 Swiss 编辑部视觉锚点：白底网格、黑色 hairline、大号状态数字、红蓝审查线和稿纸式正文阅览框。总控、作品档案、文风挂载和连接设置继续只包装展示 CLI/API 证据，不绕过正式状态机；视觉升级的目标是让用户更快看懂正文成果、流程健康、下一步建议和审查证据。
 
 `v0.98.0` 起，前端配色从高冲击红蓝黑调整为更耐看的“墨蓝 / 纸白 / 朱砂”：墨蓝承担结构和侧栏，行动蓝用于主操作，朱砂只用于正文主线、阻塞和审查提醒。控制台新增 imagegen 生成的编辑部物件图标，覆盖品牌章、已完成正文、作品档案、分类统计、档案详情和文风空状态；图标不含文字，不伪造项目状态，只帮助用户更快识别作品资料。
+
+`v0.100.0` 起，前端继续补齐“可观察创作项目”的下一层：`/workflow/dashboard/stream` 让项目总控也能优先走 SSE；作品档案增加搜索、状态筛选、相似条目合并和“影响创作的关键点”；人类决策卡继续扩展到 canon 写回审批、修订方向和文风挂载候选；桌面端右侧主工作区改为独立滑动框，避免侧边栏和正文区域高度不同步。
 
 `v0.99.0` 起，前端新增“任务推进”驾驶舱：后端 `/workflow/activity` 会从真实 task events、task package、submission、completion marker、route-audit 和 human-choice 推导当前活跃任务；前端用当前任务灯塔、路线泳道、推进时间线和任务包摘要展示平台 Agent 正在做什么、卡在哪里、下一步该由谁处理。该页面只读展示和记录用户选择，不替代 `task-next -> task-open -> task-submit -> task-complete`。
 
@@ -498,7 +500,7 @@ literary-engineering-project-skill/
 
 ## 当前状态
 
-- 当前版本：`0.86.1`。
+- 当前版本：`0.100.0`。
 - Skill 入口：已完成。
 - Codex / Claude 项目型使用路线：已完成。
 - 文风学习与 Style Skill 机制：已保留并纳入项目型架构。
@@ -522,7 +524,8 @@ literary-engineering-project-skill/
 - 正式路线 CLI 工具箱：可运行。
 - 平台 Agent sidecar 状态机与字数预算硬接入：已要求 `.agent_completion.json` 完成标记，`run-workflow --agent-tasks` 在 sidecar handoff 停止等待，场景生成与审查读取 `scene.yaml` / `word_budget.json` 的预算契约。
 - CLI 中介 Agent 工作流内核：已新增 `task-next`、`task-open`、`task-submit`、`task-complete`、`workflow-advance`、`workflow-events`，并升级为 route registry。`scene-development` 已接入深度 gate；`longform-planning` 已接入预算文件、预算 sidecar、预算化大纲候选、预算 review、场景库存 sidecar、分场景库存候选和库存 review 闭环；`source-ingest` 已接入已有作品导入后的反推候选、sidecar completion 和 clean review 闭环；`style-engineering` 已接入 style prompt sidecar、500-2500 字高质量 prompt、prompt agent JSON、completion marker 和 accepted style eval 闭环；`character-and-world-assets` 已接入资产创建 sidecar、候选 JSON/报告、资产审查 sidecar、clean review、用户 approve、promotion manifest 和晋升输出闭环。正式场景操作、长篇预算规划、源作品反推、文风挂载前 readiness 和角色/世界资产晋升都必须由 CLI 发任务、平台 Agent 执行、CLI 收提交并校验完成。
-- Workflow Dashboard：已新增 `workflow-dashboard`，把七条正式路线、sidecar 状态、route audit、event log 和 next actions 汇总为 JSON/Markdown/HTML，只读展示平台 Agent 完善项目的行为，前端可以轮询 JSON 或直接打开 HTML 观察项目状态。
+- Workflow Dashboard：已新增 `workflow-dashboard` 和 `/workflow/dashboard/stream`，把七条正式路线、sidecar 状态、route audit、event log 和 next actions 汇总为 JSON/Markdown/HTML/SSE，只读展示平台 Agent 完善项目的行为。
+- 前端作品档案：已支持正文滑动阅读、档案搜索、状态筛选、相似条目合并、创作关键点展示，以及分支/canon/修订/文风/字数等结构化人类选择证据卡。
 - 原本地创作总监、FastAPI、LangGraph、Dify、前端：保留为可选历史工具和集成示例。
 
 ## 推荐下一步

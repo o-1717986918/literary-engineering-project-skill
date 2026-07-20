@@ -128,6 +128,10 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(stream.status_code, 200)
         self.assertIn("event: activity", stream.text)
 
+        dashboard_stream = client.get("/workflow/dashboard/stream", params={"project_root": str(project), "max_events": 1})
+        self.assertEqual(dashboard_stream.status_code, 200)
+        self.assertIn("event: dashboard", dashboard_stream.text)
+
     def test_fastapi_project_library_and_human_choice_endpoints(self):
         try:
             from fastapi.testclient import TestClient
@@ -147,6 +151,23 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         chapter_readme.write_text("chapters\n\n章节级工作台和章节草稿放在这里。", encoding="utf-8")
         (export_dir / "chapter_0001_novel.md").write_text(
             "# 第一章\n\n林舟把已经完成的章节正文放在桌上。\n\n## 工作流程\n\n- scene_0001 已处理。",
+            encoding="utf-8",
+        )
+        canon_dir = project / "canon" / "patches"
+        canon_dir.mkdir(parents=True, exist_ok=True)
+        (canon_dir / "scene_0001_canon_patch.json").write_text(
+            json.dumps(
+                {
+                    "schema": "literary-engineering-workbench/canon-patch/v0.1",
+                    "scene_id": "scene_0001",
+                    "canon_change": True,
+                    "items": [{"type": "world_rule", "content": "林舟所在城市禁止公开讨论旧案。"}],
+                    "source": "drafts/scenes/scene_0001.md",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
             encoding="utf-8",
         )
         app = create_app(allowed_roots=[project.parent])
@@ -173,6 +194,8 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         self.assertIn("林舟", completed["items"][0]["body"])
         self.assertNotIn("#", completed["items"][0]["body"])
         self.assertNotIn("scene_0001", completed["items"][0]["body"])
+        self.assertTrue(payload["sections"]["characters"][0]["key_points"])
+        self.assertTrue(payload["sections"]["canon_patches"][0]["key_points"])
 
         stream = client.get("/project/library/stream", params={"project_root": str(project), "max_events": 1})
         self.assertEqual(stream.status_code, 200)
@@ -218,6 +241,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
         self.assertEqual(choices.status_code, 200)
         choice_payload = choices.json()
         self.assertTrue(any(item["decision_type"] == "branch_selection" for item in choice_payload["choices"]))
+        self.assertTrue(any(item["decision_type"] == "canon_patch_approval" for item in choice_payload["choices"]))
         branch_choice = next(item for item in choice_payload["choices"] if item["decision_type"] == "branch_selection")
 
         recorded = client.post(
@@ -299,6 +323,9 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertIn("当前任务灯塔", ui.text)
                 self.assertIn("assets/editorial-icons/dashboard-board.png", ui.text)
                 self.assertIn("需要你决定的节点", ui.text)
+                self.assertIn("搜索人物、场景、关键词", ui.text)
+                self.assertIn("状态筛选", ui.text)
+                self.assertIn("合并相似条目", ui.text)
                 self.assertIn("我的备注", ui.text)
                 self.assertIn("可挂载文风", ui.text)
                 self.assertNotIn('data-view="config"', ui.text)
@@ -316,6 +343,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertEqual(script.status_code, 200)
                 self.assertIn("localStorage", script.text)
                 self.assertIn("/workflow/dashboard", script.text)
+                self.assertIn("/workflow/dashboard/stream", script.text)
                 self.assertIn("/workflow/activity", script.text)
                 self.assertIn("/workflow/task-package", script.text)
                 self.assertIn("/project/library", script.text)
@@ -342,6 +370,7 @@ class ApiServerTests(TempProjectMixin, unittest.TestCase):
                 self.assertIn(".reader-body", style.text)
                 self.assertIn(".task-beacon", style.text)
                 self.assertIn(".route-lane", style.text)
+                self.assertIn(".key-points", style.text)
                 self.assertIn("overflow-y: auto", style.text)
 
                 cfg = client.get("/config")

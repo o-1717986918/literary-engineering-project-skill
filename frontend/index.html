@@ -250,6 +250,19 @@
                 <option value="canon_patches">写回候选</option>
               </select>
             </label>
+            <label>搜索<input name="query" placeholder="搜索人物、场景、关键词" /></label>
+            <label>状态筛选
+              <select name="status_filter">
+                <option value="all">全部状态</option>
+                <option value="promoted">已晋升/完成</option>
+                <option value="candidate">候选</option>
+                <option value="waiting_user_choice">等待选择</option>
+                <option value="needs_review">需要审查</option>
+                <option value="formal">正式资料</option>
+                <option value="ready">可使用</option>
+              </select>
+            </label>
+            <label class="checkline"><input name="dedupe" type="checkbox" checked /> 合并相似条目</label>
             <div class="dashboard-status" id="libraryStatus">等待读取</div>
           </form>
 

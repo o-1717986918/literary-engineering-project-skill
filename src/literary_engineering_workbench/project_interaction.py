@@ -15,7 +15,7 @@ UI_OVERRIDES_SCHEMA = "literary-engineering-workbench/ui-overrides/v0.1"
 USER_NOTE_SCHEMA = "literary-engineering-workbench/user-note/v0.1"
 HUMAN_CHOICE_SCHEMA = "literary-engineering-workbench/human-choice/v0.1"
 
-TARGET_TYPES = {"project", "drafts", "characters", "world", "scenes", "branches", "style", "reviews", "word_budget"}
+TARGET_TYPES = {"project", "drafts", "characters", "world", "scenes", "branches", "style", "reviews", "word_budget", "canon_patches"}
 DIRECT_EDIT_FIELDS = {
     "display_title",
     "display_summary",
@@ -33,6 +33,7 @@ DECISION_TYPES = {
     "style_mount",
     "asset_approval",
     "release_approval",
+    "canon_patch_approval",
     "word_budget_direction",
     "revision_direction",
     "state_patch_confirmation",
@@ -193,38 +194,46 @@ def build_current_human_choices(project_root: Path) -> dict[str, object]:
     actions = dashboard.get("next_actions") if isinstance(dashboard.get("next_actions"), list) else []
     choices: list[dict[str, object]] = []
     seen = set()
+
+    def add_choice(choice: dict[str, object] | None, step: str = "", next_action: str = "") -> None:
+        if not choice:
+            return
+        key = str(choice.get("choice_id") or "")
+        if not key or key in seen:
+            return
+        seen.add(key)
+        if step:
+            choice["task_step"] = step
+        if next_action:
+            choice["next_action"] = next_action
+        choices.append(choice)
+
     for action in actions:
         if not isinstance(action, dict):
             continue
         route = str(action.get("route") or "")
         step = str(action.get("current_step") or "")
         target = str(action.get("target") or "")
-        choice = None
         if route == "scene-development" and step == "branch-selection":
-            choice = _branch_choice(root, target)
+            add_choice(_branch_choice(root, target), step, str(action.get("next_action") or ""))
         elif step == "asset-approval" or route == "character-and-world-assets" and "approval" in step:
-            choice = _approval_choice(route, target, "asset_approval", "候选设定需要你确认是否晋升。")
+            add_choice(_approval_choice(route, target, "asset_approval", "候选设定需要你确认是否晋升。"), step, str(action.get("next_action") or ""))
         elif step == "release-approval" or route == "export-and-release" and "approval" in step:
-            choice = _approval_choice(route, target, "release_approval", "发布前需要你确认是否放行。")
+            add_choice(_approval_choice(route, target, "release_approval", "发布前需要你确认是否放行。"), step, str(action.get("next_action") or ""))
         elif route == "longform-planning" and step in {"budget-review", "scene-inventory-review", "chapter-obligation-review"}:
-            choice = _direction_choice(route, target or "longform", "word_budget_direction")
-        if not choice:
-            continue
-        key = choice["choice_id"]
-        if key in seen:
-            continue
-        seen.add(key)
-        choice["task_step"] = step
-        choice["next_action"] = str(action.get("next_action") or "")
-        choices.append(choice)
+            add_choice(_direction_choice(route, target or "longform", "word_budget_direction"), step, str(action.get("next_action") or ""))
+        elif route == "scene-development" and step in {"candidate-review", "agent-review-task", "static-review", "revision-direction"}:
+            add_choice(_direction_choice(route, target or "scene", "revision_direction"), step, str(action.get("next_action") or ""))
+        elif route == "style-engineering":
+            add_choice(_style_mount_choice(root), step, str(action.get("next_action") or ""))
     for manifest in sorted((root / "branches").glob("*/branch_manifest.json")):
         scene_id = manifest.parent.name
         if (manifest.parent / "branch_selection.md").exists():
             continue
-        choice = _branch_choice(root, scene_id)
-        if choice and choice["choice_id"] not in seen:
-            seen.add(choice["choice_id"])
-            choices.append(choice)
+        add_choice(_branch_choice(root, scene_id))
+    for choice in _canon_patch_choices(root):
+        add_choice(choice)
+    add_choice(_style_mount_choice(root))
     return {
         "schema": "literary-engineering-workbench/current-human-choices/v0.1",
         "generated_at": _now(),
@@ -345,6 +354,23 @@ def _approval_choice(route: str, target: str, decision_type: str, summary: str) 
 
 def _direction_choice(route: str, target: str, decision_type: str) -> dict[str, object]:
     safe_target = _safe_target_id(target or "longform")
+    if decision_type == "revision_direction":
+        return {
+            "choice_id": _make_id("choice", decision_type, safe_target),
+            "route": route,
+            "decision_type": decision_type,
+            "title": f"{safe_target} 需要确认修订方向",
+            "summary": "用于记录你希望平台 Agent 在修订中优先处理的问题，正式正文仍需 revise/review/promote。",
+            "target": {"target_id": safe_target},
+            "source_paths": ["reviews/", "drafts/candidates/", "drafts/revisions/"],
+            "options": [
+                {"id": "fix_logic_first", "label": "先修因果逻辑", "summary": "优先处理人物动机、剧情因果和 canon 冲突。"},
+                {"id": "fix_style_first", "label": "先修文风和 AI 味", "summary": "优先处理句式、标点、节奏和文风偏移。"},
+                {"id": "expand_scene", "label": "扩写场景", "summary": "在不灌水的前提下补足动作、冲突和读者回报。"},
+                {"id": "ask_agent_compare", "label": "要求给出修订方案对比", "summary": "先让平台 Agent 提供多种修订策略再决定。"},
+            ],
+            "actions": ["记录修订方向"],
+        }
     return {
         "choice_id": _make_id("choice", decision_type, safe_target),
         "route": route,
@@ -359,6 +385,84 @@ def _direction_choice(route: str, target: str, decision_type: str) -> dict[str, 
             {"id": "ask_agent_replan", "label": "重新规划", "summary": "让平台 Agent 提出新的字数与结构方案。"},
         ],
         "actions": ["记录方向"],
+    }
+
+
+def _canon_patch_choices(root: Path) -> list[dict[str, object]]:
+    folder = root / "canon" / "patches"
+    if not folder.exists():
+        return []
+    choices: list[dict[str, object]] = []
+    for path in sorted(folder.glob("*_canon_patch.json"))[:80]:
+        payload = read_json_file(path)
+        if not payload or payload.get("applied"):
+            continue
+        change = payload.get("canon_change", "unknown")
+        if change is False or str(change).lower() == "false":
+            continue
+        scene_id = _safe_target_id(str(payload.get("scene_id") or path.stem.replace("_canon_patch", "")) or "canon")
+        patch_items = payload.get("items") if isinstance(payload.get("items"), list) else []
+        choices.append(
+            {
+                "choice_id": _make_id("choice", "canon_patch_approval", scene_id),
+                "route": "review-and-audit",
+                "decision_type": "canon_patch_approval",
+                "title": f"{scene_id} 有世界观写回候选",
+                "summary": "这会影响后续场景的世界规则和事实边界。选择只记录审批意图，正式写入仍要走 canon-apply。",
+                "target": {"scene_id": scene_id, "patch": _rel(path, root)},
+                "source_paths": [_rel(path, root), _rel(path.with_suffix(".md"), root)],
+                "recommended": "review_then_apply" if patch_items else "revise",
+                "options": [
+                    {"id": "approve", "label": "同意写回", "summary": "认可这批候选事实，后续仍需正式 apply。"},
+                    {"id": "revise", "label": "要求修改", "summary": "方向可以保留，但候选事实需要平台 Agent 重写。"},
+                    {"id": "defer", "label": "暂缓", "summary": "现在不写入 canon，先等待后续剧情确认。"},
+                    {"id": "reject", "label": "拒绝", "summary": "这批候选事实不应进入世界观。"},
+                ],
+                "actions": ["记录 canon 审批"],
+            }
+        )
+    return choices
+
+
+def _style_mount_choice(root: Path) -> dict[str, object] | None:
+    if (root / "style" / "active_style_skill.json").exists():
+        return None
+    options = []
+    for path in sorted((root / "style").glob("**/style_skill.json"))[:20]:
+        payload = read_json_file(path)
+        style_id = str(payload.get("style_id") or path.parent.name).strip()
+        if not style_id:
+            continue
+        options.append(
+            {
+                "id": style_id,
+                "label": truncate_text(str(payload.get("author") or style_id), 80),
+                "summary": truncate_text(str(payload.get("mode") or "项目内发现的文风候选。"), 180),
+            }
+        )
+    for path in sorted((root / "style").glob("**/style_prompt.md"))[:20]:
+        style_id = path.parent.name
+        if any(option["id"] == style_id for option in options):
+            continue
+        options.append(
+            {
+                "id": style_id,
+                "label": truncate_text(style_id, 80),
+                "summary": "项目内发现的文风提示词，可作为挂载候选继续评审。",
+            }
+        )
+    if not options:
+        return None
+    return {
+        "choice_id": _make_id("choice", "style_mount", "project-style"),
+        "route": "style-engineering",
+        "decision_type": "style_mount",
+        "title": "需要选择创作使用的文风",
+        "summary": "文风会作为表达层最高优先级约束。选择只记录意图，正式挂载仍需文风页或 style-lab mount。 ",
+        "target": {"target_id": "project-style"},
+        "source_paths": ["style/"],
+        "options": options[:8],
+        "actions": ["记录文风选择"],
     }
 
 
@@ -488,4 +592,3 @@ def _rel(path: Path, root: Path) -> str:
         return path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
         return str(path)
-

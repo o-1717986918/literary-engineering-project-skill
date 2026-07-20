@@ -1,7 +1,8 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-const UI_VERSION = "0.99.0";
+const UI_VERSION = "0.100.0";
 let dashboardTimer = null;
+let dashboardStream = null;
 let activityTimer = null;
 let activityStream = null;
 let libraryTimer = null;
@@ -12,6 +13,7 @@ let activeLibraryKind = "drafts";
 let currentChoices = [];
 let activityChoices = [];
 let selectedLibraryItem = null;
+let visibleLibraryItems = [];
 let serverHealth = null;
 
 const routeNames = {
@@ -763,26 +765,104 @@ function renderLibrary(result) {
     const count = counts[key] || 0;
     return `<button type="button" data-kind="${key}" class="${key === activeLibraryKind ? "active" : ""}">${escapeHtml(label)}<span>${escapeHtml(count)}</span></button>`;
   }).join("");
-  const items = Array.isArray(sections[activeLibraryKind]) ? sections[activeLibraryKind] : [];
-  renderLibraryList(items);
-  if (items.length) selectLibraryItem(items[0]);
+  const rawItems = Array.isArray(sections[activeLibraryKind]) ? sections[activeLibraryKind] : [];
+  const items = filterLibraryItems(rawItems);
+  renderLibraryList(items, rawItems.length);
+  if (items.length) selectLibraryItem(items[0], { keepList: true });
   else renderLibraryEmpty();
 }
 
-function renderLibraryList(items) {
+function renderLibraryList(items, total = items.length) {
+  visibleLibraryItems = items;
   $("#libraryList").classList.toggle("empty", !items.length);
-  $("#libraryList").innerHTML = items.length ? items.map((item, index) => `
+  $("#libraryList").innerHTML = items.length ? `
+    <div class="library-result-bar">
+      <span>显示 ${items.length} / ${total}</span>
+      <small>${escapeHtml(libraryFilterSummary())}</small>
+    </div>
+    ${items.map((item, index) => `
     <button type="button" class="library-item ${selectedLibraryItem?.id === item.id ? "active" : ""}" data-index="${index}">
       <span>${escapeHtml(item.subtitle || sectionNames[item.kind] || "档案")}</span>
       <b>${escapeHtml(item.title || item.id)}</b>
       <p>${escapeHtml(item.excerpt || "暂无摘要。")}</p>
       <footer>${renderBadges(item.badges)}</footer>
     </button>
-  `).join("") : "这个分类下还没有可展示内容。";
+  `).join("")}` : "这个分类下没有匹配内容。可以清空搜索或切换状态筛选。";
+}
+
+function filterLibraryItems(items) {
+  const form = $("#libraryForm");
+  const query = String(form?.query?.value || "").trim().toLowerCase();
+  const status = String(form?.status_filter?.value || "all");
+  const dedupe = form?.dedupe ? form.dedupe.checked : true;
+  let result = Array.isArray(items) ? items.slice() : [];
+  if (status !== "all") {
+    result = result.filter((item) => statusMatches(item, status));
+  }
+  if (query) {
+    result = result.filter((item) => librarySearchText(item).includes(query));
+  }
+  if (dedupe) {
+    result = dedupeLibraryItems(result);
+  }
+  return result;
+}
+
+function statusMatches(item, status) {
+  const value = String(item?.status || "").toLowerCase();
+  const subtitle = String(item?.subtitle || "").toLowerCase();
+  const badges = (item?.badges || []).join(" ").toLowerCase();
+  if (status === "promoted") return ["promoted", "chapter", "exported", "published"].includes(value) || subtitle.includes("已晋升") || subtitle.includes("正式");
+  if (status === "candidate") return value.includes("candidate") || subtitle.includes("候选") || badges.includes("候选");
+  if (status === "waiting_user_choice") return value.includes("waiting") || value.includes("approval") || badges.includes("等待");
+  if (status === "needs_review") return value.includes("review") || value.includes("needs") || value.includes("unknown") || badges.includes("审查");
+  if (status === "formal") return value === "formal" || subtitle.includes("正式") || badges.includes("正式");
+  if (status === "ready") return ["ready", "pass", "selected", "major"].includes(value) || badges.includes("可使用");
+  return true;
+}
+
+function librarySearchText(item) {
+  const parts = [
+    item?.id,
+    item?.title,
+    item?.subtitle,
+    item?.status,
+    item?.excerpt,
+    item?.path,
+    ...(item?.badges || []),
+    ...(item?.key_points || []),
+    ...(item?.facts || []).flatMap((fact) => [fact.label, fact.value]),
+    ...(item?.options || []).flatMap((option) => [option.label, option.summary, option.risk]),
+  ];
+  return parts.filter((part) => part !== undefined && part !== null).join(" ").toLowerCase();
+}
+
+function dedupeLibraryItems(items) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items) {
+    const title = String(item?.title || "").replace(/\s+/g, "");
+    const excerpt = String(item?.excerpt || "").replace(/\s+/g, "").slice(0, 80);
+    const key = `${item?.kind || activeLibraryKind}:${title}:${excerpt}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function libraryFilterSummary() {
+  const form = $("#libraryForm");
+  const pieces = [];
+  if (form?.query?.value) pieces.push(`搜索“${form.query.value}”`);
+  if (form?.status_filter?.value && form.status_filter.value !== "all") pieces.push(form.status_filter.selectedOptions[0]?.textContent || "状态筛选");
+  if (form?.dedupe?.checked) pieces.push("已合并相似条目");
+  return pieces.join(" / ") || "未启用筛选";
 }
 
 function renderLibraryEmpty() {
   selectedLibraryItem = null;
+  visibleLibraryItems = [];
   $("#libraryDetail").className = "library-detail empty";
   $("#libraryDetail").innerHTML = `
     <article class="detail-empty">
@@ -793,14 +873,16 @@ function renderLibraryEmpty() {
   `;
 }
 
-function selectLibraryItem(item) {
+function selectLibraryItem(item, selectOptions = {}) {
   selectedLibraryItem = item;
-  const items = librarySnapshot?.sections?.[activeLibraryKind] || [];
-  renderLibraryList(items);
+  if (!selectOptions.keepList) {
+    renderLibraryList(visibleLibraryItems.length ? visibleLibraryItems : filterLibraryItems(librarySnapshot?.sections?.[activeLibraryKind] || []));
+  }
   const body = item.body ? renderBody(item.body) : `<p>${escapeHtml(item.excerpt || "暂无正文或详情。")}</p>`;
   const facts = Array.isArray(item.facts) ? item.facts : [];
   const metrics = item.metrics || {};
-  const options = Array.isArray(item.options) && item.options.length ? `
+  const keyPoints = creativeKeyPoints(item);
+  const branchOptions = Array.isArray(item.options) && item.options.length ? `
     <div class="branch-options">
       ${item.options.map((option) => `
         <article class="${option.selected ? "selected" : ""}">
@@ -823,8 +905,17 @@ function selectLibraryItem(item) {
     </article>
     ${item.user_note ? `<aside class="user-note">你的备注：${escapeHtml(item.user_note)}</aside>` : ""}
     ${Object.keys(metrics).length ? renderMetricStrip(metrics) : ""}
+    ${keyPoints.length ? `
+      <section class="key-points">
+        <div>
+          <span>影响创作的关键点</span>
+          <small>平台 Agent 后续写作和审查应优先读取这些点</small>
+        </div>
+        <ul>${keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ul>
+      </section>
+    ` : ""}
     ${facts.length ? `<div class="fact-grid">${facts.map(renderFact).join("")}</div>` : ""}
-    ${options}
+    ${branchOptions}
     <div class="reader-body">${body}</div>
   `;
   const editForm = $("#editForm");
@@ -845,6 +936,26 @@ function renderFact(fact) {
       <b>${escapeHtml(fact.value ?? "未填写")}</b>
     </article>
   `;
+}
+
+function creativeKeyPoints(item) {
+  const points = Array.isArray(item.key_points) ? item.key_points.slice() : [];
+  if (!points.length && Array.isArray(item.facts)) {
+    points.push(...item.facts
+      .filter((fact) => fact && fact.value && !["未填写", "未设置", "0"].includes(String(fact.value)))
+      .slice(0, 4)
+      .map((fact) => `${fact.label}：${fact.value}`));
+  }
+  if (!points.length && item.excerpt) points.push(item.excerpt);
+  const seen = new Set();
+  return points
+    .map((point) => String(point || "").trim())
+    .filter((point) => {
+      if (!point || seen.has(point)) return false;
+      seen.add(point);
+      return true;
+    })
+    .slice(0, 5);
 }
 
 function renderMetricStrip(metrics) {
@@ -940,6 +1051,7 @@ function decisionTypeLabel(value) {
     style_mount: "文风挂载",
     asset_approval: "资产审批",
     release_approval: "发布审批",
+    canon_patch_approval: "Canon 写回审批",
     word_budget_direction: "字数方向",
     revision_direction: "修订方向",
     state_patch_confirmation: "状态确认",
@@ -1163,14 +1275,61 @@ async function mountStyle(styleId) {
 
 function toggleDashboardPoll() {
   const button = $("#toggleDashboardPoll");
-  if (dashboardTimer) {
-    clearInterval(dashboardTimer);
-    dashboardTimer = null;
+  if (dashboardTimer || dashboardStream) {
+    stopDashboardObservation();
     button.textContent = "观察项目变化";
     $("#dashboardStatus").textContent = "已停止观察";
     return;
   }
+  startDashboardObservation();
+}
+
+function stopDashboardObservation() {
+  if (dashboardStream) {
+    dashboardStream.close();
+    dashboardStream = null;
+  }
+  if (dashboardTimer) {
+    clearInterval(dashboardTimer);
+    dashboardTimer = null;
+  }
+}
+
+function startDashboardObservation() {
+  const root = sharedProjectRoot();
+  if (!root) throw new Error("请先填写当前项目目录。");
+  const button = $("#toggleDashboardPoll");
   const seconds = Math.max(3, Math.min(60, Number($("#dashboardForm").refresh_seconds.value) || 8));
+  const token = localStorage.getItem("lewApiToken") || "";
+  stopDashboardObservation();
+  if (window.EventSource && !token) {
+    const url = `/workflow/dashboard/stream?project_root=${encodeURIComponent(root)}&interval_seconds=${seconds}`;
+    dashboardStream = new EventSource(url);
+    dashboardStream.addEventListener("dashboard", async (event) => {
+      const result = JSON.parse(event.data);
+      const [library, activity] = await Promise.all([
+        api(`/project/library?project_root=${encodeURIComponent(root)}`).catch((error) => ({ ok: false, error: error.message || String(error) })),
+        loadActivitySnapshot(root).catch((error) => ({ ok: false, error: error.message || String(error) })),
+      ]);
+      if (library.ok !== false) librarySnapshot = library;
+      if (activity.ok !== false) activitySnapshot = activity;
+      renderDashboard(result, library, activity);
+      $("#dashboardStatus").textContent = result.dashboard?.generated_at ? `实时更新 ${formatTime(result.dashboard.generated_at)}` : "实时更新中";
+    });
+    dashboardStream.onerror = () => {
+      stopDashboardObservation();
+      startDashboardPolling(seconds);
+      $("#dashboardStatus").textContent = "流式连接中断，已切换为安全轮询。";
+    };
+    button.textContent = "停止观察";
+    $("#dashboardStatus").textContent = "正在建立流式连接";
+    return;
+  }
+  startDashboardPolling(seconds);
+}
+
+function startDashboardPolling(seconds) {
+  const button = $("#toggleDashboardPoll");
   guarded(loadDashboard);
   dashboardTimer = setInterval(() => guarded(loadDashboard), seconds * 1000);
   button.textContent = "停止观察";
@@ -1529,6 +1688,15 @@ function bind() {
     activeLibraryKind = event.target.value;
     if (librarySnapshot) renderLibrary(librarySnapshot);
   });
+  $("#libraryForm").query.addEventListener("input", () => {
+    if (librarySnapshot) renderLibrary(librarySnapshot);
+  });
+  $("#libraryForm").status_filter.addEventListener("change", () => {
+    if (librarySnapshot) renderLibrary(librarySnapshot);
+  });
+  $("#libraryForm").dedupe.addEventListener("change", () => {
+    if (librarySnapshot) renderLibrary(librarySnapshot);
+  });
   $("#libraryTabs").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-kind]");
     if (!button) return;
@@ -1539,7 +1707,7 @@ function bind() {
   $("#libraryList").addEventListener("click", (event) => {
     const button = event.target.closest(".library-item");
     if (!button || !librarySnapshot) return;
-    const items = librarySnapshot.sections?.[activeLibraryKind] || [];
+    const items = visibleLibraryItems;
     const item = items[Number(button.dataset.index)];
     if (item) selectLibraryItem(item);
   });

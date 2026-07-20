@@ -96,3 +96,4 @@
 - `phase96-swiss-editorial-frontend.md`：Swiss 编辑部视觉锚点与前端惊艳化
 - `phase97-editorial-icons-palette.md`：墨蓝纸白朱砂配色与 imagegen 编辑部图标
 - `phase98-agent-activity-cockpit.md`：Agent 任务推进驾驶舱、活动读模型与路线泳道
+- `phase99-stream-library-decision-panel.md`：总控 SSE、作品档案搜索筛选、创作关键点与人类决策卡扩展

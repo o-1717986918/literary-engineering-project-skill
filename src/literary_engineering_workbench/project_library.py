@@ -46,6 +46,7 @@ def build_project_library(project_root: Path) -> dict[str, object]:
         "rhythm": _rhythm_items(root, overrides),
         "canon_patches": _canon_patch_items(root, overrides),
     }
+    sections = {key: [_with_key_points(item) for item in value] for key, value in sections.items()}
     counts = {key: len(value) for key, value in sections.items()}
     project = _project_card(root, overrides)
     return {
@@ -585,6 +586,76 @@ def _apply_overrides(item: dict[str, object], overrides: dict[str, object]) -> d
         item["badges"] = list(item.get("badges", [])) + [str(tag) for tag in tags if str(tag).strip()]
     item["ui_overridden"] = True
     return item
+
+
+def _with_key_points(item: dict[str, object]) -> dict[str, object]:
+    """Attach concise creative-control points for the frontend reader."""
+
+    points: list[str] = []
+    kind = str(item.get("kind") or "")
+    status = str(item.get("status") or "")
+    facts = item.get("facts") if isinstance(item.get("facts"), list) else []
+    fact_map = {
+        str(fact.get("label") or ""): str(fact.get("value") or "")
+        for fact in facts
+        if isinstance(fact, dict) and str(fact.get("value") or "").strip()
+    }
+    if kind == "drafts":
+        points.append(f"正文状态：{item.get('subtitle') or status}，后续引用时应以该版本口径为准。")
+        if fact_map.get("目标字数") and fact_map["目标字数"] != "未设置":
+            points.append(f"字数目标：{fact_map['目标字数']}，生成或修订时不能只写成摘要。")
+    elif kind == "characters":
+        for label in ["背景故事", "当前欲望", "主要恐惧"]:
+            if fact_map.get(label) and fact_map[label] != "未填写":
+                points.append(f"{label}：{fact_map[label]}")
+    elif kind == "world":
+        points.append("这是正式世界观/情节资料，新增设定不能与它冲突。")
+    elif kind == "scenes":
+        for label in ["读者问题", "承诺回报", "目标字数", "参与者"]:
+            if fact_map.get(label) and fact_map[label] != "未填写":
+                points.append(f"{label}：{fact_map[label]}")
+    elif kind == "branches":
+        for label in ["推荐分支", "当前选择"]:
+            if fact_map.get(label) and fact_map[label] not in {"未给出", "未选择"}:
+                points.append(f"{label}：{fact_map[label]}")
+        if status == "waiting_user_choice":
+            points.append("正式进入编剧态前必须选定分支，不能让平台 Agent 自行默认。")
+    elif kind == "style":
+        points.append("文风是表达层最高优先级，会影响正文生成、修订和审查。")
+        if fact_map.get("是否就绪"):
+            points.append(f"可用性：{fact_map['是否就绪']}")
+    elif kind == "reviews":
+        points.append(f"审查状态：{status}。未通过或 pass_with_notes 都应回到修订闭环。")
+    elif kind == "word_budget":
+        for label in ["目标字数", "章节数", "场景数", "库存充分性"]:
+            value = fact_map.get(label)
+            if value and value not in {"0", "未填写"}:
+                points.append(f"{label}：{value}")
+    elif kind == "rhythm":
+        for label in ["场景功能", "本场转折", "出场钩子", "入场压力"]:
+            if fact_map.get(label) and fact_map[label] != "未填写":
+                points.append(f"{label}：{fact_map[label]}")
+    elif kind == "canon_patches":
+        points.append(f"Canon 变化：{fact_map.get('Canon 变化', status)}。未审批前只能作为候选。")
+        if fact_map.get("候选条目"):
+            points.append(f"待写回条目：{fact_map['候选条目']}")
+    excerpt = str(item.get("excerpt") or "").strip()
+    if excerpt and len(points) < 3:
+        points.append(truncate_text(excerpt, 160))
+    item["key_points"] = _unique_points(points)[:5]
+    return item
+
+
+def _unique_points(points: list[str]) -> list[str]:
+    seen = set()
+    result = []
+    for point in points:
+        text = truncate_text(str(point or "").strip(), 220)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
 
 
 def _read_text(path: Path) -> str:

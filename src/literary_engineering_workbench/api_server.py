@@ -700,6 +700,47 @@ def create_app(allowed_roots: list[str | Path] | None = None, api_token: str = "
             "rules": payload.get("rules", []),
         }
 
+    @app.get("/workflow/dashboard/stream")
+    def workflow_dashboard_stream(
+        project_root: str,
+        http_request: Request,
+        interval_seconds: float = 8.0,
+        max_events: int = 0,
+    ):
+        _require_api_token(http_request, token)
+        root = _safe_project_root(project_root, root_policy)
+        interval = max(3.0, min(60.0, float(interval_seconds or 8.0)))
+        limit = max(0, int(max_events or 0))
+
+        def stream():
+            sent = 0
+            while True:
+                result = build_workflow_dashboard(root)
+                payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+                data = {
+                    "ok": True,
+                    "project_root": str(root),
+                    "dashboard": payload,
+                    "summary": payload.get("summary", {}),
+                    "route_audits": payload.get("route_audits", []),
+                    "next_actions": payload.get("next_actions", []),
+                    "recent_events": payload.get("recent_events", []),
+                    "paths": {
+                        "markdown": _rel_str(result.markdown_path, root),
+                        "json": _rel_str(result.json_path, root),
+                        "html": _rel_str(result.html_path, root),
+                    },
+                    "rules": payload.get("rules", []),
+                }
+                yield "event: dashboard\n"
+                yield "data: " + json.dumps(data, ensure_ascii=False) + "\n\n"
+                sent += 1
+                if limit and sent >= limit:
+                    break
+                time.sleep(interval)
+
+        return StreamingResponse(stream(), media_type="text/event-stream")
+
     @app.get("/workflow/activity")
     def workflow_activity(project_root: str, http_request: Request, limit: int = 30):
         _require_api_token(http_request, token)
